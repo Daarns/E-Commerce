@@ -64,12 +64,14 @@ func main() {
 	addressRepo := repositories.NewAddressRepository(db)
 	orderRepo := repositories.NewOrderRepository(db)
 	promoCodeRepo := repositories.NewPromoCodeRepository(db)
+	newsletterRepo := repositories.NewNewsletterRepository(db)
 
 	// Initialize Services
 	authService := services.NewAuthService(userRepo, jwtManager)
 	productService := services.NewProductService(productRepo, categoryRepo)
 	cartService := services.NewCartService(cartRepo, addressRepo, productRepo)
 	orderService := services.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo)
+	newsletterService := services.NewNewsletterService(newsletterRepo)
 
 	// Initialize Handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -128,6 +130,9 @@ func main() {
 			categoryRoutes.GET("/:identifier", categoryHandler.GetCategory)
 			categoryRoutes.GET("/:identifier/products", categoryHandler.GetCategoryWithProducts)
 		}
+
+		// Newsletter routes (public - no auth required)
+		handlers.RegisterNewsletterRoutes(v1, newsletterService)
 
 		// Product routes (public - read only)
 		productRoutes := v1.Group("/products")
