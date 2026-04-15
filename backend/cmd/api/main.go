@@ -50,10 +50,32 @@ func main() {
 	log.Println("✅ Redis connected")
 
 	// Initialize JWT Manager
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatalf("JWT_SECRET environment variable is required")
+	}
+	if len(jwtSecret) < 32 {
+		log.Fatalf("JWT_SECRET must be at least 32 characters long (for security)")
+	}
+
+	accessTokenExpiry := 15 * time.Minute
+	if expiry := os.Getenv("JWT_EXPIRY"); expiry != "" {
+		if dur, err := time.ParseDuration(expiry); err == nil {
+			accessTokenExpiry = dur
+		}
+	}
+
+	refreshTokenExpiry := 7 * 24 * time.Hour
+	if expiry := os.Getenv("REFRESH_TOKEN_EXPIRY"); expiry != "" {
+		if dur, err := time.ParseDuration(expiry); err == nil {
+			refreshTokenExpiry = dur
+		}
+	}
+
 	jwtManager := jwt.NewManager(jwt.Config{
-		SecretKey:            os.Getenv("JWT_SECRET"),
-		AccessTokenDuration:  15 * time.Minute,
-		RefreshTokenDuration: 7 * 24 * time.Hour,
+		SecretKey:            jwtSecret,
+		AccessTokenDuration:  accessTokenExpiry,
+		RefreshTokenDuration: refreshTokenExpiry,
 	})
 
 	// Initialize Repositories
