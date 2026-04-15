@@ -1,0 +1,43 @@
+# Binaries & Build Artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+main
+bin/
+
+# Vendor
+vendor/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Air hot reload
+tmp/
+build-errors.log
+
+# Logs
+*.log
+logs/
+
+# Testing
+coverage.txt
+*.cover
+*.coverprofile
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (runtime generated)
+uploads/

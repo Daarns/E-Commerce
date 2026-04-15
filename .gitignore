@@ -1,0 +1,82 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+vendor/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+tmp/
+backend/tmp/
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Copilot/IDE workspace
+.vscode/*
+.idea/
+!.vscode/settings.json
+!.vscode/extensions.json
+.agents/
+
+# Copilot instructions (local)
+copilot-instructions.md
+*.copilotmd
+
+# Skills lock (auto-generated)
+skills-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker volumes
+docker/postgres/data/
+docker/redis/data/
+
+# Testing
+coverage/
+*.cover
+*.coverprofile
+
+# Temporary files
+*.tmp
+temp/
+
+# Session/test data (don't commit)
+address_id.txt
+cart_data.json
+*.http
+api-tests.http
+auth-tests.http
+backend-test.http
+
+# Upload directories (generated at runtime)
+backend/uploads/
+uploads/
+
+# Development documentation (internal use only)
+.dev-docs/
