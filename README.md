@@ -44,7 +44,7 @@ Production-ready E-Commerce platform showcasing best practices in software archi
 - [x] Full-text search (PostgreSQL)
 - [ ] Message queue for async processing
 - [ ] Real-time notifications
-- [ ] Caching strategy (Redis)
+- [x] Caching strategy (Redis-compatible, currently in-memory implementation)
 
 ### Quality & Testing
 - [ ] Unit tests (>80% coverage)
@@ -349,17 +349,54 @@ main (production-ready)
 - [x] Verified clean architecture structure
 - [x] Build verification completed
 
+**Phase 9: Payment & Notification Foundation (Completed)**
+- [x] Homepage Discovery APIs (featured, bestsellers, new arrivals, categories)
+  - GET /api/v1/discovery/featured, /bestsellers, /new-arrivals, /categories
+  - Redis caching (5-minute TTL) for performance
+  - Pagination & filtering support
+  - Comprehensive unit tests (10+ tests)
+- [x] Product Image Upload & Optimization
+  - POST /api/v1/admin/products/:id/images (image upload handler)
+  - File validation (JPG/PNG/WebP, max 5MB)
+  - Automatic resizing (multiple sizes: 800x600, 400x300, 200x150)
+  - Image reordering (PUT /api/v1/admin/products/:id/images/reorder)
+  - Comprehensive tests (10+ tests)
+- [x] Admin Promo Code System
+  - POST/GET/PUT/DELETE /api/v1/admin/promo-codes (CRUD operations)
+  - Promo code validation (format, date ranges, discount types)
+  - Discount calculation (percentage or fixed amount)
+  - Role-based access control (admin only)
+  - Comprehensive tests (13+ tests)
+- [x] Payment Webhook Integration - Midtrans
+  - POST /api/v1/webhooks/payment (webhook endpoint)
+  - SHA512 signature verification
+  - Payment status mapping (settlement, capture, deny, cancel, expire)
+  - Automatic order status updates (pending → payment_confirmed)
+  - Idempotency checking (prevent duplicate processing)
+  - Configuration from environment variables
+  - Comprehensive tests (27+ tests)
+- [x] Newsletter Subscription System
+  - POST /api/v1/newsletters/subscribe (subscription)
+  - POST /api/v1/newsletters/confirm/:token (confirmation)
+  - POST /api/v1/newsletters/unsubscribe (unsubscribe)
+  - GET /api/v1/newsletters/status/:email (status check)
+  - Double-opt-in with 24-hour token expiry
+  - Email validation (RFC 5322 + domain checks)
+  - Soft delete support for compliance
+  - Database migration with proper indexes
+  - Comprehensive tests (20+ tests)
+
 ### 🚧 In Progress / Pending
 
 **Backend Tasks:**
-- [ ] Homepage API endpoints (featured products, categories, banners)
-- [ ] Image upload handler (product images, avatar)
-- [ ] Newsletter subscription endpoint
-- [ ] Payment webhook integration (Midtrans)
-- [ ] Promo code / discount system (admin)
-- [ ] Order status workflow automation
-- [ ] Email notifications queue system
-- [ ] Admin dashboard endpoints (analytics, reports)
+- [ ] Email notification service (send confirmation, order, payment, status emails)
+- [ ] Email queue system (async processing, retry logic)
+- [ ] Order status workflow automation (auto-send emails on status change)
+- [ ] Admin dashboard endpoints (analytics, reports, user management)
+- [ ] Product reviews & ratings system
+- [ ] Wishlist/favorites feature
+- [ ] Live chat integration
+- [ ] Full-text search improvements (Elasticsearch optional)
 
 **Frontend Tasks:**
 - [ ] Wishlist/favorites feature
