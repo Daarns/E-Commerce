@@ -27,13 +27,13 @@ Production-ready E-Commerce platform showcasing best practices in software archi
 ### Core Features
 - [x] Clean Architecture implementation
 - [x] Rate limiting & throttling
-- [x] JWT authentication with refresh tokens (environment-based config, 10+ tests)
+- [x] JWT authentication with dual secrets (AccessToken + RefreshToken, environment-based, 12+ tests)
 - [x] Role-based access control (RBAC)
 - [x] Product catalog with search
 - [x] Shopping cart (guest & authenticated)
 - [x] Order management & checkout
 - [x] Admin dashboard with CRUD operations
-- [ ] Payment integration (Midtrans Sandbox - webhook working, need order→payment flow)
+- [x] Payment integration (Midtrans Sandbox - webhook working)
 - [ ] Frontend development
 
 ### Advanced Patterns
@@ -234,7 +234,10 @@ Copy `.env.example` and configure:
 - `PORT` - Server port (default: 8080)
 - `DB_*` - PostgreSQL connection settings
 - `REDIS_*` - Redis connection settings
-- `JWT_SECRET` - Secret key for JWT tokens (min 32 chars)
+- `JWT_ACCESS_SECRET` - Secret key for access tokens (min 32 chars, generate with: openssl rand -base64 32)
+- `JWT_REFRESH_SECRET` - Secret key for refresh tokens (min 32 chars, generate with: openssl rand -base64 32)
+- `JWT_EXPIRY` - Access token expiry (default: 15m)
+- `REFRESH_TOKEN_EXPIRY` - Refresh token expiry (default: 168h)
 
 ### Frontend (.env.local)
 Copy `.env.example` and configure:
@@ -387,6 +390,20 @@ main (production-ready)
   - Soft delete support for compliance
   - Database migration with proper indexes
   - Comprehensive tests (20+ tests)
+- [x] Dual JWT Secrets for Enhanced Security
+  - Separate JWT_ACCESS_SECRET and JWT_REFRESH_SECRET
+  - Access token lifetime: 15 minutes
+  - Refresh token lifetime: 7 days (now JWT-based)
+  - Independent secret rotation capability
+  - Comprehensive tests (12+ tests)
+
+**Phase 9F: Email Notification Service (In Progress)**
+- [ ] Email service configuration (SMTP setup)
+- [ ] Email templates (order confirmation, payment, status updates)
+- [ ] Email sending service with retry logic
+- [ ] Async email queue (background job processing)
+- [ ] Newsletter emails (opt-in/out)
+- [ ] Comprehensive tests
 
 ### 🚧 In Progress / Pending
 
