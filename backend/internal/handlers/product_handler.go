@@ -1,15 +1,16 @@
 package handlers
 
 import (
+	"ecommerce-backend/internal/models"
 	"ecommerce-backend/internal/repositories"
 	"ecommerce-backend/internal/services"
 	"ecommerce-backend/pkg/response"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
-	"time"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -257,8 +258,9 @@ func (h *ProductHandler) GetRelatedProducts(c *gin.Context) {
 
 // ===== IMAGE ENDPOINTS =====
 
-// UploadProductImage handles image upload
+// UploadProductImage handles single or multiple image uploads
 // POST /api/v1/admin/products/:id/images
+// Supports multipart form with "images" field for multiple files
 func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 	productID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -266,54 +268,108 @@ func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 		return
 	}
 
-	// Get file from form
-	file, err := c.FormFile("image")
+	// Verify product exists
+	_, err = h.useCase.GetProduct(productID)
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "NO_FILE", "Image file is required")
+		response.Error(c, http.StatusNotFound, "PRODUCT_NOT_FOUND", "Product not found")
 		return
 	}
 
-	// Validate file
-	if err := h.useCase.ValidateImageFile(file); err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_FILE", err.Error())
-		return
-	}
-
-	// Create uploads directory if not exists
-	uploadDir := "uploads/products"
-	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
-		response.Error(c, http.StatusInternalServerError, "UPLOAD_FAILED", "Failed to create upload directory")
-		return
-	}
-
-	// Generate unique filename
-	ext := filepath.Ext(file.Filename)
-	filename := fmt.Sprintf("%s_%d%s", productID.String(), time.Now().UnixNano(), ext)
-	filepath := filepath.Join(uploadDir, filename)
-
-	// Save file
-	if err := c.SaveUploadedFile(file, filepath); err != nil {
-		response.Error(c, http.StatusInternalServerError, "UPLOAD_FAILED", "Failed to save image")
-		return
-	}
-
-	// Create image record
-	imageURL := "/" + filepath
-	altText := c.PostForm("alt_text")
-	position := 0
-	if pos, err := strconv.Atoi(c.PostForm("position")); err == nil {
-		position = pos
-	}
-
-	image, err := h.useCase.AddProductImage(productID, imageURL, altText, position)
+	// Get form with multiple files
+	form, err := c.MultipartForm()
 	if err != nil {
-		// Cleanup uploaded file on error
-		os.Remove(filepath)
-		response.Error(c, http.StatusBadRequest, "ADD_IMAGE_FAILED", err.Error())
+		response.Error(c, http.StatusBadRequest, "NO_FILES", "No image files provided")
 		return
 	}
 
-	response.Created(c, image)
+	files := form.File["images"]
+	if len(files) == 0 {
+		// Fallback to single file "image" for backward compatibility
+		file, err := c.FormFile("image")
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "NO_FILES", "At least one image file is required")
+			return
+		}
+		files = []*multipart.FileHeader{file}
+	}
+
+	// Validate all files using image service
+	imageService := services.NewImageService("")
+	if validationErrs := imageService.ValidateImageFiles(files); len(validationErrs) > 0 {
+		errMsg := ""
+		for _, e := range validationErrs {
+			errMsg += e.Error() + "; "
+		}
+		response.Error(c, http.StatusBadRequest, "VALIDATION_FAILED", strings.TrimSuffix(errMsg, "; "))
+		return
+	}
+
+	// Process all files
+	var uploadedImages []*models.ProductImage
+	var uploadedFilePaths []string
+
+	for i, file := range files {
+		// Get optional metadata for this image
+		altTexts := form.Value["alt_text"]
+		altText := ""
+		if i < len(altTexts) {
+			altText = altTexts[i]
+		}
+
+		positions := form.Value["position"]
+		position := i // Default to order they were uploaded
+		if i < len(positions) {
+			if pos, err := strconv.Atoi(positions[i]); err == nil {
+				position = pos
+			}
+		}
+
+		// Optimize image
+		optimizedData, _, err := imageService.OptimizeImage(file, 2000, 2000)
+		if err != nil {
+			// Cleanup previous uploads
+			for _, path := range uploadedFilePaths {
+				os.Remove(path)
+			}
+			response.Error(c, http.StatusInternalServerError, "OPTIMIZATION_FAILED", 
+				fmt.Sprintf("Failed to optimize image %d: %v", i+1, err))
+			return
+		}
+
+		// Save optimized image
+		imageURL, err := imageService.SaveImageToStorage(optimizedData, file.Filename)
+		if err != nil {
+			// Cleanup previous uploads
+			for _, path := range uploadedFilePaths {
+				os.Remove(path)
+			}
+			response.Error(c, http.StatusInternalServerError, "SAVE_FAILED", 
+				fmt.Sprintf("Failed to save image %d: %v", i+1, err))
+			return
+		}
+
+		uploadedFilePaths = append(uploadedFilePaths, imageURL)
+
+		// Create image record using service layer
+		image, err := h.useCase.AddProductImage(productID, imageURL, altText, position)
+		if err != nil {
+			// Cleanup on database error
+			for _, path := range uploadedFilePaths {
+				os.Remove(path)
+			}
+			response.Error(c, http.StatusInternalServerError, "DATABASE_FAILED", 
+				fmt.Sprintf("Failed to save image record %d: %v", i+1, err))
+			return
+		}
+
+		uploadedImages = append(uploadedImages, image)
+	}
+
+	// Return response with all uploaded images
+	response.Created(c, gin.H{
+		"message": fmt.Sprintf("Successfully uploaded %d image(s)", len(uploadedImages)),
+		"images":  uploadedImages,
+	})
 }
 
 // DeleteProductImage removes an image
