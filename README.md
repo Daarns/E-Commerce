@@ -429,7 +429,24 @@ main (production-ready)
 
 ### 🚧 In Progress / Pending
 
-**Backend Tasks:**
+**Phase 9H: Order Status Workflow & Newsletter Preferences (Completed)**
+- [x] Order Status Workflow Automation
+  - Order status transitions: pending → payment_confirmed → processing → shipped → delivered
+  - Email auto-queuing on status change (5 email types)
+  - Valid transition enforcement (prevent invalid workflows)
+  - OrderStatusWorkflow model with email trigger tracking
+  - Repository with CRUD + statistics
+  - 20+ comprehensive tests
+
+- [x] Newsletter Category Preferences (Progressive Opt-in)
+  - Category preference storage (JSONB)
+  - Notification frequency control (daily/weekly/monthly/never)
+  - User preferences settings endpoints (ready for handlers)
+  - Service methods for preference-based filtering
+  - 15+ comprehensive tests
+  - Preference timestamp tracking
+
+**Backend Tasks (Remaining):**
 - [ ] Order status workflow automation (auto-send emails on status change)
 - [ ] Admin dashboard endpoints (analytics, reports, user management)
 - [ ] Product reviews & ratings system
