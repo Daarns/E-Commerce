@@ -425,3 +425,35 @@ func (r *ProductRepository) GetRelatedProducts(productID uuid.UUID, categoryID u
 	
 	return products, err
 }
+
+// GetBestSellers retrieves best selling products based on sold count in last 30 days
+func (r *ProductRepository) GetBestSellers(limit int) ([]models.Product, error) {
+	var products []models.Product
+	
+	err := r.db.Where("status = ? AND stock_quantity > 0", "active").
+		Preload("Category").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC").Limit(1)
+		}).
+		Order("sold_count DESC, created_at DESC").
+		Limit(limit).
+		Find(&products).Error
+	
+	return products, err
+}
+
+// GetNewArrivals retrieves recently created products
+func (r *ProductRepository) GetNewArrivals(limit int) ([]models.Product, error) {
+	var products []models.Product
+	
+	err := r.db.Where("status = ? AND stock_quantity > 0", "active").
+		Preload("Category").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC").Limit(1)
+		}).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&products).Error
+	
+	return products, err
+}
