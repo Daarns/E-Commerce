@@ -191,8 +191,11 @@ func (uc *AuthService) generateAuthResponse(user *models.User) (*AuthResponse, e
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	// Generate refresh token
-	refreshTokenString := uc.jwtManager.GenerateRefreshToken()
+	// Generate refresh token (now returns JWT)
+	refreshTokenString, err := uc.jwtManager.GenerateRefreshToken(user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
 
 	// Save refresh token to database
 	refreshToken := &models.RefreshToken{
