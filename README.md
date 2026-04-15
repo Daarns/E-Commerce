@@ -27,13 +27,13 @@ Production-ready E-Commerce platform showcasing best practices in software archi
 ### Core Features
 - [x] Clean Architecture implementation
 - [x] Rate limiting & throttling
-- [x] JWT authentication with refresh tokens
+- [x] JWT authentication with refresh tokens (environment-based config, 10+ tests)
 - [x] Role-based access control (RBAC)
 - [x] Product catalog with search
 - [x] Shopping cart (guest & authenticated)
 - [x] Order management & checkout
 - [x] Admin dashboard with CRUD operations
-- [ ] Payment integration (Midtrans Sandbox)
+- [ ] Payment integration (Midtrans Sandbox - webhook working, need order→payment flow)
 - [ ] Frontend development
 
 ### Advanced Patterns
@@ -304,10 +304,12 @@ main (production-ready)
 
 **Phase 3: Authentication System**
 - [x] User model and database schema
-- [x] JWT authentication (access + refresh tokens)
+- [x] JWT authentication (access + refresh tokens with configurable expiry)
 - [x] User registration and login endpoints
 - [x] Password hashing with bcrypt
 - [x] Auth middleware for protected routes
+- [x] Environment-based JWT configuration (JWT_SECRET, JWT_EXPIRY, REFRESH_TOKEN_EXPIRY)
+- [x] Comprehensive unit tests for token generation, validation, and expiry (10+ tests)
 
 **Phase 4: Product & Cart Features**
 - [x] Product CRUD operations
