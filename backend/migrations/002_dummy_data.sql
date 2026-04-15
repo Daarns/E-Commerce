@@ -8,12 +8,13 @@
 -- ============================================================================
 
 -- Test Users
+-- Password: password123 (bcrypt cost 12)
 INSERT INTO users (id, email, password_hash, name, phone, role, is_verified, is_active, last_login_at) VALUES
-('550e8400-e29b-41d4-a716-446655440001', 'customer1@example.com', '$2a$10$YIjlrPNoM0dVmN7DiRvHiOCJrMP9c.NtzHD7bQQf0RrGmfK9N5bYi', 'Budi Santoso', '08123456789', 'customer', true, true, NOW()),
-('550e8400-e29b-41d4-a716-446655440002', 'customer2@example.com', '$2a$10$YIjlrPNoM0dVmN7DiRvHiOCJrMP9c.NtzHD7bQQf0RrGmfK9N5bYi', 'Siti Nurhaliza', '08234567890', 'customer', true, true, NOW()),
-('550e8400-e29b-41d4-a716-446655440003', 'customer3@example.com', '$2a$10$YIjlrPNoM0dVmN7DiRvHiOCJrMP9c.NtzHD7bQQf0RrGmfK9N5bYi', 'Ahmad Wijaya', '08345678901', 'customer', true, true, NULL),
-('550e8400-e29b-41d4-a716-446655440004', 'admin@example.com', '$2a$10$YIjlrPNoM0dVmN7DiRvHiOCJrMP9c.NtzHD7bQQf0RrGmfK9N5bYi', 'Admin User', '08456789012', 'admin', true, true, NOW()),
-('550e8400-e29b-41d4-a716-446655440005', 'unverified@example.com', '$2a$10$YIjlrPNoM0dVmN7DiRvHiOCJrMP9c.NtzHD7bQQf0RrGmfK9N5bYi', 'Unverified User', '08567890123', 'customer', false, true, NULL);
+('550e8400-e29b-41d4-a716-446655440001', 'customer1@example.com', '$2a$12$D286.qPgYSsf.8bMJxpTquBMCxJRzKz6Zu1DT3DzMGoRT.q5GNP3W', 'Budi Santoso', '08123456789', 'customer', true, true, NOW()),
+('550e8400-e29b-41d4-a716-446655440002', 'customer2@example.com', '$2a$12$D286.qPgYSsf.8bMJxpTquBMCxJRzKz6Zu1DT3DzMGoRT.q5GNP3W', 'Siti Nurhaliza', '08234567890', 'customer', true, true, NOW()),
+('550e8400-e29b-41d4-a716-446655440003', 'customer3@example.com', '$2a$12$D286.qPgYSsf.8bMJxpTquBMCxJRzKz6Zu1DT3DzMGoRT.q5GNP3W', 'Ahmad Wijaya', '08345678901', 'customer', true, true, NULL),
+('550e8400-e29b-41d4-a716-446655440004', 'admin@example.com', '$2a$12$D286.qPgYSsf.8bMJxpTquBMCxJRzKz6Zu1DT3DzMGoRT.q5GNP3W', 'Admin User', '08456789012', 'admin', true, true, NOW()),
+('550e8400-e29b-41d4-a716-446655440005', 'unverified@example.com', '$2a$12$D286.qPgYSsf.8bMJxpTquBMCxJRzKz6Zu1DT3DzMGoRT.q5GNP3W', 'Unverified User', '08567890123', 'customer', false, true, NULL);
 
 -- ============================================================================
 -- CATEGORIES
@@ -57,11 +58,11 @@ INSERT INTO products (id, name, slug, sku, description, short_description, regul
 
 INSERT INTO product_images (id, product_id, image_url, alt_text, display_order, is_primary) VALUES
 -- iPhone 15 Pro images
-('880e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440001', 'https://via.placeholder.com/400x400?text=iPhone+15+Pro+Front', 'iPhone 15 Pro front view', 1, true),
-('880e8400-e29b-41d4-a716-446655440002', '770e8400-e29b-41d4-a716-446655440001', 'https://via.placeholder.com/400x400?text=iPhone+15+Pro+Back', 'iPhone 15 Pro back view', 2, false),
+('880e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440001', 'https://images.unsplash.com/photo-1592286927505-1def25115558?w=400&h=400&fit=crop', 'iPhone 15 Pro premium smartphone', 1, true),
+('880e8400-e29b-41d4-a716-446655440002', '770e8400-e29b-41d4-a716-446655440001', 'https://images.unsplash.com/photo-1511707267537-b85faf00021e?w=400&h=400&fit=crop', 'iPhone 15 Pro back camera', 2, false),
 -- Samsung Galaxy S24 images
-('880e8400-e29b-41d4-a716-446655440003', '770e8400-e29b-41d4-a716-446655440002', 'https://via.placeholder.com/400x400?text=Samsung+S24+Front', 'Samsung Galaxy S24 front view', 1, true),
-('880e8400-e29b-41d4-a716-446655440004', '770e8400-e29b-41d4-a716-446655440002', 'https://via.placeholder.com/400x400?text=Samsung+S24+Back', 'Samsung Galaxy S24 back view', 2, false);
+('880e8400-e29b-41d4-a716-446655440003', '770e8400-e29b-41d4-a716-446655440002', 'https://images.unsplash.com/photo-1511431281981-46f9e88e46f4?w=400&h=400&fit=crop', 'Samsung Galaxy S24 flagship', 1, true),
+('880e8400-e29b-41d4-a716-446655440004', '770e8400-e29b-41d4-a716-446655440002', 'https://images.unsplash.com/photo-1512821776310-52581002a659?w=400&h=400&fit=crop', 'Samsung Galaxy S24 side view', 2, false);
 
 -- ============================================================================
 -- PRODUCT VARIANTS
