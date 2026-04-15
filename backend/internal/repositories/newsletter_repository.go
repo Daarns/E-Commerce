@@ -142,6 +142,58 @@ func (r *NewsletterRepository) Update(subscription *models.NewsletterSubscriptio
 	return r.db.Save(subscription).Error
 }
 
+// UpdatePreferences updates user's category preferences and notification frequency
+func (r *NewsletterRepository) UpdatePreferences(email string, categories []string, frequency string) error {
+	email = strings.ToLower(email)
+	now := time.Now()
+	return r.db.Model(&models.NewsletterSubscription{}).
+		Where("email = ?", email).
+		Updates(map[string]interface{}{
+			"category_preferences":   categories,
+			"notification_frequency": frequency,
+			"preferences_updated_at": now,
+		}).Error
+}
+
+// GetByFrequency retrieves subscriptions by notification frequency
+func (r *NewsletterRepository) GetByFrequency(frequency string, limit, offset int) ([]models.NewsletterSubscription, error) {
+	var subscriptions []models.NewsletterSubscription
+	err := r.db.
+		Where("status = ? AND notification_frequency = ?", models.NewsletterStatusSubscribed, frequency).
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&subscriptions).Error
+
+	return subscriptions, err
+}
+
+// GetSubscribedWithCategories retrieves subscriptions that have category preferences
+func (r *NewsletterRepository) GetSubscribedWithCategories(limit, offset int) ([]models.NewsletterSubscription, error) {
+	var subscriptions []models.NewsletterSubscription
+	err := r.db.
+		Where("status = ? AND category_preferences != '[]'", models.NewsletterStatusSubscribed).
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&subscriptions).Error
+
+	return subscriptions, err
+}
+
+// GetWithoutPreferences retrieves subscriptions without set preferences (for onboarding nudge)
+func (r *NewsletterRepository) GetWithoutPreferences(limit, offset int) ([]models.NewsletterSubscription, error) {
+	var subscriptions []models.NewsletterSubscription
+	err := r.db.
+		Where("status = ? AND (category_preferences = '[]' OR category_preferences IS NULL)", models.NewsletterStatusSubscribed).
+		Order("subscribed_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&subscriptions).Error
+
+	return subscriptions, err
+}
+
 // Delete soft-deletes a subscription
 func (r *NewsletterRepository) Delete(id uuid.UUID) error {
 	return r.db.Delete(&models.NewsletterSubscription{}, "id = ?", id).Error

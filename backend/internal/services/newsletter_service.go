@@ -22,6 +22,7 @@ type NewsletterRepositoryInterface interface {
 	ConfirmSubscription(email string) error
 	Unsubscribe(email string) error
 	Update(subscription *models.NewsletterSubscription) error
+	UpdatePreferences(email string, categories []string, frequency string) error
 	Delete(id uuid.UUID) error
 	GetAllSubscribed(limit, offset int) ([]models.NewsletterSubscription, error)
 	GetSubscribedCount() (int64, error)
@@ -290,3 +291,120 @@ func (s *NewsletterService) IsTokenExpired(expiresAt *time.Time) bool {
 	}
 	return time.Now().After(*expiresAt)
 }
+
+// UpdatePreferencesRequest represents preference update request
+type UpdatePreferencesRequest struct {
+	Email                 string   `json:"email" binding:"required"`
+	CategoryPreferences   []string `json:"category_preferences" binding:""`
+	NotificationFrequency string   `json:"notification_frequency" binding:"required"`
+}
+
+// PreferencesResponse represents preference response
+type PreferencesResponse struct {
+	Success               bool     `json:"success"`
+	Message               string   `json:"message"`
+	Email                 string   `json:"email"`
+	CategoryPreferences   []string `json:"category_preferences"`
+	NotificationFrequency string   `json:"notification_frequency"`
+}
+
+// GetPreferences retrieves user's newsletter preferences
+func (s *NewsletterService) GetPreferences(email string) (*PreferencesResponse, error) {
+	if err := s.ValidateEmail(email); err != nil {
+		return nil, err
+	}
+
+	email = strings.ToLower(email)
+	subscription, err := s.repo.GetByEmail(email)
+	if err != nil {
+		return nil, fmt.Errorf("email not found in newsletter")
+	}
+
+	if !subscription.IsConfirmed() {
+		return nil, fmt.Errorf("email not confirmed for newsletter")
+	}
+
+	return &PreferencesResponse{
+		Success:               true,
+		Email:                 subscription.Email,
+		CategoryPreferences:   subscription.GetCategoryPreferences(),
+		NotificationFrequency: subscription.NotificationFrequency,
+	}, nil
+}
+
+// UpdatePreferences updates user's newsletter preferences
+func (s *NewsletterService) UpdatePreferences(email string, categories []string, frequency string) (*PreferencesResponse, error) {
+	// Validate email
+	if err := s.ValidateEmail(email); err != nil {
+		return nil, err
+	}
+
+	email = strings.ToLower(email)
+
+	// Validate frequency
+	validFrequencies := map[string]bool{
+		models.NotificationFrequencyDaily:   true,
+		models.NotificationFrequencyWeekly:  true,
+		models.NotificationFrequencyMonthly: true,
+		models.NotificationFrequencyNever:   true,
+	}
+	if !validFrequencies[frequency] {
+		return nil, fmt.Errorf("invalid notification frequency: %s", frequency)
+	}
+
+	// Get subscription
+	subscription, err := s.repo.GetByEmail(email)
+	if err != nil {
+		return nil, fmt.Errorf("email not found in newsletter")
+	}
+
+	if !subscription.IsConfirmed() {
+		return nil, fmt.Errorf("email not confirmed for newsletter")
+	}
+
+	// Update preferences
+	if err := s.repo.UpdatePreferences(email, categories, frequency); err != nil {
+		return nil, fmt.Errorf("failed to update preferences: %w", err)
+	}
+
+	return &PreferencesResponse{
+		Success:               true,
+		Message:               "Preferences updated successfully",
+		Email:                 email,
+		CategoryPreferences:   categories,
+		NotificationFrequency: frequency,
+	}, nil
+}
+
+// CanReceiveNewsletter checks if user should receive newsletter
+func (s *NewsletterService) CanReceiveNewsletter(subscription *models.NewsletterSubscription) bool {
+	return subscription.CanReceiveNewsletter()
+}
+
+// FilterProductsByPreferences filters products based on user preferences
+func (s *NewsletterService) FilterProductsByPreferences(subscription *models.NewsletterSubscription, products []models.Product) []models.Product {
+	if !subscription.IsNotificationsEnabled() {
+		return []models.Product{}
+	}
+
+	categories := subscription.GetCategoryPreferences()
+	if len(categories) == 0 {
+		return products
+	}
+
+	// Filter products matching user's preferred categories
+	filtered := []models.Product{}
+	categoryMap := make(map[string]bool)
+	for _, cat := range categories {
+		categoryMap[cat] = true
+	}
+
+	for _, product := range products {
+		if categoryMap[product.CategoryID.String()] || categoryMap[product.Category.Slug] {
+			filtered = append(filtered, product)
+		}
+	}
+
+	return filtered
+}
+
