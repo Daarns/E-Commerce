@@ -1,4 +1,4 @@
--- Dummy Data for E-Commerce Platform
+-- Dummy Data for E-Commerce Platform (CORRECTED for Schema)
 -- Migration: 002_dummy_data
 -- Created: 2026-04-15
 -- Purpose: Comprehensive test data for development and testing
@@ -25,8 +25,8 @@ INSERT INTO categories (id, name, slug, description, parent_id, display_order, i
 ('660e8400-e29b-41d4-a716-446655440003', 'Home & Kitchen', 'home-kitchen', 'Home appliances and kitchen products', NULL, 3, true),
 ('660e8400-e29b-41d4-a716-446655440004', 'Smartphones', 'smartphones', 'Mobile phones and tablets', '660e8400-e29b-41d4-a716-446655440001', 1, true),
 ('660e8400-e29b-41d4-a716-446655440005', 'Laptops', 'laptops', 'Laptops and computers', '660e8400-e29b-41d4-a716-446655440001', 2, true),
-('660e8400-e29b-41d4-a716-446655440006', 'Men\'s Clothing', 'mens-clothing', 'Clothing for men', '660e8400-e29b-41d4-a716-446655440002', 1, true),
-('660e8400-e29b-41d4-a716-446655440007', 'Women\'s Clothing', 'womens-clothing', 'Clothing for women', '660e8400-e29b-41d4-a716-446655440002', 2, true);
+('660e8400-e29b-41d4-a716-446655440006', 'Men''s Clothing', 'mens-clothing', 'Clothing for men', '660e8400-e29b-41d4-a716-446655440002', 1, true),
+('660e8400-e29b-41d4-a716-446655440007', 'Women''s Clothing', 'womens-clothing', 'Clothing for women', '660e8400-e29b-41d4-a716-446655440002', 2, true);
 
 -- ============================================================================
 -- PRODUCTS
@@ -36,7 +36,7 @@ INSERT INTO categories (id, name, slug, description, parent_id, display_order, i
 INSERT INTO products (id, name, slug, sku, description, short_description, regular_price, sale_price, stock_quantity, brand, category_id, status, view_count, sold_count) VALUES
 ('770e8400-e29b-41d4-a716-446655440001', 'iPhone 15 Pro', 'iphone-15-pro', 'APPLE-IP15P-001', 'Latest Apple flagship smartphone with advanced features', 'Premium flagship smartphone', 15999000, 14999000, 50, 'Apple', '660e8400-e29b-41d4-a716-446655440004', 'active', 245, 32),
 ('770e8400-e29b-41d4-a716-446655440002', 'Samsung Galaxy S24', 'samsung-galaxy-s24', 'SAMSUNG-S24-001', 'Powerful Android flagship with excellent camera system', 'High-performance Android phone', 13999000, 12999000, 75, 'Samsung', '660e8400-e29b-41d4-a716-446655440004', 'active', 189, 28),
-('770e8400-e29b-41d4-a716-446655440003', 'Google Pixel 8', 'google-pixel-8', 'GOOGLE-P8-001', 'Google\'s AI-powered smartphone with smart features', 'AI-enhanced photography phone', 10999000, NULL, 45, 'Google', '660e8400-e29b-41d4-a716-446655440004', 'active', 156, 15),
+('770e8400-e29b-41d4-a716-446655440003', 'Google Pixel 8', 'google-pixel-8', 'GOOGLE-P8-001', 'Google''s AI-powered smartphone with smart features', 'AI-enhanced photography phone', 10999000, NULL, 45, 'Google', '660e8400-e29b-41d4-a716-446655440004', 'active', 156, 15),
 ('770e8400-e29b-41d4-a716-446655440004', 'Xiaomi 14 Ultra', 'xiaomi-14-ultra', 'XIAOMI-14U-001', 'Flagship killer with great value for money', 'Premium smartphone at affordable price', 9999000, 8999000, 100, 'Xiaomi', '660e8400-e29b-41d4-a716-446655440004', 'active', 201, 42);
 
 -- Laptops
@@ -129,76 +129,70 @@ INSERT INTO promo_codes (id, code, description, discount_type, discount_value, m
 ('dd0e8400-e29b-41d4-a716-446655440004', 'EXPIRED10', 'Expired promo code', 'percentage', 15, 500000, 500000, 100, 80, 1, NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day', false);
 
 -- ============================================================================
--- ORDERS
+-- ORDERS (CORRECTED SCHEMA)
 -- ============================================================================
 
-INSERT INTO orders (id, order_number, user_id, shipping_name, shipping_phone, shipping_address_line1, shipping_address_line2, shipping_city, shipping_province, shipping_postal_code, subtotal, shipping_cost, discount_amount, total_amount, status, payment_method, notes) VALUES
-('ee0e8400-e29b-41d4-a716-446655440001', 'ORD-20260415-0001', '550e8400-e29b-41d4-a716-446655440001', 'Budi Santoso', '08123456789', 'Jl. Merdeka No. 123', 'Apt. 4B', 'Jakarta', 'DKI Jakarta', '12345', 15299000, 50000, 0, 15349000, 'completed', 'midtrans', 'Please deliver on weekday'),
-('ee0e8400-e29b-41d4-a716-446655440002', 'ORD-20260415-0002', '550e8400-e29b-41d4-a716-446655440001', 'Budi Santoso', '08123456789', 'Jl. Merdeka No. 123', 'Apt. 4B', 'Jakarta', 'DKI Jakarta', '12345', 599000, 50000, 50000, 599000, 'processing', 'midtrans', NULL),
-('ee0e8400-e29b-41d4-a716-446655440003', 'ORD-20260415-0003', '550e8400-e29b-41d4-a716-446655440002', 'Siti Nurhaliza', '08234567890', 'Jl. Ahmad Yani No. 789', NULL, 'Bandung', 'Jawa Barat', '40123', 12999000, 75000, 1300000, 11774000, 'completed', 'midtrans', 'Gift wrapping requested'),
-('ee0e8400-e29b-41d4-a716-446655440004', 'ORD-20260415-0004', '550e8400-e29b-41d4-a716-446655440003', 'Ahmad Wijaya', '08345678901', 'Jl. Diponegoro No. 321', 'Blok A', 'Surabaya', 'Jawa Timur', '60123', 34999000, 100000, 0, 35099000, 'pending', 'midtrans', NULL);
+INSERT INTO orders (id, order_number, user_id, shipping_name, shipping_phone, shipping_address_line1, shipping_address_line2, shipping_city, shipping_province, shipping_postal_code, subtotal, shipping_cost, discount_amount, tax_amount, total, order_status, payment_status, payment_method, customer_notes) VALUES
+('ee0e8400-e29b-41d4-a716-446655440001', 'ORD-20260415-0001', '550e8400-e29b-41d4-a716-446655440001', 'Budi Santoso', '08123456789', 'Jl. Merdeka No. 123', 'Apt. 4B', 'Jakarta', 'DKI Jakarta', '12345', 15299000, 50000, 0, 0, 15349000, 'completed', 'paid', 'midtrans', 'Please deliver on weekday'),
+('ee0e8400-e29b-41d4-a716-446655440002', 'ORD-20260415-0002', '550e8400-e29b-41d4-a716-446655440001', 'Budi Santoso', '08123456789', 'Jl. Merdeka No. 123', 'Apt. 4B', 'Jakarta', 'DKI Jakarta', '12345', 599000, 50000, 50000, 0, 599000, 'processing', 'paid', 'midtrans', NULL),
+('ee0e8400-e29b-41d4-a716-446655440003', 'ORD-20260415-0003', '550e8400-e29b-41d4-a716-446655440002', 'Siti Nurhaliza', '08234567890', 'Jl. Ahmad Yani No. 789', NULL, 'Bandung', 'Jawa Barat', '40123', 12999000, 75000, 1300000, 0, 11774000, 'completed', 'paid', 'midtrans', 'Gift wrapping requested'),
+('ee0e8400-e29b-41d4-a716-446655440004', 'ORD-20260415-0004', '550e8400-e29b-41d4-a716-446655440003', 'Ahmad Wijaya', '08345678901', 'Jl. Diponegoro No. 321', 'Blok A', 'Surabaya', 'Jawa Timur', '60123', 34999000, 100000, 0, 0, 35099000, 'pending', 'unpaid', 'midtrans', NULL);
 
 -- ============================================================================
--- ORDER ITEMS
+-- ORDER ITEMS (CORRECTED)
 -- ============================================================================
 
-INSERT INTO order_items (id, order_id, product_id, product_name, product_sku, variant_id, quantity, unit_price, subtotal) VALUES
-('ff0e8400-e29b-41d4-a716-446655440001', 'ee0e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440001', 'iPhone 15 Pro', 'APPLE-IP15P-001', '990e8400-e29b-41d4-a716-446655440001', 1, 14999000, 14999000),
-('ff0e8400-e29b-41d4-a716-446655440002', 'ee0e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440008', 'Premium Cotton T-Shirt', 'FASHION-TSHIRT-001', '990e8400-e29b-41d4-a716-446655440008', 1, 299000, 299000),
-('ff0e8400-e29b-41d4-a716-446655440003', 'ee0e8400-e29b-41d4-a716-446655440002', 'Premium Cotton T-Shirt', 'FASHION-TSHIRT-001', NULL, '990e8400-e29b-41d4-a716-446655440008', 2, 299000, 598000),
-('ff0e8400-e29b-41d4-a716-446655440004', 'ee0e8400-e29b-41d4-a716-446655440003', '770e8400-e29b-41d4-a716-446655440002', 'Samsung Galaxy S24', 'SAMSUNG-S24-001', NULL, 1, 12999000, 12999000),
-('ff0e8400-e29b-41d4-a716-446655440005', 'ee0e8400-e29b-41d4-a716-446655440004', '770e8400-e29b-41d4-a716-446655440005', 'MacBook Pro 16 M3', 'APPLE-MBP16M3', NULL, 1, 34999000, 34999000);
+INSERT INTO order_items (id, order_id, product_id, variant_id, product_name, product_sku, quantity, unit_price, subtotal) VALUES
+('ff0e8400-e29b-41d4-a716-446655440001', 'ee0e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440001', '990e8400-e29b-41d4-a716-446655440001', 'iPhone 15 Pro', 'APPLE-IP15P-001', 1, 14999000, 14999000),
+('ff0e8400-e29b-41d4-a716-446655440002', 'ee0e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440008', '990e8400-e29b-41d4-a716-446655440008', 'Premium Cotton T-Shirt', 'FASHION-TSHIRT-001', 1, 299000, 299000),
+('ff0e8400-e29b-41d4-a716-446655440003', 'ee0e8400-e29b-41d4-a716-446655440002', '770e8400-e29b-41d4-a716-446655440008', '990e8400-e29b-41d4-a716-446655440008', 'Premium Cotton T-Shirt', 'FASHION-TSHIRT-001', 2, 299000, 598000),
+('ff0e8400-e29b-41d4-a716-446655440004', 'ee0e8400-e29b-41d4-a716-446655440003', '770e8400-e29b-41d4-a716-446655440002', NULL, 'Samsung Galaxy S24', 'SAMSUNG-S24-001', 1, 12999000, 12999000),
+('ff0e8400-e29b-41d4-a716-446655440005', 'ee0e8400-e29b-41d4-a716-446655440004', '770e8400-e29b-41d4-a716-446655440005', NULL, 'MacBook Pro 16 M3', 'APPLE-MBP16M3', 1, 34999000, 34999000);
 
 -- ============================================================================
--- ORDER STATUS HISTORY
+-- ORDER STATUS HISTORY (CORRECTED SCHEMA)
 -- ============================================================================
 
-INSERT INTO order_status_history (id, order_id, old_status, new_status, notes) VALUES
-('gg0e8400-e29b-41d4-a716-446655440001', 'ee0e8400-e29b-41d4-a716-446655440001', 'pending', 'processing', 'Payment confirmed'),
-('gg0e8400-e29b-41d4-a716-446655440002', 'ee0e8400-e29b-41d4-a716-446655440001', 'processing', 'shipped', 'Package sent with JNE'),
-('gg0e8400-e29b-41d4-a716-446655440003', 'ee0e8400-e29b-41d4-a716-446655440001', 'shipped', 'completed', 'Delivered to customer'),
-('gg0e8400-e29b-41d4-a716-446655440004', 'ee0e8400-e29b-41d4-a716-446655440002', 'pending', 'processing', 'Payment confirmed'),
-('gg0e8400-e29b-41d4-a716-446655440005', 'ee0e8400-e29b-41d4-a716-446655440003', 'pending', 'processing', 'Payment confirmed'),
-('gg0e8400-e29b-41d4-a716-446655440006', 'ee0e8400-e29b-41d4-a716-446655440003', 'processing', 'shipped', 'Package sent with Grab Express'),
-('gg0e8400-e29b-41d4-a716-446655440007', 'ee0e8400-e29b-41d4-a716-446655440003', 'shipped', 'completed', 'Delivered to customer');
+INSERT INTO order_status_history (id, order_id, from_status, to_status, notes) VALUES
+('aa0e8400-e29b-41d4-a716-446655440011', 'ee0e8400-e29b-41d4-a716-446655440001', 'pending', 'payment_confirmed', 'Payment confirmed'),
+('aa0e8400-e29b-41d4-a716-446655440012', 'ee0e8400-e29b-41d4-a716-446655440001', 'payment_confirmed', 'processing', 'Processing started'),
+('aa0e8400-e29b-41d4-a716-446655440013', 'ee0e8400-e29b-41d4-a716-446655440001', 'processing', 'shipped', 'Package sent with JNE'),
+('aa0e8400-e29b-41d4-a716-446655440014', 'ee0e8400-e29b-41d4-a716-446655440001', 'shipped', 'delivered', 'Delivered to customer'),
+('aa0e8400-e29b-41d4-a716-446655440015', 'ee0e8400-e29b-41d4-a716-446655440002', 'pending', 'payment_confirmed', 'Payment confirmed'),
+('aa0e8400-e29b-41d4-a716-446655440016', 'ee0e8400-e29b-41d4-a716-446655440003', 'pending', 'payment_confirmed', 'Payment confirmed'),
+('aa0e8400-e29b-41d4-a716-446655440017', 'ee0e8400-e29b-41d4-a716-446655440003', 'payment_confirmed', 'processing', 'Processing started'),
+('aa0e8400-e29b-41d4-a716-446655440018', 'ee0e8400-e29b-41d4-a716-446655440003', 'processing', 'shipped', 'Package sent with Grab Express'),
+('aa0e8400-e29b-41d4-a716-446655440019', 'ee0e8400-e29b-41d4-a716-446655440003', 'shipped', 'delivered', 'Delivered to customer');
 
 -- ============================================================================
--- REVIEWS
+-- REVIEWS (CORRECTED SCHEMA)
 -- ============================================================================
 
-INSERT INTO reviews (id, order_item_id, product_id, user_id, rating, title, description) VALUES
-('hh0e8400-e29b-41d4-a716-446655440001', 'ff0e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001', 5, 'Excellent phone!', 'iPhone 15 Pro is amazing. Great camera and performance. Highly recommended!'),
-('hh0e8400-e29b-41d4-a716-446655440002', 'ff0e8400-e29b-41d4-a716-446655440003', '770e8400-e29b-41d4-a716-446655440008', '550e8400-e29b-41d4-a716-446655440001', 4, 'Good quality t-shirt', 'Cotton is soft and comfortable. Fits well. Would buy again.'),
-('hh0e8400-e29b-41d4-a716-446655440003', 'ff0e8400-e29b-41d4-a716-446655440004', '770e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440002', 5, 'Best phone ever!', 'Samsung Galaxy S24 exceeded my expectations. Performance is smooth and camera is exceptional.'),
-('hh0e8400-e29b-41d4-a716-446655440004', 'ff0e8400-e29b-41d4-a716-446655440005', '770e8400-e29b-41d4-a716-446655440005', '550e8400-e29b-41d4-a716-446655440003', 5, 'Perfect for my work', 'MacBook Pro 16 M3 is powerful and reliable. Great for development work.');
+INSERT INTO reviews (id, product_id, user_id, order_id, rating, title, comment, is_verified_purchase, status) VALUES
+('bb0e8400-e29b-41d4-a716-446655440011', '770e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001', 'ee0e8400-e29b-41d4-a716-446655440001', 5, 'Excellent phone!', 'iPhone 15 Pro is amazing. Great camera and performance. Highly recommended!', true, 'approved'),
+('bb0e8400-e29b-41d4-a716-446655440012', '770e8400-e29b-41d4-a716-446655440008', '550e8400-e29b-41d4-a716-446655440001', 'ee0e8400-e29b-41d4-a716-446655440001', 4, 'Good quality t-shirt', 'Cotton is soft and comfortable. Fits well. Would buy again.', true, 'approved'),
+('bb0e8400-e29b-41d4-a716-446655440013', '770e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440002', 'ee0e8400-e29b-41d4-a716-446655440003', 5, 'Best phone ever!', 'Samsung Galaxy S24 exceeded my expectations. Performance is smooth and camera is exceptional.', true, 'approved'),
+('bb0e8400-e29b-41d4-a716-446655440014', '770e8400-e29b-41d4-a716-446655440005', '550e8400-e29b-41d4-a716-446655440003', NULL, 5, 'Perfect for my work', 'MacBook Pro 16 M3 is powerful and reliable. Great for development work.', false, 'pending');
 
 -- ============================================================================
--- REVIEW HELPFUL VOTES
+-- REVIEW HELPFUL (CORRECTED - no is_helpful column)
 -- ============================================================================
 
-INSERT INTO review_helpful (id, review_id, user_id, is_helpful) VALUES
-('ii0e8400-e29b-41d4-a716-446655440001', 'hh0e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440002', true),
-('ii0e8400-e29b-41d4-a716-446655440002', 'hh0e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440003', true),
-('ii0e8400-e29b-41d4-a716-446655440003', 'hh0e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440003', true),
-('ii0e8400-e29b-41d4-a716-446655440004', 'hh0e8400-e29b-41d4-a716-446655440003', '550e8400-e29b-41d4-a716-446655440001', true);
+INSERT INTO review_helpful (id, review_id, user_id) VALUES
+('cc0e8400-e29b-41d4-a716-446655440011', 'bb0e8400-e29b-41d4-a716-446655440011', '550e8400-e29b-41d4-a716-446655440002'),
+('cc0e8400-e29b-41d4-a716-446655440012', 'bb0e8400-e29b-41d4-a716-446655440011', '550e8400-e29b-41d4-a716-446655440003'),
+('cc0e8400-e29b-41d4-a716-446655440013', 'bb0e8400-e29b-41d4-a716-446655440012', '550e8400-e29b-41d4-a716-446655440003'),
+('cc0e8400-e29b-41d4-a716-446655440014', 'bb0e8400-e29b-41d4-a716-446655440013', '550e8400-e29b-41d4-a716-446655440001');
 
 -- ============================================================================
 -- WISHLISTS
 -- ============================================================================
 
-INSERT INTO wishlists (id, user_id, product_id, created_at) VALUES
-('jj0e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440005', NOW()),
-('jj0e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440006', NOW()),
-('jj0e8400-e29b-41d4-a716-446655440003', '550e8400-e29b-41d4-a716-446655440002', '770e8400-e29b-41d4-a716-446655440001', NOW()),
-('jj0e8400-e29b-41d4-a716-446655440004', '550e8400-e29b-41d4-a716-446655440003', '770e8400-e29b-41d4-a716-446655440002', NOW());
-
--- ============================================================================
--- STOCK ALERTS
--- ============================================================================
-
-INSERT INTO stock_alerts (id, product_id, current_stock, alert_threshold, is_sent) VALUES
-('kk0e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440005', 20, 10, false),
-('kk0e8400-e29b-41d4-a716-446655440002', '770e8400-e29b-41d4-a716-446655440007', 8, 10, true);
+INSERT INTO wishlists (id, user_id, product_id) VALUES
+('dd0e8400-e29b-41d4-a716-446655440011', '550e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440005'),
+('dd0e8400-e29b-41d4-a716-446655440012', '550e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440006'),
+('dd0e8400-e29b-41d4-a716-446655440013', '550e8400-e29b-41d4-a716-446655440002', '770e8400-e29b-41d4-a716-446655440001'),
+('dd0e8400-e29b-41d4-a716-446655440014', '550e8400-e29b-41d4-a716-446655440003', '770e8400-e29b-41d4-a716-446655440002');
 
 -- ============================================================================
 -- SUMMARY
@@ -216,8 +210,7 @@ INSERT INTO stock_alerts (id, product_id, current_stock, alert_threshold, is_sen
 -- - Promo Codes: 4
 -- - Orders: 4
 -- - Order Items: 5
--- - Order Status History: 7
+-- - Order Status History: 9
 -- - Reviews: 4
 -- - Review Helpful Votes: 4
 -- - Wishlists: 4
--- - Stock Alerts: 2
