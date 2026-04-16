@@ -97,6 +97,7 @@ func main() {
 	promoCodeRepo := repositories.NewPromoCodeRepository(db)
 	newsletterRepo := repositories.NewNewsletterRepository(db)
 	searchRepo := repositories.NewSearchRepository(db)
+	chatRepo := repositories.NewChatRepository(db)
 
 	// Initialize Services
 	authService := services.NewAuthService(userRepo, jwtManager)
@@ -105,6 +106,7 @@ func main() {
 	orderService := services.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo)
 	newsletterService := services.NewNewsletterService(newsletterRepo)
 	searchService := services.NewSearchService(searchRepo, productRepo, categoryRepo)
+	chatService := services.NewChatService(chatRepo, userRepo)
 
 	// Initialize Handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -113,6 +115,7 @@ func main() {
 	cartHandler := handlers.NewCartHandler(cartService)
 	orderHandler := handlers.NewOrderHandler(orderService)
 	searchHandler := handlers.NewSearchHandler(searchService)
+	chatHandler := handlers.NewChatHandler(chatService)
 
 	// Initialize Gin router
 	if os.Getenv("APP_ENV") == "production" {
@@ -236,6 +239,21 @@ func main() {
 			// Checkout
 			protected.POST("/checkout", orderHandler.Checkout)
 			protected.POST("/promo-codes/validate", orderHandler.ValidatePromoCode)
+
+			// Chat routes (protected - require authentication)
+			chatRoutes := protected.Group("/chat")
+			{
+				chatRoutes.POST("/conversations", chatHandler.CreateConversation)
+				chatRoutes.GET("/conversations", chatHandler.GetConversations)
+				chatRoutes.GET("/conversations/:id", chatHandler.GetConversation)
+				chatRoutes.POST("/conversations/:id/messages", chatHandler.SendMessage)
+				chatRoutes.GET("/conversations/:id/messages", chatHandler.GetMessages)
+				chatRoutes.PUT("/messages/:id/read", chatHandler.MarkAsRead)
+				chatRoutes.POST("/conversations/:id/typing", chatHandler.SetTypingIndicator)
+				chatRoutes.GET("/conversations/:id/typing", chatHandler.GetTypingUsers)
+				chatRoutes.POST("/messages/:id/reactions", chatHandler.AddReaction)
+				chatRoutes.DELETE("/messages/:id/reactions/:reaction", chatHandler.RemoveReaction)
+			}
 
 			// Account search history routes
 			accountSearchRoutes := protected.Group("/account/search")
