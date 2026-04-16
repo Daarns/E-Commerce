@@ -36,6 +36,8 @@ type Product struct {
 	Status              string          `gorm:"size:20;not null;default:'active'" json:"status"`
 	ViewCount           int             `gorm:"default:0" json:"view_count"`
 	SoldCount           int             `gorm:"default:0" json:"sold_count"`
+	AvgRating           float64         `gorm:"type:decimal(3,2);default:0" json:"avg_rating"`
+	ReviewCount         int64           `gorm:"default:0" json:"review_count"`
 	Version             int             `gorm:"default:1" json:"version"`
 	MetaTitle           string          `gorm:"size:255" json:"meta_title"`
 	MetaDescription     string          `gorm:"type:text" json:"meta_description"`

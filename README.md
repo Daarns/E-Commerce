@@ -492,10 +492,63 @@ main (production-ready)
   - All tests passing ✅
 
 **Backend Tasks (Remaining):**
-- [ ] Product reviews & ratings system
 - [ ] Wishlist/favorites feature
 - [ ] Live chat integration
 - [ ] Full-text search improvements (Elasticsearch optional)
+
+**Phase 9J: Product Reviews & Rating System (Completed)**
+- [x] Core Features (6 Points)
+  1. **Rating System**: 1-5 stars with optional text review
+  2. **Verified Purchase**: Only users with completed order for product can review
+  3. **Auto-Approved**: Reviews visible immediately
+  4. **Helpful Voting**: Users vote helpful/not helpful on reviews
+  5. **Reviewer Display**: Shows reviewer name and timestamp
+  6. **Sorting Options**: By helpful count, recency, highest/lowest rating
+
+- [x] Database Schema
+  - `product_reviews` table: id, product_id, user_id, order_id, rating, title, review_text, helpful_count, unhelpful_count
+  - `review_helpful_votes` table: id, review_id, user_id, is_helpful
+  - Unique constraints: one review per user per product, one vote per user per review
+  - 7 indexes for performance optimization
+  - Product model enhanced with avg_rating and review_count fields
+
+- [x] Models
+  - ProductReview: Full review data structure
+  - ReviewHelpfulVote: Vote tracking
+  - ReviewStatistics: Aggregate stats (avg_rating, total_reviews, rating_breakdown)
+  - Request/Response DTOs: CreateReviewRequest, UpdateReviewRequest, VoteHelpfulRequest, ProductReviewResponse, ReviewListResponse
+
+- [x] Repository Layer
+  - CRUD operations for reviews and votes
+  - GetUserOrderForProduct: Verified purchase validation
+  - CalculateProductStats: Aggregate rating calculations
+  - GetRatingBreakdown: Rating distribution
+  - Vote management: Create, update, delete, increment/decrement counts
+
+- [x] Service Layer
+  - CreateReview: With verified purchase validation
+  - GetReview: Single review retrieval
+  - GetProductReviews: Paginated with sorting (recent, helpful, highest/lowest rating)
+  - UpdateReview: Ownership verification
+  - DeleteReview: Ownership verification  
+  - VoteHelpful: Vote management with update/delete logic
+  - GetProductReviewStats: Statistics aggregation
+  - updateProductRating: Auto-update product avg_rating
+
+- [x] HTTP Handler (6 endpoints)
+  - POST `/api/v1/products/:productID/reviews` - Create review
+  - GET `/api/v1/products/:productID/reviews` - List reviews (with pagination & sorting)
+  - PUT `/api/v1/products/:productID/reviews/:reviewID` - Update review
+  - DELETE `/api/v1/products/:productID/reviews/:reviewID` - Delete review
+  - POST `/api/v1/reviews/:reviewID/helpful` - Vote on helpfulness
+  - GET `/api/v1/products/:productID/review-stats` - Get rating statistics
+
+- [x] Tests (20+ tests)
+  - Model tests: ProductReview, ReviewHelpfulVote, ReviewStatistics
+  - Request validation tests: All CRUD requests
+  - Sorting tests: All 4 sort options
+  - Edge cases: Rating boundaries, timestamps, unique constraints, title length
+  - All tests passing ✅
 
 **Frontend Tasks:**
 - [ ] Wishlist/favorites feature
