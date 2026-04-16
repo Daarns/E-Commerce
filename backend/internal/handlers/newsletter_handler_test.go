@@ -84,6 +84,11 @@ func (m *MockNewsletterRepository) Update(subscription *models.NewsletterSubscri
 	return args.Error(0)
 }
 
+func (m *MockNewsletterRepository) UpdatePreferences(email string, categories []string, frequency string) error {
+	args := m.Called(email, categories, frequency)
+	return args.Error(0)
+}
+
 func (m *MockNewsletterRepository) Delete(id uuid.UUID) error {
 	args := m.Called(id)
 	return args.Error(0)
