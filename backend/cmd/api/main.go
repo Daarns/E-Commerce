@@ -96,6 +96,7 @@ func main() {
 	orderRepo := repositories.NewOrderRepository(db)
 	promoCodeRepo := repositories.NewPromoCodeRepository(db)
 	newsletterRepo := repositories.NewNewsletterRepository(db)
+	searchRepo := repositories.NewSearchRepository(db)
 
 	// Initialize Services
 	authService := services.NewAuthService(userRepo, jwtManager)
@@ -103,6 +104,7 @@ func main() {
 	cartService := services.NewCartService(cartRepo, addressRepo, productRepo)
 	orderService := services.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo)
 	newsletterService := services.NewNewsletterService(newsletterRepo)
+	searchService := services.NewSearchService(searchRepo, productRepo, categoryRepo)
 
 	// Initialize Handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -110,6 +112,7 @@ func main() {
 	categoryHandler := handlers.NewCategoryHandler(productService)
 	cartHandler := handlers.NewCartHandler(cartService)
 	orderHandler := handlers.NewOrderHandler(orderService)
+	searchHandler := handlers.NewSearchHandler(searchService)
 
 	// Initialize Gin router
 	if os.Getenv("APP_ENV") == "production" {
@@ -175,6 +178,19 @@ func main() {
 			productRoutes.GET("/:identifier/related", productHandler.GetRelatedProducts)
 		}
 
+		// Search routes (public - read only)
+		searchRoutes := v1.Group("/search")
+		searchRoutes.Use(middleware.OptionalAuthMiddleware(jwtManager))
+		{
+			searchRoutes.GET("", searchHandler.SearchProducts)
+			searchRoutes.GET("/autocomplete", searchHandler.GetAutocompleteSuggestions)
+			searchRoutes.GET("/popular", searchHandler.GetPopularSearches)
+			searchRoutes.GET("/facets", searchHandler.GetSearchFacets)
+			searchRoutes.GET("/filters", searchHandler.GetSearchFilters)
+			searchRoutes.GET("/trending-products", searchHandler.GetTrendingProducts)
+			searchRoutes.POST("/click", searchHandler.RecordProductClick)
+		}
+
 		// Cart routes (public with optional session or auth)
 		cartRoutes := v1.Group("/cart")
 		cartRoutes.Use(middleware.OptionalAuthMiddleware(jwtManager))
@@ -220,6 +236,13 @@ func main() {
 			// Checkout
 			protected.POST("/checkout", orderHandler.Checkout)
 			protected.POST("/promo-codes/validate", orderHandler.ValidatePromoCode)
+
+			// Account search history routes
+			accountSearchRoutes := protected.Group("/account/search")
+			{
+				accountSearchRoutes.GET("/history", searchHandler.GetUserSearchHistory)
+				accountSearchRoutes.DELETE("/history", searchHandler.ClearSearchHistory)
+			}
 		}
 
 		// Admin routes (require admin role)
@@ -267,6 +290,12 @@ func main() {
 				adminOrders.PUT("/:id/payment", orderHandler.AdminUpdatePayment)
 				adminOrders.PUT("/:id/tracking", orderHandler.AdminUpdateTracking)
 				adminOrders.PUT("/:id/notes", orderHandler.AdminAddNotes)
+			}
+
+			// Admin Search metrics routes
+			adminSearchRoutes := admin.Group("/search")
+			{
+				adminSearchRoutes.GET("/metrics", searchHandler.GetSearchMetrics)
 			}
 		}
 	}
