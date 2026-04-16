@@ -34,6 +34,8 @@ Production-ready E-Commerce platform showcasing best practices in software archi
 - [x] Order management & checkout
 - [x] Admin dashboard with CRUD operations
 - [x] Payment integration (Midtrans Sandbox - webhook working)
+- [x] Product reviews & ratings (Phase 9J)
+- [x] Wishlist/Favorites (Phase 9K)
 - [ ] Frontend development
 
 ### Advanced Patterns
@@ -492,7 +494,7 @@ main (production-ready)
   - All tests passing ✅
 
 **Backend Tasks (Remaining):**
-- [ ] Wishlist/favorites feature
+- [x] Wishlist/favorites feature
 - [ ] Live chat integration
 - [ ] Full-text search improvements (Elasticsearch optional)
 
@@ -548,6 +550,65 @@ main (production-ready)
   - Request validation tests: All CRUD requests
   - Sorting tests: All 4 sort options
   - Edge cases: Rating boundaries, timestamps, unique constraints, title length
+  - All tests passing ✅
+
+**Phase 9K: Wishlist/Favorites Feature (Completed)**
+- [x] Core Features
+  1. **Add/Remove Product**: Save products to wishlist
+  2. **View Wishlist**: Paginated list with product details
+  3. **Check Availability**: Quick status check for single product
+  4. **Count Items**: Get total count of wishlist items
+  5. **Clear Wishlist**: Remove all items at once
+  6. **Unique Constraint**: One entry per user per product
+
+- [x] Database Schema
+  - `wishlists` table: id, user_id, product_id, created_at
+  - Unique constraint: UNIQUE(user_id, product_id)
+  - 3 indexes for performance (user_id, user_id+created_at, product_id)
+  - Cascading deletes on user/product deletion
+
+- [x] Models
+  - Wishlist: Core model with timestamps
+  - WishlistResponse: API response with product details
+  - WishlistListResponse: Paginated results with total/page info
+  - CheckWishlistResponse: Quick status check response
+  - WishlistCountResponse: Count response
+
+- [x] Repository Layer (10 methods)
+  - Add: Insert wishlist entry
+  - Remove: Delete wishlist entry
+  - GetByUserAndProduct: Check if product in wishlist
+  - GetByUserID: Paginated retrieval with sorting
+  - CountByUserID: Get total items in wishlist
+  - ClearByUserID: Remove all items
+  - GetProductIDsByUserID: Get IDs for batch operations
+  - DeleteByID: Direct deletion by wishlist ID
+  - GetByID: Single item retrieval
+  - IsProductInWishlist: Boolean existence check
+
+- [x] Service Layer (6 methods)
+  - AddToWishlist: With product existence check & duplicate prevention
+  - RemoveFromWishlist: With existence verification
+  - GetWishlist: Paginated with product details via repository
+  - CheckProduct: Returns status + added timestamp
+  - GetWishlistCount: Return count response
+  - ClearWishlist: Remove all items
+
+- [x] HTTP Handler (5 endpoints)
+  - POST `/api/v1/wishlist/:productID` - Add to wishlist
+  - DELETE `/api/v1/wishlist/:productID` - Remove from wishlist
+  - GET `/api/v1/wishlist?page=1&page_size=10` - List wishlist
+  - GET `/api/v1/wishlist/:productID/check` - Check if in wishlist
+  - DELETE `/api/v1/wishlist` - Clear entire wishlist
+
+- [x] Tests (7 repository tests)
+  - Add product to wishlist
+  - Check if product in wishlist
+  - Count wishlist items
+  - Remove product from wishlist
+  - Clear all wishlist items
+  - Get product IDs for batch operations
+  - Unique constraint enforcement
   - All tests passing ✅
 
 **Frontend Tasks:**
