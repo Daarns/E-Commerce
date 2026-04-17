@@ -611,7 +611,7 @@ main (production-ready)
 **Frontend Tasks:**
 - [x] Wishlist/favorites feature
 - [x] Product reviews and ratings
-- [ ] Live chat integration
+- [x] Live chat integration
 - [ ] Admin dashboard build
 - [ ] Payment page integration
 - [x] Email verification flow
