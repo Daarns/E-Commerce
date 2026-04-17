@@ -30,6 +30,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
 import { formatCurrency } from '@/lib/utils';
 import { Address } from '@/types';
+import { orderService } from '@/services/order';
 
 // Checkout Steps
 const STEPS = [
@@ -210,14 +211,26 @@ export default function CheckoutPage() {
     setIsProcessing(true);
     
     try {
-      // Mock order creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Call actual checkout API
+      const result = await orderService.checkout({
+        address_id: selectedAddress,
+        shipping_method: selectedShipping,
+        payment_method: selectedPayment,
+        promo_code: promoCode || undefined,
+        idempotency_key: `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
+      });
       
-      // Clear cart and redirect to success page
-      clearCart();
-      router.push('/orders?success=true');
-    } catch {
-      alert('Failed to place order. Please try again.');
+      // If payment URL exists (from Midtrans), redirect to payment page
+      if (result.payment_url) {
+        router.push(`/payment?order_id=${result.order.id}`);
+      } else {
+        // Otherwise redirect to order confirmation
+        clearCart();
+        router.push(`/orders/${result.order.id}?success=true`);
+      }
+    } catch (error) {
+      console.error('Checkout failed:', error);
+      alert(error instanceof Error ? error.message : 'Failed to place order. Please try again.');
     } finally {
       setIsProcessing(false);
     }
