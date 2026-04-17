@@ -613,7 +613,7 @@ main (production-ready)
 - [x] Product reviews and ratings
 - [x] Live chat integration
 - [x] Admin dashboard build
-- [ ] Payment page integration
+- [x] Payment page integration
 - [x] Email verification flow
 
 ---
@@ -1172,7 +1172,65 @@ Comprehensive admin control panel with analytics, dashboard overview, and manage
 
 ---
 
-- [ ] Notification system
+**Phase 15: Payment Page Integration (Completed)**
+
+Frontend payment integration with Midtrans Snap payment gateway for secure checkout flow.
+
+**Features Implemented:**
+- [x] Payment page at `/payment` route with order_id parameter
+- [x] Secure Midtrans Snap script loading and integration
+- [x] Order summary display with payment details
+- [x] Payment method information (Bank, E-Wallet, Card, COD)
+- [x] Loading and error state handling
+- [x] Success/confirmation handling with order redirect
+- [x] Suspense boundary for server-side safety
+- [x] Integration with checkout flow
+
+**Payment Service (`src/services/payment.ts`):**
+- `loadMidtransSnap()` - Dynamically load Midtrans Snap script
+- `openPayment(snapToken)` - Open Snap payment UI
+- `getPaymentStatusDisplay(status)` - Status display helper
+- `PAYMENT_METHODS` - Available payment method constants
+
+**Payment Page Features:**
+- Order information display with summary
+- Order ID tracking visible to user
+- Payment method overview (4 main types)
+- Security information and FAQ section
+- Error handling with user-friendly messages
+- Loading state during payment initialization
+- Back to cart option
+
+**Integration Points:**
+- Connected to `/checkout` page flow
+- Redirects to `/payment?order_id={id}` after order creation
+- Fetches order details via `orderService.getOrder()`
+- Loads Midtrans Snap token asynchronously
+- Handles payment success redirect to order confirmation
+- Toast notifications for errors and status
+
+**Key Design Decisions:**
+1. **Separate payment page**: Cleaner UX, dedicated payment flow
+2. **Async Snap loading**: Non-blocking, improves page load time
+3. **Order fetch before payment**: Ensures valid order before opening payment
+4. **Suspense boundary**: Handles useSearchParams() server-side safety
+5. **Error recovery**: Back to cart option if payment initialization fails
+6. **Security messaging**: Transparent about PCI compliance and encryption
+
+**Build Status:**
+- ✅ TypeScript compilation successful (0 errors)
+- ✅ Suspense boundary resolves useSearchParams warning
+- ✅ All routes properly generated in build
+- ✅ Static export compatible
+
+**Files Created:**
+- `src/services/payment.ts` - Payment service with Midtrans integration
+- `src/app/(shop)/payment/page.tsx` - Payment page component
+
+**Files Modified:**
+- `src/app/(shop)/checkout/page.tsx` - Added orderService import, updated handlePlaceOrder to redirect to payment
+
+---
 
 
 - [ ] Unit tests (>80% coverage)
