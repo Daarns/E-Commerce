@@ -75,6 +75,70 @@ export interface AnalyticsResponse<T> {
   timestamp: string;
 }
 
+// Product Management Types
+export interface CreateProductRequest {
+  name: string;
+  description: string;
+  category_id: string;
+  subcategory_id?: string;
+  price: number;
+  cost_price?: number;
+  discount_percentage?: number;
+  stock_quantity: number;
+  sku?: string;
+  slug?: string;
+  is_active?: boolean;
+  meta_title?: string;
+  meta_description?: string;
+}
+
+export interface UpdateProductRequest extends Partial<CreateProductRequest> {
+  id: string;
+}
+
+export interface AdminProduct {
+  id: string;
+  name: string;
+  description: string;
+  category_id: string;
+  category_name: string;
+  subcategory_id?: string;
+  subcategory_name?: string;
+  price: number;
+  cost_price?: number;
+  discount_percentage?: number;
+  stock_quantity: number;
+  sku?: string;
+  slug: string;
+  is_active: boolean;
+  image_urls: string[];
+  rating: number;
+  review_count: number;
+  meta_title?: string;
+  meta_description?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface ProductsResponse {
+  products: AdminProduct[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+export interface ProductFilters {
+  search?: string;
+  category_id?: string;
+  stock_status?: 'in_stock' | 'low_stock' | 'out_of_stock';
+  min_price?: number;
+  max_price?: number;
+  is_active?: boolean;
+  sort_by?: 'name' | 'price' | 'stock' | 'created_at';
+  sort_order?: 'asc' | 'desc';
+}
+
 // Admin API Service
 export const adminService = {
   // Dashboard
@@ -153,6 +217,89 @@ export const adminService = {
   enableUser: async (userId: string) => {
     const response = await api.post<{ success: boolean }>(
       `/admin/users/${userId}/enable`
+    );
+    return response.data;
+  },
+
+  // Product Management
+  getProducts: async (filters?: ProductFilters, page: number = 1, limit: number = 20) => {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+    
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.category_id) params.append('category_id', filters.category_id);
+    if (filters?.stock_status) params.append('stock_status', filters.stock_status);
+    if (filters?.min_price) params.append('min_price', filters.min_price.toString());
+    if (filters?.max_price) params.append('max_price', filters.max_price.toString());
+    if (filters?.is_active !== undefined) params.append('is_active', filters.is_active.toString());
+    if (filters?.sort_by) params.append('sort_by', filters.sort_by);
+    if (filters?.sort_order) params.append('sort_order', filters.sort_order);
+
+    const response = await api.get<AnalyticsResponse<ProductsResponse>>(
+      `/admin/products?${params.toString()}`
+    );
+    return response.data;
+  },
+
+  getProduct: async (id: string) => {
+    const response = await api.get<AnalyticsResponse<AdminProduct>>(
+      `/admin/products/${id}`
+    );
+    return response.data;
+  },
+
+  createProduct: async (data: CreateProductRequest) => {
+    const response = await api.post<AnalyticsResponse<AdminProduct>>(
+      '/admin/products',
+      data
+    );
+    return response.data;
+  },
+
+  updateProduct: async (id: string, data: UpdateProductRequest) => {
+    const response = await api.put<AnalyticsResponse<AdminProduct>>(
+      `/admin/products/${id}`,
+      data
+    );
+    return response.data;
+  },
+
+  deleteProduct: async (id: string) => {
+    const response = await api.delete<{ success: boolean }>(
+      `/admin/products/${id}`
+    );
+    return response.data;
+  },
+
+  uploadProductImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await api.post<AnalyticsResponse<{ image_url: string }>>(
+      '/admin/products/upload-image',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  bulkDeleteProducts: async (ids: string[]) => {
+    const response = await api.post<{ success: boolean; deleted_count: number }>(
+      '/admin/products/bulk-delete',
+      { ids }
+    );
+    return response.data;
+  },
+
+  bulkUpdateStock: async (updates: Array<{ product_id: string; quantity: number }>) => {
+    const response = await api.post<{ success: boolean; updated_count: number }>(
+      '/admin/products/bulk-stock',
+      { updates }
     );
     return response.data;
   },
