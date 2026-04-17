@@ -1332,6 +1332,93 @@ Complete product management interface for admins with create, read, update, and 
 
 ---
 
+**Phase 17: Order Detail Page (Completed)**
+
+Customer-facing order detail page with comprehensive order tracking, payment status, and action management.
+
+**Features Implemented:**
+- [x] Order detail page at `/orders/[id]` route with dynamic order loading
+- [x] Order timeline component showing status progression (pending → delivered)
+- [x] Payment status section with transaction details and order summary
+- [x] Shipping address display with complete address information
+- [x] Order items list with product images, quantities, and prices
+- [x] Order actions (contact support, view invoice, cancel, request refund)
+- [x] Responsive layout with sidebar for quick summary
+- [x] Suspense boundary for safe server-side data fetching
+- [x] Error handling with fallback UI
+- [x] Dialog confirmations for order cancellation and refund requests
+
+**Order Timeline Features:**
+- Visual status progression with checkmarks for completed steps
+- Timeline dots with animated connector lines
+- Current status highlighted with color coding
+- Status description and timestamp display
+- Tracking number display for shipped orders
+
+**Payment Status Section:**
+- Payment method display (e-wallet, credit card, etc.)
+- Payment status badge with icon (paid, pending, failed, refunded)
+- Order summary card showing:
+  - Subtotal, shipping, discount, tax
+  - Total amount calculation
+- Color-coded background based on payment status
+
+**Shipping Address Component:**
+- Recipient name and phone number
+- Complete address with postal code
+- City, province, and country information
+- Map icon for visual identification
+
+**Order Items Component:**
+- Product image thumbnails
+- Product name with link to product detail page
+- Quantity and unit price
+- Total price per item
+- Clickable links to view product
+
+**Order Actions Component:**
+- Contact Support (mailto link)
+- View Invoice (placeholder for PDF generation)
+- Cancel Order (for pending/confirmed/processing orders)
+- Request Refund (for delivered paid orders)
+- Dialog confirmations for destructive actions
+- Loading states and error handling
+
+**Components Created:**
+- `src/components/shop/order-timeline.tsx` - Order status timeline
+- `src/components/shop/payment-status-section.tsx` - Payment info display
+- `src/components/shop/shipping-address-section.tsx` - Shipping details
+- `src/components/shop/order-items-list.tsx` - Order items display
+- `src/components/shop/order-actions.tsx` - Action buttons and dialogs
+
+**Page Routes:**
+- `/orders/[id]` - Order detail page with dynamic rendering
+
+**Integration Points:**
+- Uses existing `orderService.getOrder()` for data fetching
+- Leverages existing Order, OrderStatus, PaymentStatus types
+- Dialog component from shadcn/ui
+- Lucide React icons for status visualization
+- Date formatting with Indonesian locale
+
+**Key Design Decisions:**
+1. **Server Component Pattern**: Order fetching happens server-side for security
+2. **Suspense Boundary**: Provides loading UI while fetching order data
+3. **Modular Components**: Each section is independent and reusable
+4. **Timeline Visualization**: Clear status progression with visual indicators
+5. **Action Restrictions**: Cancel/refund buttons only show for valid order states
+6. **Dialog Confirmations**: Critical actions require user confirmation
+7. **Responsive Layout**: Main content + sidebar works on all screen sizes
+8. **Error Handling**: notFound() for non-existent orders with user feedback
+
+**Build Status:**
+- ✅ TypeScript compilation successful (0 errors)
+- ✅ All routes properly generated
+- ✅ Suspense boundaries configured
+- ✅ Dialog component integrated
+- ✅ Responsive design verified
+
+---
 
 - [ ] Unit tests (>80% coverage)
 - [ ] Integration tests
