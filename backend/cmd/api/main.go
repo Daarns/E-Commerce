@@ -98,6 +98,7 @@ func main() {
 	newsletterRepo := repositories.NewNewsletterRepository(db)
 	searchRepo := repositories.NewSearchRepository(db)
 	chatRepo := repositories.NewChatRepository(db)
+	activityRepo := repositories.NewActivityRepository(db)
 
 	// Initialize Services
 	authService := services.NewAuthService(userRepo, jwtManager)
@@ -107,6 +108,8 @@ func main() {
 	newsletterService := services.NewNewsletterService(newsletterRepo)
 	searchService := services.NewSearchService(searchRepo, productRepo, categoryRepo)
 	chatService := services.NewChatService(chatRepo, userRepo)
+	activityService := services.NewActivityService(activityRepo)
+	exportService := services.NewExportService(userRepo, orderRepo)
 
 	// Initialize Handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -116,6 +119,8 @@ func main() {
 	orderHandler := handlers.NewOrderHandler(orderService)
 	searchHandler := handlers.NewSearchHandler(searchService)
 	chatHandler := handlers.NewChatHandler(chatService)
+	adminUserHandler := handlers.NewAdminUserHandler(exportService)
+	adminActivityHandler := handlers.NewAdminActivityHandler(activityService)
 
 	// Initialize Gin router
 	if os.Getenv("APP_ENV") == "production" {
@@ -308,6 +313,22 @@ func main() {
 				adminOrders.PUT("/:id/payment", orderHandler.AdminUpdatePayment)
 				adminOrders.PUT("/:id/tracking", orderHandler.AdminUpdateTracking)
 				adminOrders.PUT("/:id/notes", orderHandler.AdminAddNotes)
+			}
+
+			// Admin User routes
+			adminUsers := admin.Group("/users")
+			{
+				adminUsers.GET("", adminUserHandler.ListUsers)
+				adminUsers.GET("/export", adminUserHandler.ExportUsersToCSV)
+				adminUsers.GET("/:id", adminUserHandler.GetUser)
+			}
+
+			// Admin Activity routes
+			adminActivities := admin.Group("/activities")
+			{
+				adminActivities.GET("", adminActivityHandler.GetActivities)
+				adminActivities.GET("/summary", adminActivityHandler.GetActivitySummary)
+				adminActivities.GET("/user/:user_id", adminActivityHandler.GetUserActivities)
 			}
 
 			// Admin Search metrics routes

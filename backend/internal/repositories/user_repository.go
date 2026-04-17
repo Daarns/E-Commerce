@@ -122,3 +122,64 @@ func (r *UserRepository) UpdateLastLogin(userID uuid.UUID) error {
 	}
 	return nil
 }
+
+// GetAllUsers retrieves all active, non-deleted users with optional filters
+func (r *UserRepository) GetAllUsers(page, pageSize int) ([]models.User, int64, error) {
+	var users []models.User
+	var total int64
+
+	query := r.db.Where("deleted_at IS NULL")
+
+	// Get total count
+	if err := query.Model(&models.User{}).Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	// Apply pagination
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+
+	offset := (page - 1) * pageSize
+
+	// Get users
+	err := query.
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&users).Error
+
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get users: %w", err)
+	}
+
+	return users, total, nil
+}
+
+// GetUsersForExport retrieves all users for export purposes
+func (r *UserRepository) GetUsersForExport() ([]models.User, error) {
+	var users []models.User
+
+	err := r.db.
+		Where("deleted_at IS NULL").
+		Order("created_at DESC").
+		Find(&users).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get users for export: %w", err)
+	}
+
+	return users, nil
+}
+
+// GetUserCount returns total count of active users
+func (r *UserRepository) GetUserCount() (int64, error) {
+	var count int64
+	if err := r.db.Model(&models.User{}).Where("deleted_at IS NULL").Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("failed to count users: %w", err)
+	}
+	return count, nil
+}
