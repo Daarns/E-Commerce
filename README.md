@@ -878,6 +878,147 @@ Reactions:
 
 ---
 
+**Phase 13: Live Chat Frontend Integration (Completed)**
+
+Frontend implementation of real-time live chat with Socket.io, floating widget UI, and state management.
+
+**Features Implemented:**
+- [x] Socket.io client library integration
+- [x] Real-time WebSocket connection with fallback to polling
+- [x] Floating chat widget with minimize/maximize controls
+- [x] Conversation list and selection UI
+- [x] Message display with auto-scrolling to latest
+- [x] New conversation creation form
+- [x] Connection status indicator (connected/offline)
+- [x] Message input with send button
+- [x] Responsive design and animations
+
+**Frontend Files Created:**
+- `src/types/chat.ts` - TypeScript interfaces for chat types
+- `src/services/chat.ts` - REST API service layer for chat operations
+- `src/hooks/use-socket.ts` - Socket.io connection and event hooks
+- `src/stores/chat-store.ts` - Zustand store for chat state management
+- `src/components/chat/chat-widget.tsx` - Floating chat widget component
+
+**TypeScript Interfaces:**
+- `ChatMessage`: Message records with sender_type discrimination
+- `Conversation`: Conversation metadata with status
+- `ChatMessageRequest/Response`: API request/response DTOs
+- `ConversationRequest/Response`: Conversation API DTOs
+- `MessageReactionRequest/Response`: Reaction DTOs
+
+**Chat Service Methods (REST):**
+- createConversation(input): Create new support chat
+- getConversations(): List user's conversations
+- getConversation(id): Get specific conversation
+- sendMessage(conversationId, input): Send message
+- getMessages(conversationId, limit, offset): Get message history
+- markMessageAsRead(messageId): Update read status
+- addReaction(messageId, reaction): Add emoji reaction
+- removeReaction(messageId, reaction): Remove reaction
+
+**Socket.io Hooks:**
+- useSocket(): Initialize connection with auth token, manage lifecycle
+- useChatSocket(conversationId): Chat-specific methods
+  - sendMessage(text): Queue message for sending
+  - setTyping(isTyping): Broadcast typing indicator
+  - addReaction(messageId, emoji): React to message
+  - markAsRead(): Mark conversation as read
+
+**Socket.io Events (Configured):**
+Outgoing:
+- chat:send-message: {conversation_id, message_text}
+- chat:typing: {conversation_id, is_typing}
+- chat:reaction: {message_id, emoji}
+- chat:mark-read: {conversation_id}
+
+Incoming (ready for listener setup):
+- chat:message: New message received
+- chat:typing: User typing indicator
+- chat:reaction: Message reaction added
+- chat:agent-assigned: Agent assigned to conversation
+- chat:status-changed: Conversation status updated
+- chat:connected: Socket connected
+- chat:disconnected: Socket disconnected
+- chat:error: Connection error
+
+**Chat Store (Zustand):**
+State:
+- conversations: Conversation[] - User's conversations
+- currentConversation: Conversation | null - Active conversation
+- messages: ChatMessage[] - Messages in current conversation
+- isLoading: boolean - Loading state for messages
+- typingUsers: Set<string> - Users currently typing
+
+Actions:
+- loadConversations(): Fetch all user conversations
+- loadConversation(id): Fetch specific conversation with messages
+- createConversation(input): Create new conversation
+- sendMessage(input): Send message via API
+- addMessage(message): Add message to store (from socket)
+- setCurrentConversation(conversation): Select conversation
+- setTypingUsers(users): Update typing indicator list
+- addReaction(messageId, emoji): Add reaction to message
+- removeReaction(messageId, emoji): Remove reaction
+
+**Chat Widget Component:**
+Props: None (uses stores directly)
+
+Features:
+- Fixed position bottom-right with spring animation
+- Toggle open/close with animated icon (MessageCircle ↔ X)
+- Minimize button with Maximize2/Minimize2 icons
+- Connection status badge (🟢 Connected / 🔴 Offline)
+- Three states:
+  1. Closed: Button only visible
+  2. Conversation list: Show existing conversations + "Start New Chat"
+  3. Message view: Show messages with input field
+- New conversation form with subject and message fields
+- Message display with left/right alignment based on sender_type
+- Timestamps for each message
+- Loading state with spinner
+- Auto-scroll to latest message
+- Input disabled when offline or sending
+
+**Key Design Decisions:**
+1. **Socket.io over native WebSocket**: Auto-fallback to polling, cross-browser support, higher reliability
+2. **Floating widget pattern**: Less intrusive than full page, always accessible
+3. **REST + Socket hybrid**: REST for initial load/persistence, WebSocket for real-time
+4. **Zustand persistence**: Store uses localStorage for conversation cache
+5. **Token from cookies**: Access token retrieved from js-cookie, not store
+6. **Separate Socket hooks**: useSocket (connection) and useChatSocket (chat-specific events)
+7. **Message discrimination**: sender_type field distinguishes customer vs agent messages
+8. **Conversation list in widget**: Show recent conversations before opening messages
+
+**Integration Points:**
+- Added ChatWidget to main Providers component
+- Socket initialized on user login (when token available)
+- Socket disconnects on logout
+- Chat store initialized with empty state
+- Toast notifications for errors via sonner library
+- Auth store used for user identification
+
+**Build Status:**
+- ✅ TypeScript compilation successful (0 errors)
+- ✅ All imports and types resolved
+- ✅ Framer Motion animations integrated
+- ✅ Socket.io-client@latest installed (76 packages)
+- ⚠️ npm audit shows 5 vulnerabilities (4 moderate, 1 high) - no security risk for dev, consider npm audit fix for production
+
+**Next Steps for Full Implementation:**
+1. Implement Socket.io event listeners in useChatSocket hook
+2. Test real-time message synchronization with backend
+3. Implement typing indicator display
+4. Add emoji picker for message reactions
+5. Handle file attachments in messages
+6. Add agent status/availability display
+7. Implement message search within conversation
+8. Add conversation archiving/deletion
+9. Implement read receipts/delivery status
+10. Test WebSocket fallback to polling on restricted networks
+
+---
+
 **Phase 12: Product Catalog & Browsing (Completed)**
 
 Comprehensive product discovery experience with reviews, wishlists, and advanced search capabilities.

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
+import { ChatWidget } from '@/components/chat/chat-widget';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,7 +24,12 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
     fetchCart();
   }, [checkAuth, fetchCart]);
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <ChatWidget />
+    </>
+  );
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
