@@ -1,5 +1,5 @@
 import api from '@/services/api';
-import { Order, OrderStatus, PaymentStatus } from '@/types';
+import { Order, OrderStatus, PaymentStatus, User } from '@/types';
 import { ApiResponse } from '@/types';
 
 // Analytics Types
@@ -399,4 +399,104 @@ export const adminService = {
     const response = await api.get<ApiResponse<AdminOrderMetrics>>('/admin/orders/metrics');
     return response.data.data!;
   },
+
+  // User Management Methods
+  getUsers: async (filters?: UserFilters, page: number = 1, limit: number = 20) => {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+    
+    if (filters) {
+      if (filters.status) params.append('status', filters.status);
+      if (filters.role) params.append('role', filters.role);
+      if (filters.search) params.append('search', filters.search);
+      if (filters.createdAfter) params.append('created_after', filters.createdAfter);
+      if (filters.createdBefore) params.append('created_before', filters.createdBefore);
+      if (filters.lastLoginAfter) params.append('last_login_after', filters.lastLoginAfter);
+      if (filters.lastLoginBefore) params.append('last_login_before', filters.lastLoginBefore);
+    }
+
+    const response = await api.get<ApiResponse<{ data: AdminUser[] }>>(
+      `/admin/users?${params.toString()}`
+    );
+    return {
+      data: response.data.data?.data || [],
+      pagination: (response.data.data as any)?.pagination,
+    };
+  },
+
+  getUser: async (userId: string) => {
+    const response = await api.get<ApiResponse<AdminUser>>(`/admin/users/${userId}`);
+    return response.data.data!;
+  },
+
+  updateUserRole: async (userId: string, newRole: 'customer' | 'admin') => {
+    const response = await api.put<ApiResponse<AdminUser>>(`/admin/users/${userId}/role`, {
+      new_role: newRole,
+    });
+    return response.data.data!;
+  },
+
+  updateUserStatus: async (userId: string, newStatus: 'active' | 'suspended' | 'banned', reason?: string) => {
+    const response = await api.put<ApiResponse<AdminUser>>(`/admin/users/${userId}/status`, {
+      new_status: newStatus,
+      reason,
+    });
+    return response.data.data!;
+  },
+
+  getUserActivityLog: async (userId: string, limit: number = 20) => {
+    const response = await api.get<ApiResponse<UserActivity[]>>(`/admin/users/${userId}/activity`, {
+      params: { limit },
+    });
+    return response.data.data!;
+  },
+
+  getUserMetrics: async () => {
+    const response = await api.get<ApiResponse<UserMetrics>>('/admin/users/metrics');
+    return response.data.data!;
+  },
 };
+
+// User Management Types
+export interface AdminUser extends User {
+  last_login?: string;
+  status: 'active' | 'suspended' | 'banned';
+  total_orders: number;
+  total_spent: number;
+}
+
+export interface UserActivity {
+  id: string;
+  action: string;
+  timestamp: string;
+  details?: string;
+}
+
+export interface UserMetrics {
+  total_users: number;
+  active_users: number;
+  suspended_users: number;
+  banned_users: number;
+}
+
+export interface UserFilters {
+  status?: 'active' | 'suspended' | 'banned';
+  role?: 'customer' | 'admin';
+  search?: string;
+  createdAfter?: string;
+  createdBefore?: string;
+  lastLoginAfter?: string;
+  lastLoginBefore?: string;
+}
+
+export interface UpdateUserRoleRequest {
+  user_id: string;
+  new_role: 'customer' | 'admin';
+}
+
+export interface UpdateUserStatusRequest {
+  user_id: string;
+  new_status: 'active' | 'suspended' | 'banned';
+  reason?: string;
+}
