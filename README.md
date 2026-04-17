@@ -1514,6 +1514,109 @@ Complete admin interface for managing customer orders with listing, filtering, s
 
 ---
 
+**Phase 19: Admin User Management (Completed)**
+
+Complete admin interface for managing customer and admin user accounts with role management, status updates, and activity tracking.
+
+**Features Implemented:**
+- [x] User listing page at `/admin/users` with metrics dashboard
+- [x] User metrics cards (total users, active, suspended, banned)
+- [x] Advanced search & filtering (status, role, joined date, last login date, text search)
+- [x] UserTable component with 8 columns and status/role badges
+- [x] User detail page at `/admin/users/[id]` with full user information
+- [x] Role management dialog for changing user role (customer/admin)
+- [x] Status management dialog with reason selection (active/suspended/banned)
+- [x] Activity timeline showing user login history and account events
+- [x] Purchase history display (total orders, total spent, average order value)
+- [x] Account information section (role, status, email verification, phone)
+- [x] User activity section (joined date, last login, total orders)
+- [x] Action buttons for role and status management
+- [x] Status badge colors for visual identification (green/yellow/red)
+- [x] Role badge colors (purple for admin, blue for customer)
+- [x] Email verification status indicator
+- [x] User action logging with timestamps
+- [x] Reason selection for suspensions/bans
+- [x] Loading states and error handling
+- [x] Responsive layout for admin interface
+
+**Components Created:**
+- `src/components/admin/user-table.tsx` - User listing table with columns
+- `src/components/admin/user-search.tsx` - Search & filter panel with advanced filters
+- `src/components/admin/role-selector.tsx` - Dialog for updating user role
+- `src/components/admin/status-manager.tsx` - Dialog for changing user status
+- `src/components/admin/activity-timeline.tsx` - Timeline display of user activities
+- `src/components/admin/user-detail-actions.tsx` - Client component for action management
+
+**Page Routes:**
+- `/admin/users` - User listing with metrics and filtering
+- `/admin/users/[id]` - User detail page with management actions
+
+**Backend Service Methods (Extended):**
+- `getUsers(filters, page, limit)` - Fetch users with pagination and filters
+- `getUser(userId)` - Get single user details
+- `updateUserRole(userId, newRole)` - Update user role (customer/admin)
+- `updateUserStatus(userId, newStatus, reason)` - Update user status with reason
+- `getUserActivityLog(userId, limit)` - Get user activity history
+- `getUserMetrics()` - Get user statistics
+
+**TypeScript Types Added:**
+- `AdminUser` - Extended User with admin fields (last_login, status, total_orders, total_spent)
+- `UserActivity` - User activity log entry (id, action, timestamp, details)
+- `UserMetrics` - User statistics (total_users, active_users, suspended_users, banned_users)
+- `UserFilters` - Filter parameters (status, role, search, date ranges)
+- `UpdateUserRoleRequest` - Role update request payload
+- `UpdateUserStatusRequest` - Status update request payload
+
+**Integration Points:**
+- Uses existing `User` type from backend
+- Integrates with `admin.ts` service layer
+- Dialog component from shadcn/ui
+- Lucide React icons for status visualization
+- Table utilities for data display and sorting
+- Date formatting with Indonesian locale
+
+**Key Design Decisions:**
+1. **Server/Client Separation**: User data fetching on client side with useState for real-time updates
+2. **Status Transitions**: Only allows valid status changes with reason requirement for suspensions/bans
+3. **Role Management**: Simple role selector with context-aware descriptions
+4. **Activity Timeline**: Timeline display with emoji icons for different action types
+5. **Metrics Dashboard**: Displays at page top for quick overview of user distribution
+6. **Modular Components**: Each responsibility separated (search, table, dialogs, actions, timeline)
+7. **Action Visibility**: Buttons always available, confirmation dialogs for dangerous actions
+8. **Visual Feedback**: Color-coded badges for status and role identification
+
+**User Status Types:**
+- active: User has full account access
+- suspended: Temporary account restriction (can be reactivated)
+- banned: Permanent account restriction
+
+**User Roles:**
+- customer: Regular customer with purchase access
+- admin: Admin with full management access (products, orders, users)
+
+**Suspension/Ban Reasons Available:**
+- Suspended:
+  - Terms of Service Violation (Pelanggaran TOS)
+  - Suspicious Activity (Aktivitas Mencurigakan)
+  - Payment Issue (Masalah Pembayaran)
+  - Manual Review Required (Memerlukan Review Manual)
+  - Other (Lainnya)
+- Banned:
+  - Fraudulent Activity (Aktivitas Penipuan)
+  - Severe Terms Violation (Pelanggaran TOS Parah)
+  - Repeated Violations (Pelanggaran Berulang)
+  - Abusive Behavior (Perilaku Kasar)
+  - Other (Lainnya)
+
+**Build Status:**
+- ✅ TypeScript compilation successful (0 errors)
+- ✅ All admin routes properly generated
+- ✅ Dialog components integrated
+- ✅ Server/Client component separation correct
+- ✅ Responsive admin interface verified
+
+---
+
 - [ ] Unit tests (>80% coverage)
 - [ ] Integration tests
 - [ ] E2E tests (Playwright)

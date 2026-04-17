@@ -3,8 +3,9 @@
 import { AdminUser } from '@/services/admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit2, Trash2 } from 'lucide-react';
+import { Eye, Edit2, Trash2, Download } from 'lucide-react';
 import Link from 'next/link';
+import { exportUsersToCSV } from '@/utils/csv-export';
 
 interface UserTableProps {
   users: AdminUser[];
@@ -12,6 +13,7 @@ interface UserTableProps {
   onView?: (user: AdminUser) => void;
   onEdit?: (user: AdminUser) => void;
   onDelete?: (user: AdminUser) => void;
+  onExport?: () => void;
 }
 
 function getStatusBadgeColor(status: 'active' | 'suspended' | 'banned'): string {
@@ -55,7 +57,11 @@ function formatRoleLabel(role: 'customer' | 'admin'): string {
   return labels[role];
 }
 
-export function UserTable({ users, isLoading, onView, onEdit, onDelete }: UserTableProps) {
+export function UserTable({ users, isLoading, onView, onEdit, onDelete, onExport }: UserTableProps) {
+  const handleExport = () => {
+    exportUsersToCSV(users);
+    onExport?.();
+  };
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -73,9 +79,24 @@ export function UserTable({ users, isLoading, onView, onEdit, onDelete }: UserTa
   }
 
   return (
-    <div className="rounded-lg border overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
+    <div className="space-y-4">
+      {/* Export button */}
+      <div className="flex justify-end">
+        <Button
+          onClick={handleExport}
+          variant="outline"
+          className="flex items-center gap-2"
+          title="Download users data as CSV"
+        >
+          <Download className="w-4 h-4" />
+          Export to CSV
+        </Button>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-lg border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Name</th>
@@ -132,6 +153,7 @@ export function UserTable({ users, isLoading, onView, onEdit, onDelete }: UserTa
           </tbody>
         </table>
       </div>
+    </div>
     </div>
   );
 }
