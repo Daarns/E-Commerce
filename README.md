@@ -1420,6 +1420,100 @@ Customer-facing order detail page with comprehensive order tracking, payment sta
 
 ---
 
+**Phase 18: Admin Order Management (Completed)**
+
+Complete admin interface for managing customer orders with listing, filtering, status updates, and refund processing capabilities.
+
+**Features Implemented:**
+- [x] Order listing page at `/admin/orders` with metrics dashboard
+- [x] Order metrics cards (total orders, pending, delivered, revenue)
+- [x] Advanced search & filtering (status, payment status, date range, amount range, text search)
+- [x] OrderTable component with sortable columns and status badges
+- [x] Order detail page at `/admin/orders/[id]` with full order information
+- [x] Status update dialog with valid state transitions (pending → confirmed → processing → shipped → delivered)
+- [x] Order status update with optional notes/comments
+- [x] Refund processing form with amount validation and refund reason selection
+- [x] Refund form validation (amount ≤ order total, required reason selection)
+- [x] Order items display with product details and individual prices
+- [x] Shipping address section with complete customer address
+- [x] Payment information display with transaction details
+- [x] Order summary with totals and tax information
+- [x] Status badge colors for visual status identification
+- [x] Payment status indicators (paid, pending, failed, refunded)
+- [x] Order action buttons with context-aware visibility
+- [x] Server Component for secure data fetching
+- [x] Suspense boundary with loading UI
+- [x] Error handling with fallback UI
+- [x] Responsive layout for admin interface
+
+**Components Created:**
+- `src/components/admin/order-table.tsx` - Order listing table with columns
+- `src/components/admin/order-search.tsx` - Search & filter panel with advanced filters
+- `src/components/admin/status-update-dialog.tsx` - Status transition dialog with notes
+- `src/components/admin/refund-form.tsx` - Refund form with reason selection
+- `src/components/admin/order-detail-actions.tsx` - Client component for action management
+
+**Page Routes:**
+- `/admin/orders` - Order listing with metrics and filtering
+- `/admin/orders/[id]` - Order detail page with management actions
+
+**Backend Service Methods (Extended):**
+- `getOrders(filters, page, limit)` - Fetch orders with pagination and filters
+- `getOrder(orderId)` - Get single order details
+- `updateOrderStatus(orderId, newStatus, notes)` - Update order status with notes
+- `processRefund(orderId, amount, reason)` - Process refund with validation
+- `getOrderMetrics()` - Get order metrics (count, revenue, status breakdown)
+
+**TypeScript Types Added:**
+- `AdminOrder` - Extended Order with admin-specific fields (customer_name, customer_email)
+- `OrderFilters` - Filter parameters (status, paymentStatus, dateRange, amountRange, search)
+- `AdminOrderMetrics` - Metrics data (totalOrders, totalRevenue, statusBreakdown)
+- `UpdateOrderStatusRequest` - Status update request payload
+- `ProcessRefundRequest` - Refund processing request payload
+
+**Integration Points:**
+- Uses existing `Order` and `OrderStatus` types from backend
+- Integrates with `admin.ts` service layer
+- Dialog component from shadcn/ui
+- Lucide React icons for status visualization
+- Table utilities for data display and sorting
+- Date formatting with Indonesian locale
+
+**Key Design Decisions:**
+1. **Server Component Pattern**: Order fetching happens server-side for security
+2. **HTML Select Elements**: Used native select instead of shadcn Select for compatibility with simple filter UI
+3. **Status Validation**: VALID_TRANSITIONS map ensures only valid state changes are allowed
+4. **Refund Validation**: Amount must be ≤ order total and reason is mandatory
+5. **Metrics Dashboard**: Displayed at page top for quick overview of order status
+6. **Modular Components**: Each responsibility separated (search, table, dialogs, actions)
+7. **Action Visibility**: Buttons conditionally shown based on order status and payment status
+8. **Error Handling**: Try-catch blocks with notFound() for non-existent orders
+
+**Valid Order Status Transitions:**
+- pending → confirmed (payment confirmation)
+- confirmed → processing (order packing)
+- processing → shipped (tracking provided)
+- shipped → delivered (package arrival)
+- Any status → cancelled (if appropriate)
+- Any paid status → refunded (after refund processing)
+
+**Refund Reasons Available:**
+- Customer Request (Permintaan Pelanggan)
+- Defective Product (Produk Rusak)
+- Wrong Item Shipped (Item Salah Dikirim)
+- Not as Described (Tidak Sesuai Deskripsi)
+- Changed Mind (Berubah Pikiran)
+- Payment Issue (Masalah Pembayaran)
+
+**Build Status:**
+- ✅ TypeScript compilation successful (0 errors)
+- ✅ All admin routes properly generated
+- ✅ Dialog components integrated
+- ✅ Server/Client component separation correct
+- ✅ Responsive admin interface verified
+
+---
+
 - [ ] Unit tests (>80% coverage)
 - [ ] Integration tests
 - [ ] E2E tests (Playwright)
