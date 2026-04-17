@@ -495,11 +495,6 @@ main (production-ready)
   - Parameter validation (invalid dates, out-of-range months, invalid UUIDs)
   - All tests passing ✅
 
-**Backend Tasks (Remaining):**
-- [x] Wishlist/favorites feature
-- [ ] Live chat integration
-- [ ] Full-text search improvements (Elasticsearch optional)
-
 **Phase 9J: Product Reviews & Rating System (Completed)**
 - [x] Core Features (6 Points)
   1. **Rating System**: 1-5 stars with optional text review
