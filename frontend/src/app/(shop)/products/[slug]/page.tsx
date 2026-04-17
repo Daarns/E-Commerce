@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Minus, Plus, ShoppingBag, Heart, Share2, ChevronLeft, ChevronRight, Star, Check, Truck, Shield, RefreshCcw } from 'lucide-react';
+import { Minus, Plus, ShoppingBag, Share2, ChevronLeft, ChevronRight, Star, Check, Truck, Shield, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,6 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { VariantSelector } from '@/components/product/variant-selector';
 import { ProductGrid } from '@/components/product/product-grid';
+import { WishlistButton } from '@/components/product/wishlist-button';
+import { ReviewsSection } from '@/components/product/reviews-section';
 import { productService } from '@/services/product';
 import { useCartStore } from '@/stores/cart-store';
 import { Product, ProductVariant } from '@/types';
@@ -314,9 +316,7 @@ export default function ProductDetailPage() {
               <ShoppingBag className="h-5 w-5" />
               {isAddingToCart ? 'Adding...' : isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
             </Button>
-            <Button variant="outline" size="lg">
-              <Heart className="h-5 w-5" />
-            </Button>
+            <WishlistButton productId={product.id} size="lg" />
             <Button variant="outline" size="lg">
               <Share2 className="h-5 w-5" />
             </Button>
@@ -376,7 +376,7 @@ export default function ProductDetailPage() {
         </TabsContent>
         
         <TabsContent value="reviews" className="py-6">
-          <p className="text-muted-foreground">Reviews coming soon...</p>
+          <ReviewsSection productId={product.id} />
         </TabsContent>
         
         <TabsContent value="shipping" className="py-6">

@@ -9,6 +9,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isEmailVerified: boolean;
   
   // Actions
   login: (input: LoginInput) => Promise<void>;
@@ -16,6 +17,10 @@ interface AuthState {
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   setUser: (user: User | null) => void;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, password: string) => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
+  resendVerificationEmail: (email: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -24,6 +29,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: true,
+      isEmailVerified: false,
 
       login: async (input: LoginInput) => {
         const response = await authService.login(input);
@@ -32,7 +38,7 @@ export const useAuthStore = create<AuthState>()(
         Cookies.set('access_token', response.access_token, { expires: 1/96 }); // 15 min
         Cookies.set('refresh_token', response.refresh_token, { expires: 7 });
         
-        set({ user: response.user, isAuthenticated: true });
+        set({ user: response.user, isAuthenticated: true, isEmailVerified: response.user.is_verified });
         
         // Merge guest cart after login
         try {
@@ -48,7 +54,7 @@ export const useAuthStore = create<AuthState>()(
         Cookies.set('access_token', response.access_token, { expires: 1/96 });
         Cookies.set('refresh_token', response.refresh_token, { expires: 7 });
         
-        set({ user: response.user, isAuthenticated: true });
+        set({ user: response.user, isAuthenticated: true, isEmailVerified: response.user.is_verified });
       },
 
       logout: async () => {
@@ -59,7 +65,7 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           Cookies.remove('access_token');
           Cookies.remove('refresh_token');
-          set({ user: null, isAuthenticated: false });
+          set({ user: null, isAuthenticated: false, isEmailVerified: false });
         }
       },
 
@@ -74,7 +80,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const user = await authService.getProfile();
-          set({ user, isAuthenticated: true, isLoading: false });
+          set({ user, isAuthenticated: true, isEmailVerified: user.is_verified, isLoading: false });
         } catch {
           Cookies.remove('access_token');
           Cookies.remove('refresh_token');
@@ -83,12 +89,29 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setUser: (user: User | null) => {
-        set({ user, isAuthenticated: !!user });
+        set({ user, isAuthenticated: !!user, isEmailVerified: user?.is_verified ?? false });
+      },
+
+      forgotPassword: async (email: string) => {
+        await authService.forgotPassword({ email });
+      },
+
+      resetPassword: async (token: string, password: string) => {
+        await authService.resetPassword({ token, password });
+      },
+
+      verifyEmail: async (token: string) => {
+        await authService.verifyEmail({ token });
+        set({ isEmailVerified: true });
+      },
+
+      resendVerificationEmail: async (email: string) => {
+        await authService.resendVerificationEmail({ email });
       },
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated, isEmailVerified: state.isEmailVerified }),
     }
   )
 );
