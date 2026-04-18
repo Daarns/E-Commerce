@@ -2,7 +2,7 @@ package auth
 
 import (
 	"ecommerce-backend/internal/middleware"
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/auth"
 	"ecommerce-backend/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -10,11 +10,11 @@ import (
 
 // AuthHandler handles authentication endpoints
 type AuthHandler struct {
-	authUseCase *services.AuthService
+	authUseCase *auth.AuthService
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authUseCase *services.AuthService) *AuthHandler {
+func NewAuthHandler(authUseCase *auth.AuthService) *AuthHandler {
 	return &AuthHandler{
 		authUseCase: authUseCase,
 	}
@@ -25,11 +25,11 @@ func NewAuthHandler(authUseCase *services.AuthService) *AuthHandler {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param input body services.RegisterInput true "Registration data"
+// @Param input body auth.RegisterInput true "Registration data"
 // @Success 201 {object} response.Response
 // @Router /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
-	var input services.RegisterInput
+	var input auth.RegisterInput
 	
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
@@ -55,11 +55,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param input body services.LoginInput true "Login credentials"
+// @Param input body auth.LoginInput true "Login credentials"
 // @Success 200 {object} response.Response
 // @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
-	var input services.LoginInput
+	var input auth.LoginInput
 	
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
@@ -81,11 +81,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param input body services.RefreshInput true "Refresh token"
+// @Param input body auth.RefreshInput true "Refresh token"
 // @Success 200 {object} response.Response
 // @Router /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var input services.RefreshInput
+	var input auth.RefreshInput
 	
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())

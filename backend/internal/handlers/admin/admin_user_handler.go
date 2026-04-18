@@ -1,7 +1,7 @@
 package admin
 
 import (
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
 	"fmt"
 	"net/http"
@@ -13,11 +13,11 @@ import (
 
 // AdminUserHandler handles admin user management HTTP requests
 type AdminUserHandler struct {
-	exportService *services.ExportService
+	exportService *utils.ExportService
 }
 
 // NewAdminUserHandler creates a new admin user handler
-func NewAdminUserHandler(exportService *services.ExportService) *AdminUserHandler {
+func NewAdminUserHandler(exportService *utils.ExportService) *AdminUserHandler {
 	return &AdminUserHandler{
 		exportService: exportService,
 	}
@@ -40,7 +40,7 @@ func (h *AdminUserHandler) ExportUsersToCSV(c *gin.Context) {
 	}
 
 	// Build export params
-	params := services.CSVExportParams{
+	params := utils.CSVExportParams{
 		Role:      role,
 		Status:    status,
 		SortBy:    sortBy,

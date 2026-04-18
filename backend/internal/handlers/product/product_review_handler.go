@@ -2,7 +2,7 @@ package product
 
 import (
 	"ecommerce-backend/internal/models"
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/features"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 	"strconv"
@@ -13,11 +13,11 @@ import (
 
 // ProductReviewHandler handles product review HTTP requests
 type ProductReviewHandler struct {
-	service *services.ProductReviewService
+	service *features.ProductReviewService
 }
 
 // NewProductReviewHandler creates a new product review handler
-func NewProductReviewHandler(service *services.ProductReviewService) *ProductReviewHandler {
+func NewProductReviewHandler(service *features.ProductReviewService) *ProductReviewHandler {
 	return &ProductReviewHandler{service: service}
 }
 

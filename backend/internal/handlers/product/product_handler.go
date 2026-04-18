@@ -3,7 +3,8 @@ package product
 import (
 	"ecommerce-backend/internal/models"
 	"ecommerce-backend/internal/repositories"
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/features"
+	"ecommerce-backend/internal/services/product"
 	"ecommerce-backend/pkg/response"
 	"fmt"
 	"mime/multipart"
@@ -18,11 +19,11 @@ import (
 
 // ProductHandler handles product HTTP requests
 type ProductHandler struct {
-	useCase *services.ProductService
+	useCase *product.ProductService
 }
 
 // NewProductHandler creates a new product handler
-func NewProductHandler(useCase *services.ProductService) *ProductHandler {
+func NewProductHandler(useCase *product.ProductService) *ProductHandler {
 	return &ProductHandler{useCase: useCase}
 }
 
@@ -31,7 +32,7 @@ func NewProductHandler(useCase *services.ProductService) *ProductHandler {
 // CreateProduct handles product creation
 // POST /api/v1/admin/products
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
-	var input services.CreateProductInput
+	var input product.CreateProductInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return
@@ -145,7 +146,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		return
 	}
 
-	var input services.UpdateProductInput
+	var input product.UpdateProductInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return
@@ -294,7 +295,7 @@ func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 	}
 
 	// Validate all files using image service
-	imageService := services.NewImageService("")
+	imageService := features.NewImageService("")
 	if validationErrs := imageService.ValidateImageFiles(files); len(validationErrs) > 0 {
 		errMsg := ""
 		for _, e := range validationErrs {
@@ -436,7 +437,7 @@ func (h *ProductHandler) AddVariant(c *gin.Context) {
 		return
 	}
 
-	var input services.CreateVariantInput
+	var input product.CreateVariantInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return

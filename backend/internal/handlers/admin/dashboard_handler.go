@@ -1,7 +1,8 @@
 package admin
 
 import (
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/admin"
+	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
 	"fmt"
 	"net/http"
@@ -14,11 +15,11 @@ import (
 
 // DashboardHandler handles admin dashboard HTTP requests
 type DashboardHandler struct {
-	dashboardService *services.DashboardService
+	dashboardService *admin.DashboardService
 }
 
 // NewDashboardHandler creates a new dashboard handler
-func NewDashboardHandler(dashboardService *services.DashboardService) *DashboardHandler {
+func NewDashboardHandler(dashboardService *admin.DashboardService) *DashboardHandler {
 	return &DashboardHandler{
 		dashboardService: dashboardService,
 	}
@@ -130,8 +131,8 @@ func (h *DashboardHandler) GetMonthlyRevenueTrend(c *gin.Context) {
 // GET /api/v1/admin/analytics/products
 // Query params: limit (default: 20), offset (default: 0)
 func (h *DashboardHandler) GetProductPerformance(c *gin.Context) {
-	limit := getIntQueryDefault(c, "limit", 20)
-	offset := getIntQueryDefault(c, "offset", 0)
+	limit := utils.GetIntQueryDefault(c, "limit", 20)
+	offset := utils.GetIntQueryDefault(c, "offset", 0)
 
 	// Validate pagination
 	if limit < 1 || limit > 100 {
@@ -161,8 +162,8 @@ func (h *DashboardHandler) GetProductPerformance(c *gin.Context) {
 // GET /api/v1/admin/users/activity
 // Query params: limit (default: 20), offset (default: 0)
 func (h *DashboardHandler) GetUserActivityList(c *gin.Context) {
-	limit := getIntQueryDefault(c, "limit", 20)
-	offset := getIntQueryDefault(c, "offset", 0)
+	limit := utils.GetIntQueryDefault(c, "limit", 20)
+	offset := utils.GetIntQueryDefault(c, "offset", 0)
 
 	// Validate pagination
 	if limit < 1 || limit > 100 {

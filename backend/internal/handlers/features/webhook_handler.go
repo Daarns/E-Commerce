@@ -1,7 +1,7 @@
 package features
 
 import (
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/payment"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 	"strings"
@@ -11,11 +11,11 @@ import (
 
 // WebhookHandler handles webhook requests
 type WebhookHandler struct {
-	webhookService *services.PaymentWebhookService
+	webhookService *payment.PaymentWebhookService
 }
 
 // NewWebhookHandler creates a new webhook handler
-func NewWebhookHandler(webhookService *services.PaymentWebhookService) *WebhookHandler {
+func NewWebhookHandler(webhookService *payment.PaymentWebhookService) *WebhookHandler {
 	return &WebhookHandler{
 		webhookService: webhookService,
 	}
@@ -27,8 +27,8 @@ func NewWebhookHandler(webhookService *services.PaymentWebhookService) *WebhookH
 // @Tags Webhooks
 // @Accept json
 // @Produce json
-// @Param payload body services.PaymentWebhookRequest true "Webhook payload from Midtrans"
-// @Success 200 {object} services.PaymentWebhookResponse
+// @Param payload body payment.PaymentWebhookRequest true "Webhook payload from Midtrans"
+// @Success 200 {object} payment.PaymentWebhookResponse
 // @Failure 400 {object} response.Response "Invalid request"
 // @Failure 403 {object} response.Response "Invalid signature"
 // @Failure 404 {object} response.Response "Order not found"
@@ -36,7 +36,7 @@ func NewWebhookHandler(webhookService *services.PaymentWebhookService) *WebhookH
 // @Router /api/v1/webhooks/payment [post]
 func (h *WebhookHandler) HandlePaymentWebhook(c *gin.Context) {
 	// Parse request body
-	var webhook services.PaymentWebhookRequest
+	var webhook payment.PaymentWebhookRequest
 	if err := c.ShouldBindJSON(&webhook); err != nil {
 		response.Error(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request format")
 		return
@@ -79,7 +79,7 @@ func (h *WebhookHandler) HandlePaymentWebhook(c *gin.Context) {
 }
 
 // RegisterWebhookRoutes registers webhook routes
-func RegisterWebhookRoutes(router *gin.Engine, webhookService *services.PaymentWebhookService) {
+func RegisterWebhookRoutes(router *gin.Engine, webhookService *payment.PaymentWebhookService) {
 	handler := NewWebhookHandler(webhookService)
 
 	webhooks := router.Group("/api/v1/webhooks")

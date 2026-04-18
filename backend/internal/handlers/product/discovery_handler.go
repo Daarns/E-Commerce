@@ -1,7 +1,7 @@
 package product
 
 import (
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/features"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 	"strconv"
@@ -11,11 +11,11 @@ import (
 
 // DiscoveryHandler handles homepage discovery endpoints
 type DiscoveryHandler struct {
-	discoveryService *services.DiscoveryService
+	discoveryService *features.DiscoveryService
 }
 
 // NewDiscoveryHandler creates a new discovery handler
-func NewDiscoveryHandler(discoveryService *services.DiscoveryService) *DiscoveryHandler {
+func NewDiscoveryHandler(discoveryService *features.DiscoveryService) *DiscoveryHandler {
 	return &DiscoveryHandler{
 		discoveryService: discoveryService,
 	}

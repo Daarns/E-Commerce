@@ -3,6 +3,7 @@ package features
 import (
 	"ecommerce-backend/internal/models"
 	"ecommerce-backend/internal/repositories"
+	"ecommerce-backend/internal/services/cache"
 	"fmt"
 	"time"
 )
@@ -23,14 +24,14 @@ type CategoryRepository interface {
 type DiscoveryService struct {
 	productRepo   ProductRepository
 	categoryRepo  CategoryRepository
-	cacheService  *CacheService
+	cacheService  *cache.CacheService
 }
 
 // NewDiscoveryService creates a new discovery service
 func NewDiscoveryService(
 	productRepo ProductRepository,
 	categoryRepo CategoryRepository,
-	cacheService *CacheService,
+	cacheService *cache.CacheService,
 ) *DiscoveryService {
 	return &DiscoveryService{
 		productRepo:  productRepo,

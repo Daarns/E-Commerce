@@ -2,7 +2,7 @@ package category
 
 import (
 	"ecommerce-backend/internal/repositories"
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/product"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 
@@ -12,18 +12,18 @@ import (
 
 // CategoryHandler handles category HTTP requests
 type CategoryHandler struct {
-	useCase *services.ProductService
+	useCase *product.ProductService
 }
 
 // NewCategoryHandler creates a new category handler
-func NewCategoryHandler(useCase *services.ProductService) *CategoryHandler {
+func NewCategoryHandler(useCase *product.ProductService) *CategoryHandler {
 	return &CategoryHandler{useCase: useCase}
 }
 
 // CreateCategory handles category creation
 // POST /api/v1/admin/categories
 func (h *CategoryHandler) CreateCategory(c *gin.Context) {
-	var input services.CreateCategoryInput
+	var input product.CreateCategoryInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return
@@ -156,7 +156,7 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 		return
 	}
 
-	var input services.UpdateCategoryInput
+	var input product.UpdateCategoryInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return

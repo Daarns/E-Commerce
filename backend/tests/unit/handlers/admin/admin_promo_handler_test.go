@@ -10,8 +10,8 @@ import (
 
 	"ecommerce-backend/internal/models"
 	"ecommerce-backend/internal/repositories"
-	"ecommerce-backend/internal/services"
-
+	"ecommerce-backend/internal/handlers/admin"
+	"ecommerce-backend/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -109,10 +109,10 @@ func createTestPromo() *models.PromoCode {
 	}
 }
 
-func createTestPromoInput() services.CreatePromoInput {
+func createTestPromoInput() utils.CreatePromoInput {
 	limit := 50
 	maxDiscount := 100.0
-	return services.CreatePromoInput{
+	return utils.CreatePromoInput{
 		Code:                 "SAVE20",
 		DiscountType:         "percentage",
 		DiscountValue:        20,
@@ -134,8 +134,8 @@ func TestCreatePromoCode_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	promo := createTestPromo()
 	promo.Code = "SAVE20"
@@ -168,8 +168,8 @@ func TestCreatePromoCode_InvalidRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	invalidInput := `{"code": "", "discount_type": "invalid"}`
 
@@ -195,8 +195,8 @@ func TestGetPromoCode_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	promoID := uuid.New()
 	promo := createTestPromo()
@@ -225,8 +225,8 @@ func TestGetPromoCode_InvalidID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/api/v1/admin/promos/invalid-id", nil)
@@ -246,8 +246,8 @@ func TestGetPromoCode_NotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	promoID := uuid.New()
 	mockRepo.On("GetByID", promoID).Return(nil, gorm.ErrRecordNotFound)
@@ -274,8 +274,8 @@ func TestListPromoCodes_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	promo1 := *createTestPromo()
 	promo2 := *createTestPromo()
@@ -310,8 +310,8 @@ func TestListPromoCodes_WithFilters(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	promo := createTestPromo()
 	result := &repositories.PromoListResult{
@@ -348,8 +348,8 @@ func TestUpdatePromoCode_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	promoID := uuid.New()
 	promo := createTestPromo()
@@ -361,7 +361,7 @@ func TestUpdatePromoCode_Success(t *testing.T) {
 	})).Return(nil)
 
 	newValue := 25.0
-	input := services.UpdatePromoInput{
+	input := utils.UpdatePromoInput{
 		DiscountValue: &newValue,
 		IsActive:      func() *bool { b := false; return &b }(),
 	}
@@ -388,11 +388,11 @@ func TestUpdatePromoCode_InvalidID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	newValue := 25.0
-	input := services.UpdatePromoInput{DiscountValue: &newValue}
+	input := utils.UpdatePromoInput{DiscountValue: &newValue}
 	body, _ := json.Marshal(input)
 
 	w := httptest.NewRecorder()
@@ -410,14 +410,14 @@ func TestUpdatePromoCode_NotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	promoID := uuid.New()
 	mockRepo.On("GetByID", promoID).Return(nil, gorm.ErrRecordNotFound)
 
 	newValue := 25.0
-	input := services.UpdatePromoInput{DiscountValue: &newValue}
+	input := utils.UpdatePromoInput{DiscountValue: &newValue}
 	body, _ := json.Marshal(input)
 
 	w := httptest.NewRecorder()
@@ -439,8 +439,8 @@ func TestDeletePromoCode_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	promoID := uuid.New()
 	promo := createTestPromo()
@@ -469,8 +469,8 @@ func TestDeletePromoCode_InvalidID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("DELETE", "/api/v1/admin/promos/invalid-id", nil)
@@ -486,8 +486,8 @@ func TestDeletePromoCode_NotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockPromoRepository)
-	service := services.NewPromoService(mockRepo)
-	handler := NewAdminPromoHandler(service)
+	service := utils.NewPromoService(mockRepo)
+	handler := admin.NewAdminPromoHandler(service)
 
 	promoID := uuid.New()
 	mockRepo.On("GetByID", promoID).Return(nil, gorm.ErrRecordNotFound)
@@ -503,4 +503,7 @@ func TestDeletePromoCode_NotFound(t *testing.T) {
 
 	mockRepo.AssertExpectations(t)
 }
+
+
+
 

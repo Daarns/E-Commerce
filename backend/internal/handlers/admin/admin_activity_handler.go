@@ -2,7 +2,7 @@ package admin
 
 import (
 	"ecommerce-backend/internal/models"
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 	"strconv"
@@ -14,11 +14,11 @@ import (
 
 // AdminActivityHandler handles admin activity management HTTP requests
 type AdminActivityHandler struct {
-	activityService *services.ActivityService
+	activityService *utils.ActivityService
 }
 
 // NewAdminActivityHandler creates a new admin activity handler
-func NewAdminActivityHandler(activityService *services.ActivityService) *AdminActivityHandler {
+func NewAdminActivityHandler(activityService *utils.ActivityService) *AdminActivityHandler {
 	return &AdminActivityHandler{
 		activityService: activityService,
 	}

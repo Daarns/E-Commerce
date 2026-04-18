@@ -1,7 +1,7 @@
 package product
 
 import (
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/features"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 
@@ -10,11 +10,11 @@ import (
 
 // NewsletterHandler handles newsletter requests
 type NewsletterHandler struct {
-	service *services.NewsletterService
+	service *features.NewsletterService
 }
 
 // NewNewsletterHandler creates a new newsletter handler
-func NewNewsletterHandler(service *services.NewsletterService) *NewsletterHandler {
+func NewNewsletterHandler(service *features.NewsletterService) *NewsletterHandler {
 	return &NewsletterHandler{service: service}
 }
 
@@ -24,13 +24,13 @@ func NewNewsletterHandler(service *services.NewsletterService) *NewsletterHandle
 // @Tags Newsletters
 // @Accept json
 // @Produce json
-// @Param request body services.SubscribeRequest true "Email to subscribe"
-// @Success 200 {object} services.SubscribeResponse
+// @Param request body features.SubscribeRequest true "Email to subscribe"
+// @Success 200 {object} features.SubscribeResponse
 // @Failure 400 {object} response.Response "Invalid email"
 // @Failure 409 {object} response.Response "Already subscribed"
 // @Router /api/v1/newsletters/subscribe [post]
 func (h *NewsletterHandler) HandleSubscribe(c *gin.Context) {
-	var req services.SubscribeRequest
+	var req features.SubscribeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request format")
 		return
@@ -65,7 +65,7 @@ func (h *NewsletterHandler) HandleSubscribe(c *gin.Context) {
 // @Tags Newsletters
 // @Produce json
 // @Param token path string true "Confirmation token"
-// @Success 200 {object} services.ConfirmResponse
+// @Success 200 {object} features.ConfirmResponse
 // @Failure 400 {object} response.Response "Invalid or expired token"
 // @Router /api/v1/newsletters/confirm/{token} [post]
 func (h *NewsletterHandler) HandleConfirm(c *gin.Context) {
@@ -99,13 +99,13 @@ func (h *NewsletterHandler) HandleConfirm(c *gin.Context) {
 // @Tags Newsletters
 // @Accept json
 // @Produce json
-// @Param request body services.UnsubscribeRequest true "Email to unsubscribe"
-// @Success 200 {object} services.UnsubscribeResponse
+// @Param request body features.UnsubscribeRequest true "Email to unsubscribe"
+// @Success 200 {object} features.UnsubscribeResponse
 // @Failure 400 {object} response.Response "Invalid email"
 // @Failure 404 {object} response.Response "Email not found"
 // @Router /api/v1/newsletters/unsubscribe [post]
 func (h *NewsletterHandler) HandleUnsubscribe(c *gin.Context) {
-	var req services.UnsubscribeRequest
+	var req features.UnsubscribeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request format")
 		return
@@ -135,7 +135,7 @@ func (h *NewsletterHandler) HandleUnsubscribe(c *gin.Context) {
 // @Tags Newsletters
 // @Produce json
 // @Param email path string true "Email address"
-// @Success 200 {object} services.StatusResponse
+// @Success 200 {object} features.StatusResponse
 // @Failure 400 {object} response.Response "Invalid email"
 // @Failure 404 {object} response.Response "Email not found"
 // @Router /api/v1/newsletters/status/{email} [get]
@@ -166,7 +166,7 @@ func (h *NewsletterHandler) HandleGetStatus(c *gin.Context) {
 }
 
 // RegisterNewsletterRoutes registers newsletter routes
-func RegisterNewsletterRoutes(routerGroup *gin.RouterGroup, service *services.NewsletterService) {
+func RegisterNewsletterRoutes(routerGroup *gin.RouterGroup, service *features.NewsletterService) {
 	handler := NewNewsletterHandler(service)
 
 	newsletters := routerGroup.Group("/newsletters")

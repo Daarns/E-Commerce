@@ -1,7 +1,7 @@
 package cart
 
 import (
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/cart"
 	"ecommerce-backend/pkg/response"
 	"errors"
 	"net/http"
@@ -13,11 +13,11 @@ import (
 
 // CartHandler handles cart HTTP requests
 type CartHandler struct {
-	useCase *services.CartService
+	useCase *cart.CartService
 }
 
 // NewCartHandler creates a new cart handler
-func NewCartHandler(useCase *services.CartService) *CartHandler {
+func NewCartHandler(useCase *cart.CartService) *CartHandler {
 	return &CartHandler{useCase: useCase}
 }
 
@@ -52,7 +52,7 @@ func (h *CartHandler) AddToCart(c *gin.Context) {
 		return
 	}
 
-	addInput := services.AddToCartInput{
+	addInput := cart.AddToCartInput{
 		UserID:    userID,
 		SessionID: sessionID,
 		ProductID: input.ProductID,
@@ -239,7 +239,7 @@ func (h *CartHandler) CreateAddress(c *gin.Context) {
 		return
 	}
 
-	var input services.AddressInput
+	var input cart.AddressInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return
@@ -269,7 +269,7 @@ func (h *CartHandler) UpdateAddress(c *gin.Context) {
 		return
 	}
 
-	var input services.AddressInput
+	var input cart.AddressInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return

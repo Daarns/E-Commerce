@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"ecommerce-backend/internal/handlers/admin"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,7 +14,7 @@ import (
 
 // TestNewDashboardHandler_Initialization tests handler creation
 func TestNewDashboardHandler_Initialization(t *testing.T) {
-	handler := NewDashboardHandler(nil)
+	handler := admin.NewDashboardHandler(nil)
 	assert.NotNil(t, handler)
 }
 
@@ -22,7 +23,7 @@ func TestNewDashboardHandler_Initialization(t *testing.T) {
 // TestGetRevenueMetrics_Handler_InvalidStartDate tests with invalid start date
 func TestGetRevenueMetrics_Handler_InvalidStartDate(t *testing.T) {
 	router := gin.New()
-	handler := NewDashboardHandler(nil)
+	handler := admin.NewDashboardHandler(nil)
 
 	router.GET("/api/v1/admin/analytics/revenue", handler.GetRevenueMetrics)
 
@@ -37,7 +38,7 @@ func TestGetRevenueMetrics_Handler_InvalidStartDate(t *testing.T) {
 // TestGetRevenueMetrics_Handler_InvalidEndDate tests with invalid end date
 func TestGetRevenueMetrics_Handler_InvalidEndDate(t *testing.T) {
 	router := gin.New()
-	handler := NewDashboardHandler(nil)
+	handler := admin.NewDashboardHandler(nil)
 
 	router.GET("/api/v1/admin/analytics/revenue", handler.GetRevenueMetrics)
 
@@ -52,7 +53,7 @@ func TestGetRevenueMetrics_Handler_InvalidEndDate(t *testing.T) {
 // TestGetMonthlyRevenueTrend_Handler_InvalidMonths tests with invalid months parameter
 func TestGetMonthlyRevenueTrend_Handler_InvalidMonths(t *testing.T) {
 	router := gin.New()
-	handler := NewDashboardHandler(nil)
+	handler := admin.NewDashboardHandler(nil)
 
 	router.GET("/api/v1/admin/analytics/revenue-trends", handler.GetMonthlyRevenueTrend)
 
@@ -67,7 +68,7 @@ func TestGetMonthlyRevenueTrend_Handler_InvalidMonths(t *testing.T) {
 // TestDisableUserAccount_Handler_InvalidUserID tests disable with invalid user ID
 func TestDisableUserAccount_Handler_InvalidUserID(t *testing.T) {
 	router := gin.New()
-	handler := NewDashboardHandler(nil)
+	handler := admin.NewDashboardHandler(nil)
 
 	router.POST("/api/v1/admin/users/:id/disable", handler.DisableUserAccount)
 
@@ -82,7 +83,7 @@ func TestDisableUserAccount_Handler_InvalidUserID(t *testing.T) {
 // TestEnableUserAccount_Handler_InvalidUserID tests enable with invalid user ID
 func TestEnableUserAccount_Handler_InvalidUserID(t *testing.T) {
 	router := gin.New()
-	handler := NewDashboardHandler(nil)
+	handler := admin.NewDashboardHandler(nil)
 
 	router.POST("/api/v1/admin/users/:id/enable", handler.EnableUserAccount)
 

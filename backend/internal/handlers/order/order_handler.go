@@ -2,11 +2,11 @@ package order
 
 import (
 	"ecommerce-backend/internal/repositories"
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/order"
+	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,11 +16,11 @@ import (
 
 // OrderHandler handles order HTTP requests
 type OrderHandler struct {
-	useCase *services.OrderService
+	useCase *order.OrderService
 }
 
 // NewOrderHandler creates a new order handler
-func NewOrderHandler(useCase *services.OrderService) *OrderHandler {
+func NewOrderHandler(useCase *order.OrderService) *OrderHandler {
 	return &OrderHandler{useCase: useCase}
 }
 
@@ -35,7 +35,7 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 		return
 	}
 
-	var input services.CheckoutInput
+	var input order.CheckoutInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return
@@ -59,8 +59,8 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 		return
 	}
 
-	page := getIntQueryDefault(c, "page", 1)
-	limit := getIntQueryDefault(c, "limit", 20)
+	page := utils.GetIntQueryDefault(c, "page", 1)
+	limit := utils.GetIntQueryDefault(c, "limit", 20)
 
 	result, err := h.useCase.GetUserOrders(userID, page, limit)
 	if err != nil {
@@ -168,8 +168,8 @@ func (h *OrderHandler) ValidatePromoCode(c *gin.Context) {
 // GET /api/v1/admin/orders
 func (h *OrderHandler) AdminGetOrders(c *gin.Context) {
 	filter := repositories.OrderFilter{
-		Page:  getIntQueryDefault(c, "page", 1),
-		Limit: getIntQueryDefault(c, "limit", 20),
+		Page:  utils.GetIntQueryDefault(c, "page", 1),
+		Limit: utils.GetIntQueryDefault(c, "limit", 20),
 	}
 
 	if status := c.Query("order_status"); status != "" {
@@ -371,13 +371,4 @@ func (h *OrderHandler) getUserID(c *gin.Context) (uuid.UUID, error) {
 	return uuid.Nil, fmt.Errorf("user not authenticated")
 }
 
-// getIntQueryDefault gets integer query parameter with default
-func getIntQueryDefault(c *gin.Context, key string, defaultValue int) int {
-	if val := c.Query(key); val != "" {
-		if intVal, err := strconv.Atoi(val); err == nil {
-			return intVal
-		}
-	}
-	return defaultValue
-}
 

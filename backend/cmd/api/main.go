@@ -10,10 +10,21 @@ import (
 	"syscall"
 	"time"
 
-	"ecommerce-backend/internal/handlers"
+	adminHandler "ecommerce-backend/internal/handlers/admin"
+	authHandler "ecommerce-backend/internal/handlers/auth"
+	cartHandler "ecommerce-backend/internal/handlers/cart"
+	categoryHandler "ecommerce-backend/internal/handlers/category"
+	featuresHandler "ecommerce-backend/internal/handlers/features"
+	orderHandler "ecommerce-backend/internal/handlers/order"
+	productHandler "ecommerce-backend/internal/handlers/product"
 	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/repositories"
-	"ecommerce-backend/internal/services"
+	authService "ecommerce-backend/internal/services/auth"
+	cartService "ecommerce-backend/internal/services/cart"
+	featuresService "ecommerce-backend/internal/services/features"
+	orderService "ecommerce-backend/internal/services/order"
+	productService "ecommerce-backend/internal/services/product"
+	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/jwt"
 
 	"github.com/gin-gonic/gin"
@@ -101,26 +112,26 @@ func main() {
 	activityRepo := repositories.NewActivityRepository(db)
 
 	// Initialize Services
-	authService := services.NewAuthService(userRepo, jwtManager)
-	productService := services.NewProductService(productRepo, categoryRepo)
-	cartService := services.NewCartService(cartRepo, addressRepo, productRepo)
-	orderService := services.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo)
-	newsletterService := services.NewNewsletterService(newsletterRepo)
-	searchService := services.NewSearchService(searchRepo, productRepo, categoryRepo)
-	chatService := services.NewChatService(chatRepo, userRepo)
-	activityService := services.NewActivityService(activityRepo)
-	exportService := services.NewExportService(userRepo, orderRepo)
+	authSvc := authService.NewAuthService(userRepo, jwtManager)
+	productSvc := productService.NewProductService(productRepo, categoryRepo)
+	cartSvc := cartService.NewCartService(cartRepo, addressRepo, productRepo)
+	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo)
+	newsletterSvc := featuresService.NewNewsletterService(newsletterRepo)
+	searchSvc := featuresService.NewSearchService(searchRepo, productRepo, categoryRepo)
+	chatSvc := featuresService.NewChatService(chatRepo, userRepo)
+	activitySvc := utils.NewActivityService(activityRepo)
+	exportSvc := utils.NewExportService(userRepo, orderRepo)
 
 	// Initialize Handlers
-	authHandler := handlers.NewAuthHandler(authService)
-	productHandler := handlers.NewProductHandler(productService)
-	categoryHandler := handlers.NewCategoryHandler(productService)
-	cartHandler := handlers.NewCartHandler(cartService)
-	orderHandler := handlers.NewOrderHandler(orderService)
-	searchHandler := handlers.NewSearchHandler(searchService)
-	chatHandler := handlers.NewChatHandler(chatService)
-	adminUserHandler := handlers.NewAdminUserHandler(exportService)
-	adminActivityHandler := handlers.NewAdminActivityHandler(activityService)
+	authH := authHandler.NewAuthHandler(authSvc)
+	productH := productHandler.NewProductHandler(productSvc)
+	categoryH := categoryHandler.NewCategoryHandler(productSvc)
+	cartH := cartHandler.NewCartHandler(cartSvc)
+	orderH := orderHandler.NewOrderHandler(orderSvc)
+	searchH := featuresHandler.NewSearchHandler(searchSvc)
+	chatH := featuresHandler.NewChatHandler(chatSvc)
+	adminUserH := adminHandler.NewAdminUserHandler(exportSvc)
+	adminActivityH := adminHandler.NewAdminActivityHandler(activitySvc)
 
 	// Initialize Gin router
 	if os.Getenv("APP_ENV") == "production" {
@@ -158,113 +169,113 @@ func main() {
 		// Auth routes (public)
 		authRoutes := v1.Group("/auth")
 		{
-			authRoutes.POST("/register", authHandler.Register)
-			authRoutes.POST("/login", authHandler.Login)
-			authRoutes.POST("/refresh", authHandler.Refresh)
+			authRoutes.POST("/register", authH.Register)
+			authRoutes.POST("/login", authH.Login)
+			authRoutes.POST("/refresh", authH.Refresh)
 		}
 
 		// Category routes (public - read only)
 		categoryRoutes := v1.Group("/categories")
 		{
-			categoryRoutes.GET("", categoryHandler.ListCategories)
-			categoryRoutes.GET("/tree", categoryHandler.GetCategoryTree)
-			categoryRoutes.GET("/root", categoryHandler.GetRootCategories)
-			categoryRoutes.GET("/:identifier", categoryHandler.GetCategory)
-			categoryRoutes.GET("/:identifier/products", categoryHandler.GetCategoryWithProducts)
+			categoryRoutes.GET("", categoryH.ListCategories)
+			categoryRoutes.GET("/tree", categoryH.GetCategoryTree)
+			categoryRoutes.GET("/root", categoryH.GetRootCategories)
+			categoryRoutes.GET("/:identifier", categoryH.GetCategory)
+			categoryRoutes.GET("/:identifier/products", categoryH.GetCategoryWithProducts)
 		}
 
 		// Newsletter routes (public - no auth required)
-		handlers.RegisterNewsletterRoutes(v1, newsletterService)
+		productHandler.RegisterNewsletterRoutes(v1, newsletterSvc)
 
 		// Product routes (public - read only)
 		productRoutes := v1.Group("/products")
 		{
-			productRoutes.GET("", productHandler.ListProducts)
-			productRoutes.GET("/search", productHandler.SearchProducts)
-			productRoutes.GET("/featured", productHandler.GetFeaturedProducts)
-			productRoutes.GET("/:identifier", productHandler.GetProduct)
-			productRoutes.GET("/:identifier/related", productHandler.GetRelatedProducts)
+			productRoutes.GET("", productH.ListProducts)
+			productRoutes.GET("/search", productH.SearchProducts)
+			productRoutes.GET("/featured", productH.GetFeaturedProducts)
+			productRoutes.GET("/:identifier", productH.GetProduct)
+			productRoutes.GET("/:identifier/related", productH.GetRelatedProducts)
 		}
 
 		// Search routes (public - read only)
 		searchRoutes := v1.Group("/search")
 		searchRoutes.Use(middleware.OptionalAuthMiddleware(jwtManager))
 		{
-			searchRoutes.GET("", searchHandler.SearchProducts)
-			searchRoutes.GET("/autocomplete", searchHandler.GetAutocompleteSuggestions)
-			searchRoutes.GET("/popular", searchHandler.GetPopularSearches)
-			searchRoutes.GET("/facets", searchHandler.GetSearchFacets)
-			searchRoutes.GET("/filters", searchHandler.GetSearchFilters)
-			searchRoutes.GET("/trending-products", searchHandler.GetTrendingProducts)
-			searchRoutes.POST("/click", searchHandler.RecordProductClick)
+			searchRoutes.GET("", searchH.SearchProducts)
+			searchRoutes.GET("/autocomplete", searchH.GetAutocompleteSuggestions)
+			searchRoutes.GET("/popular", searchH.GetPopularSearches)
+			searchRoutes.GET("/facets", searchH.GetSearchFacets)
+			searchRoutes.GET("/filters", searchH.GetSearchFilters)
+			searchRoutes.GET("/trending-products", searchH.GetTrendingProducts)
+			searchRoutes.POST("/click", searchH.RecordProductClick)
 		}
 
 		// Cart routes (public with optional session or auth)
 		cartRoutes := v1.Group("/cart")
 		cartRoutes.Use(middleware.OptionalAuthMiddleware(jwtManager))
 		{
-			cartRoutes.GET("", cartHandler.GetCart)
-			cartRoutes.GET("/summary", cartHandler.GetCartSummary)
-			cartRoutes.POST("/items", cartHandler.AddToCart)
-			cartRoutes.PUT("/items/:itemId", cartHandler.UpdateCartItem)
-			cartRoutes.DELETE("/items/:itemId", cartHandler.RemoveFromCart)
-			cartRoutes.DELETE("", cartHandler.ClearCart)
-			cartRoutes.POST("/refresh", cartHandler.RefreshCartPrices)
+			cartRoutes.GET("", cartH.GetCart)
+			cartRoutes.GET("/summary", cartH.GetCartSummary)
+			cartRoutes.POST("/items", cartH.AddToCart)
+			cartRoutes.PUT("/items/:itemId", cartH.UpdateCartItem)
+			cartRoutes.DELETE("/items/:itemId", cartH.RemoveFromCart)
+			cartRoutes.DELETE("", cartH.ClearCart)
+			cartRoutes.POST("/refresh", cartH.RefreshCartPrices)
 		}
 
 		// Protected routes (require authentication)
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware(jwtManager))
 		{
-			protected.POST("/auth/logout", authHandler.Logout)
-			protected.GET("/auth/me", authHandler.GetProfile)
+			protected.POST("/auth/logout", authH.Logout)
+			protected.GET("/auth/me", authH.GetProfile)
 
 			// Cart merge (after login)
-			protected.POST("/cart/merge", cartHandler.MergeGuestCart)
+			protected.POST("/cart/merge", cartH.MergeGuestCart)
 
 			// Address routes
 			addressRoutes := protected.Group("/addresses")
 			{
-				addressRoutes.GET("", cartHandler.GetAddresses)
-				addressRoutes.GET("/:id", cartHandler.GetAddress)
-				addressRoutes.POST("", cartHandler.CreateAddress)
-				addressRoutes.PUT("/:id", cartHandler.UpdateAddress)
-				addressRoutes.DELETE("/:id", cartHandler.DeleteAddress)
-				addressRoutes.PUT("/:id/default", cartHandler.SetDefaultAddress)
+				addressRoutes.GET("", cartH.GetAddresses)
+				addressRoutes.GET("/:id", cartH.GetAddress)
+				addressRoutes.POST("", cartH.CreateAddress)
+				addressRoutes.PUT("/:id", cartH.UpdateAddress)
+				addressRoutes.DELETE("/:id", cartH.DeleteAddress)
+				addressRoutes.PUT("/:id/default", cartH.SetDefaultAddress)
 			}
 
 			// Order routes (customer)
 			orderRoutes := protected.Group("/orders")
 			{
-				orderRoutes.GET("", orderHandler.GetOrders)
-				orderRoutes.GET("/:id", orderHandler.GetOrder)
-				orderRoutes.POST("/:id/cancel", orderHandler.CancelOrder)
+				orderRoutes.GET("", orderH.GetOrders)
+				orderRoutes.GET("/:id", orderH.GetOrder)
+				orderRoutes.POST("/:id/cancel", orderH.CancelOrder)
 			}
 
 			// Checkout
-			protected.POST("/checkout", orderHandler.Checkout)
-			protected.POST("/promo-codes/validate", orderHandler.ValidatePromoCode)
+			protected.POST("/checkout", orderH.Checkout)
+			protected.POST("/promo-codes/validate", orderH.ValidatePromoCode)
 
 			// Chat routes (protected - require authentication)
 			chatRoutes := protected.Group("/chat")
 			{
-				chatRoutes.POST("/conversations", chatHandler.CreateConversation)
-				chatRoutes.GET("/conversations", chatHandler.GetConversations)
-				chatRoutes.GET("/conversations/:id", chatHandler.GetConversation)
-				chatRoutes.POST("/conversations/:id/messages", chatHandler.SendMessage)
-				chatRoutes.GET("/conversations/:id/messages", chatHandler.GetMessages)
-				chatRoutes.PUT("/messages/:id/read", chatHandler.MarkAsRead)
-				chatRoutes.POST("/conversations/:id/typing", chatHandler.SetTypingIndicator)
-				chatRoutes.GET("/conversations/:id/typing", chatHandler.GetTypingUsers)
-				chatRoutes.POST("/messages/:id/reactions", chatHandler.AddReaction)
-				chatRoutes.DELETE("/messages/:id/reactions/:reaction", chatHandler.RemoveReaction)
+				chatRoutes.POST("/conversations", chatH.CreateConversation)
+				chatRoutes.GET("/conversations", chatH.GetConversations)
+				chatRoutes.GET("/conversations/:id", chatH.GetConversation)
+				chatRoutes.POST("/conversations/:id/messages", chatH.SendMessage)
+				chatRoutes.GET("/conversations/:id/messages", chatH.GetMessages)
+				chatRoutes.PUT("/messages/:id/read", chatH.MarkAsRead)
+				chatRoutes.POST("/conversations/:id/typing", chatH.SetTypingIndicator)
+				chatRoutes.GET("/conversations/:id/typing", chatH.GetTypingUsers)
+				chatRoutes.POST("/messages/:id/reactions", chatH.AddReaction)
+				chatRoutes.DELETE("/messages/:id/reactions/:reaction", chatH.RemoveReaction)
 			}
 
 			// Account search history routes
 			accountSearchRoutes := protected.Group("/account/search")
 			{
-				accountSearchRoutes.GET("/history", searchHandler.GetUserSearchHistory)
-				accountSearchRoutes.DELETE("/history", searchHandler.ClearSearchHistory)
+				accountSearchRoutes.GET("/history", searchH.GetUserSearchHistory)
+				accountSearchRoutes.DELETE("/history", searchH.ClearSearchHistory)
 			}
 		}
 
@@ -284,57 +295,57 @@ func main() {
 			// Admin Product routes
 			adminProducts := admin.Group("/products")
 			{
-				adminProducts.POST("", productHandler.CreateProduct)
-				adminProducts.PUT("/:id", productHandler.UpdateProduct)
-				adminProducts.DELETE("/:id", productHandler.DeleteProduct)
-				adminProducts.POST("/:id/images", productHandler.UploadProductImage)
-				adminProducts.PUT("/:id/images/reorder", productHandler.ReorderProductImages)
-				adminProducts.DELETE("/images/:imageId", productHandler.DeleteProductImage)
-				adminProducts.POST("/:id/variants", productHandler.AddVariant)
-				adminProducts.PUT("/variants/:variantId", productHandler.UpdateVariant)
-				adminProducts.DELETE("/variants/:variantId", productHandler.DeleteVariant)
+				adminProducts.POST("", productH.CreateProduct)
+				adminProducts.PUT("/:id", productH.UpdateProduct)
+				adminProducts.DELETE("/:id", productH.DeleteProduct)
+				adminProducts.POST("/:id/images", productH.UploadProductImage)
+				adminProducts.PUT("/:id/images/reorder", productH.ReorderProductImages)
+				adminProducts.DELETE("/images/:imageId", productH.DeleteProductImage)
+				adminProducts.POST("/:id/variants", productH.AddVariant)
+				adminProducts.PUT("/variants/:variantId", productH.UpdateVariant)
+				adminProducts.DELETE("/variants/:variantId", productH.DeleteVariant)
 			}
 
 			// Admin Category routes
 			adminCategories := admin.Group("/categories")
 			{
-				adminCategories.POST("", categoryHandler.CreateCategory)
-				adminCategories.PUT("/:id", categoryHandler.UpdateCategory)
-				adminCategories.DELETE("/:id", categoryHandler.DeleteCategory)
+				adminCategories.POST("", categoryH.CreateCategory)
+				adminCategories.PUT("/:id", categoryH.UpdateCategory)
+				adminCategories.DELETE("/:id", categoryH.DeleteCategory)
 			}
 
 			// Admin Order routes
 			adminOrders := admin.Group("/orders")
 			{
-				adminOrders.GET("", orderHandler.AdminGetOrders)
-				adminOrders.GET("/summary", orderHandler.GetOrderSummary)
-				adminOrders.GET("/:id", orderHandler.AdminGetOrder)
-				adminOrders.PUT("/:id/status", orderHandler.AdminUpdateOrderStatus)
-				adminOrders.PUT("/:id/payment", orderHandler.AdminUpdatePayment)
-				adminOrders.PUT("/:id/tracking", orderHandler.AdminUpdateTracking)
-				adminOrders.PUT("/:id/notes", orderHandler.AdminAddNotes)
+				adminOrders.GET("", orderH.AdminGetOrders)
+				adminOrders.GET("/summary", orderH.GetOrderSummary)
+				adminOrders.GET("/:id", orderH.AdminGetOrder)
+				adminOrders.PUT("/:id/status", orderH.AdminUpdateOrderStatus)
+				adminOrders.PUT("/:id/payment", orderH.AdminUpdatePayment)
+				adminOrders.PUT("/:id/tracking", orderH.AdminUpdateTracking)
+				adminOrders.PUT("/:id/notes", orderH.AdminAddNotes)
 			}
 
 			// Admin User routes
 			adminUsers := admin.Group("/users")
 			{
-				adminUsers.GET("", adminUserHandler.ListUsers)
-				adminUsers.GET("/export", adminUserHandler.ExportUsersToCSV)
-				adminUsers.GET("/:id", adminUserHandler.GetUser)
+				adminUsers.GET("", adminUserH.ListUsers)
+				adminUsers.GET("/export", adminUserH.ExportUsersToCSV)
+				adminUsers.GET("/:id", adminUserH.GetUser)
 			}
 
 			// Admin Activity routes
 			adminActivities := admin.Group("/activities")
 			{
-				adminActivities.GET("", adminActivityHandler.GetActivities)
-				adminActivities.GET("/summary", adminActivityHandler.GetActivitySummary)
-				adminActivities.GET("/user/:user_id", adminActivityHandler.GetUserActivities)
+				adminActivities.GET("", adminActivityH.GetActivities)
+				adminActivities.GET("/summary", adminActivityH.GetActivitySummary)
+				adminActivities.GET("/user/:user_id", adminActivityH.GetUserActivities)
 			}
 
 			// Admin Search metrics routes
 			adminSearchRoutes := admin.Group("/search")
 			{
-				adminSearchRoutes.GET("/metrics", searchHandler.GetSearchMetrics)
+				adminSearchRoutes.GET("/metrics", searchH.GetSearchMetrics)
 			}
 		}
 	}
@@ -429,3 +440,4 @@ func corsMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
+

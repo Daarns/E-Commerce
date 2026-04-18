@@ -2,7 +2,7 @@ package admin
 
 import (
 	"ecommerce-backend/internal/repositories"
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 	"strconv"
@@ -13,11 +13,11 @@ import (
 
 // AdminPromoHandler handles admin promo code HTTP requests
 type AdminPromoHandler struct {
-	useCase *services.PromoService
+	useCase *utils.PromoService
 }
 
 // NewAdminPromoHandler creates a new admin promo handler
-func NewAdminPromoHandler(useCase *services.PromoService) *AdminPromoHandler {
+func NewAdminPromoHandler(useCase *utils.PromoService) *AdminPromoHandler {
 	return &AdminPromoHandler{useCase: useCase}
 }
 
@@ -26,7 +26,7 @@ func NewAdminPromoHandler(useCase *services.PromoService) *AdminPromoHandler {
 // CreatePromoCode handles promo code creation
 // POST /api/v1/admin/promos
 func (h *AdminPromoHandler) CreatePromoCode(c *gin.Context) {
-	var input services.CreatePromoInput
+	var input utils.CreatePromoInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 		return
@@ -118,7 +118,7 @@ func (h *AdminPromoHandler) UpdatePromoCode(c *gin.Context) {
 		return
 	}
 
-	var input services.UpdatePromoInput
+	var input utils.UpdatePromoInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 		return

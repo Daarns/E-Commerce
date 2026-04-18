@@ -1,7 +1,7 @@
 package features
 
 import (
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/features"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 	"strconv"
@@ -13,11 +13,11 @@ import (
 
 // SearchHandler handles search HTTP requests
 type SearchHandler struct {
-	searchService *services.SearchService
+	searchService *features.SearchService
 }
 
 // NewSearchHandler creates a new search handler
-func NewSearchHandler(searchService *services.SearchService) *SearchHandler {
+func NewSearchHandler(searchService *features.SearchService) *SearchHandler {
 	return &SearchHandler{
 		searchService: searchService,
 	}

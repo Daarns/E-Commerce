@@ -7,6 +7,8 @@ import (
 
 	"ecommerce-backend/internal/models"
 	"ecommerce-backend/internal/repositories"
+	"ecommerce-backend/internal/services/email"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -15,7 +17,7 @@ import (
 type OrderStatusWorkflowService struct {
 	workflowRepo *repositories.OrderStatusWorkflowRepository
 	orderRepo    *repositories.OrderRepository
-	emailQueue   *EmailQueueService
+	emailQueue   *email.EmailQueueService
 	db           *gorm.DB
 }
 
@@ -23,7 +25,7 @@ type OrderStatusWorkflowService struct {
 func NewOrderStatusWorkflowService(
 	workflowRepo *repositories.OrderStatusWorkflowRepository,
 	orderRepo *repositories.OrderRepository,
-	emailQueue *EmailQueueService,
+	emailQueue *email.EmailQueueService,
 	db *gorm.DB,
 ) *OrderStatusWorkflowService {
 	return &OrderStatusWorkflowService{

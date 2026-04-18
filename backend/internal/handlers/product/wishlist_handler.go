@@ -1,7 +1,8 @@
 package product
 
 import (
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/features"
+	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 
@@ -11,11 +12,11 @@ import (
 
 // WishlistHandler handles wishlist HTTP requests
 type WishlistHandler struct {
-	wishlistService *services.WishlistService
+	wishlistService *features.WishlistService
 }
 
 // NewWishlistHandler creates a new wishlist handler
-func NewWishlistHandler(wishlistService *services.WishlistService) *WishlistHandler {
+func NewWishlistHandler(wishlistService *features.WishlistService) *WishlistHandler {
 	return &WishlistHandler{
 		wishlistService: wishlistService,
 	}
@@ -110,8 +111,8 @@ func (h *WishlistHandler) GetWishlist(c *gin.Context) {
 		return
 	}
 
-	page := getIntQueryDefault(c, "page", 1)
-	pageSize := getIntQueryDefault(c, "page_size", 10)
+	page := utils.GetIntQueryDefault(c, "page", 1)
+	pageSize := utils.GetIntQueryDefault(c, "page_size", 10)
 
 	if page < 1 {
 		page = 1
