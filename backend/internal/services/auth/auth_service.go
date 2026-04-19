@@ -109,7 +109,8 @@ func (uc *AuthService) Register(input RegisterInput) (map[string]interface{}, er
 	// Generate email verification token (6-digit code)
 	verificationCode := generateVerificationCode()
 	verificationToken := uuid.New().String() // Also save UUID for additional security
-	expiresAt := time.Now().Add(24 * time.Hour) // Token valid for 24 hours
+	expiresAt := time.Now().Add(20 * time.Minute) // Token valid for 20 minutes
+	now := time.Now()
 
 	// Create user (NOT verified, NOT active yet)
 	user := &models.User{
@@ -121,6 +122,8 @@ func (uc *AuthService) Register(input RegisterInput) (map[string]interface{}, er
 		IsActive:                   true,  // Will be fully active after verification
 		EmailVerificationToken:     &verificationToken,
 		EmailVerificationExpiresAt: &expiresAt,
+		EmailVerificationAttempts: 0,
+		LastCodeSentAt:           &now,
 	}
 
 	if input.Phone != "" {
@@ -330,47 +333,41 @@ func (uc *AuthService) VerifyEmail(input VerifyEmailInput) (*AuthResponse, error
 		return nil, fmt.Errorf("email already verified")
 	}
 
-	// Check if verification token exists and not expired
+	// Check if verification token exists
+	if user.EmailVerificationToken == nil {
+		return nil, fmt.Errorf("verification code not found")
+	}
+
+	// Check if token is expired
 	if user.EmailVerificationExpiresAt == nil || time.Now().After(*user.EmailVerificationExpiresAt) {
 		return nil, fmt.Errorf("verification code expired")
 	}
 
-	// Validate verification code - check against email queue data
-	emailQueues, err := uc.emailQueueRepo.GetByUserID(user.ID)
-	if err != nil || len(emailQueues) == 0 {
-		return nil, fmt.Errorf("verification code not found")
+	// Check attempt limit (max 5 attempts)
+	if user.EmailVerificationAttempts >= 5 {
+		return nil, fmt.Errorf("too many failed attempts, please request a new code")
 	}
 
-	// Get the most recent pending verification email
-	var verificationEmail *models.EmailQueue
-	for _, eq := range emailQueues {
-		if eq.EmailType == models.EmailTypeEmailVerification && eq.IsPending() {
-			verificationEmail = eq
-			break
-		}
-	}
-
-	if verificationEmail == nil {
-		return nil, fmt.Errorf("verification code not found")
-	}
-
-	// Extract code from email queue data
-	codeFromQueue, ok := verificationEmail.Data["verification_code"].(string)
-	if !ok || codeFromQueue != input.Code {
+	// Validate verification code matches stored token
+	if *user.EmailVerificationToken != input.Code {
+		// Increment attempts
+		user.EmailVerificationAttempts++
+		_ = uc.userRepo.UpdateFields(user.ID, map[string]interface{}{
+			"email_verification_attempts": user.EmailVerificationAttempts,
+		})
 		return nil, fmt.Errorf("invalid verification code")
 	}
 
-	// Update user as verified
+	// Update user as verified and clear token
 	if err := uc.userRepo.UpdateFields(user.ID, map[string]interface{}{
 		"is_verified":                   true,
 		"email_verification_token":      nil,
 		"email_verification_expires_at": nil,
+		"email_verification_attempts":   0,
+		"last_code_sent_at":             nil,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to verify email: %w", err)
 	}
-
-	// Mark email queue as sent
-	_ = uc.emailQueueRepo.MarkAsSent(verificationEmail.ID)
 
 	// Refresh user data
 	user, err = uc.userRepo.GetByID(user.ID)
@@ -398,15 +395,27 @@ func (uc *AuthService) ResendVerificationEmail(input ResendVerificationInput) er
 		return fmt.Errorf("email already verified")
 	}
 
-	// Generate new verification code and token
+	// Rate limit: Check if 60 seconds have passed since last code sent
+	if user.LastCodeSentAt != nil {
+		elapsedSeconds := int(time.Since(*user.LastCodeSentAt).Seconds())
+		if elapsedSeconds < 60 {
+			remainingSeconds := 60 - elapsedSeconds
+			return fmt.Errorf("resend_rate_limit:%d", remainingSeconds) // Return remaining time for frontend countdown
+		}
+	}
+
+	// Generate new verification code and token (invalidates old code)
 	verificationCode := generateVerificationCode()
 	verificationToken := uuid.New().String()
-	expiresAt := time.Now().Add(24 * time.Hour)
+	expiresAt := time.Now().Add(20 * time.Minute)
+	now := time.Now()
 
-	// Update user with new token
+	// Update user with new token and reset attempts
 	if err := uc.userRepo.UpdateFields(user.ID, map[string]interface{}{
-		"email_verification_token":     verificationToken,
+		"email_verification_token":      verificationToken,
 		"email_verification_expires_at": expiresAt,
+		"email_verification_attempts":   0, // Reset attempts on new code
+		"last_code_sent_at":            now,
 	}); err != nil {
 		return fmt.Errorf("failed to update verification token: %w", err)
 	}
@@ -419,8 +428,8 @@ func (uc *AuthService) ResendVerificationEmail(input ResendVerificationInput) er
 		RecipientEmail: user.Email,
 		RecipientName:  user.Name,
 		Subject:        "Verify Your Email - STORE",
-		Body:           fmt.Sprintf("Your verification code is: %s\n\nThis code will expire in 24 hours.", verificationCode),
-		HtmlBody:       fmt.Sprintf(`<p>Your verification code is: <strong>%s</strong></p><p>This code will expire in 24 hours.</p>`, verificationCode),
+		Body:           fmt.Sprintf("Your verification code is: %s\n\nThis code will expire in 20 minutes.", verificationCode),
+		HtmlBody:       fmt.Sprintf(`<p>Your verification code is: <strong>%s</strong></p><p>This code will expire in 20 minutes.</p>`, verificationCode),
 		Data: models.EmailQueueData{
 			"user_id":             user.ID.String(),
 			"email":               user.Email,
@@ -437,7 +446,7 @@ func (uc *AuthService) ResendVerificationEmail(input ResendVerificationInput) er
 		return fmt.Errorf("failed to create email queue: %w", err)
 	}
 
-	// Send verification email
+	// Send verification email (async, may have delay but guaranteed)
 	if uc.emailService != nil {
 		go func() {
 			if err := uc.emailService.SendEmailVerification(

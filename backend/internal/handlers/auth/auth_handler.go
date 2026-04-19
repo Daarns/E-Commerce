@@ -5,6 +5,7 @@ import (
 	"ecommerce-backend/internal/services/auth"
 	"ecommerce-backend/pkg/response"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -182,21 +183,30 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 
 	authResponse, err := h.authUseCase.VerifyEmail(input)
 	if err != nil {
-		// Check for specific errors
-		if err.Error() == "email not found" {
+		errMsg := err.Error()
+		
+		if errMsg == "email not found" {
 			response.NotFound(c, "Email not found")
 			return
 		}
-		if err.Error() == "email already verified" {
+		if errMsg == "email already verified" {
 			response.Error(c, http.StatusBadRequest, "EMAIL_VERIFIED", "Email already verified")
 			return
 		}
-		if err.Error() == "verification code expired" {
-			response.Error(c, http.StatusBadRequest, "CODE_EXPIRED", "Verification code expired")
+		if errMsg == "verification code expired" {
+			response.Error(c, http.StatusBadRequest, "CODE_EXPIRED", "Verification code expired, please request a new code")
 			return
 		}
-		if err.Error() == "invalid verification code" {
+		if errMsg == "invalid verification code" {
 			response.Error(c, http.StatusBadRequest, "INVALID_CODE", "Invalid verification code")
+			return
+		}
+		if errMsg == "too many failed attempts, please request a new code" {
+			response.Error(c, http.StatusBadRequest, "TOO_MANY_ATTEMPTS", "Too many failed attempts, please request a new code")
+			return
+		}
+		if errMsg == "verification code not found" {
+			response.Error(c, http.StatusBadRequest, "CODE_NOT_FOUND", "Verification code not found, please request a new code")
 			return
 		}
 		response.InternalError(c, "Failed to verify email")
@@ -223,12 +233,24 @@ func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
 	}
 
 	if err := h.authUseCase.ResendVerificationEmail(input); err != nil {
-		// Check for specific errors
-		if err.Error() == "email not found" {
+		errMsg := err.Error()
+		
+		// Check for rate limit error
+		if strings.HasPrefix(errMsg, "resend_rate_limit:") {
+			remainingSeconds := errMsg[len("resend_rate_limit:"):]
+			response.ErrorWithDetails(c, http.StatusTooManyRequests, "RESEND_RATE_LIMIT", 
+				"Please wait before requesting a new code", 
+				map[string]interface{}{
+					"remaining_seconds": remainingSeconds,
+				})
+			return
+		}
+		
+		if errMsg == "email not found" {
 			response.NotFound(c, "Email not found")
 			return
 		}
-		if err.Error() == "email already verified" {
+		if errMsg == "email already verified" {
 			response.Error(c, http.StatusBadRequest, "EMAIL_VERIFIED", "Email already verified")
 			return
 		}

@@ -19,6 +19,8 @@ type User struct {
 	IsActive                  bool       `json:"is_active" gorm:"default:true"`
 	EmailVerificationToken    *string    `json:"-"`
 	EmailVerificationExpiresAt *time.Time `json:"-"`
+	EmailVerificationAttempts int        `json:"-" gorm:"default:0"`
+	LastCodeSentAt           *time.Time `json:"-"`
 	PasswordResetToken        *string    `json:"-"`
 	PasswordResetExpiresAt    *time.Time `json:"-"`
 	LastLoginAt               *time.Time `json:"last_login_at,omitempty"`

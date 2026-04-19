@@ -19,14 +19,34 @@ export default function VerifyEmailContent() {
   const [code, setCode] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [useCodeInput, setUseCodeInput] = useState(false);
+  
+  // Resend countdown state
+  const [canResend, setCanResend] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
 
   useEffect(() => {
     const emailParam = searchParams.get('email');
     if (emailParam) {
       setEmail(decodeURIComponent(emailParam));
       setUseCodeInput(true);
+      setCanResend(false);
+      setResendCountdown(60);
     }
   }, [searchParams]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (resendCountdown > 0 && !canResend) {
+      const timer = setTimeout(() => {
+        setResendCountdown(resendCountdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+    
+    if (resendCountdown === 0 && useCodeInput && !canResend) {
+      setCanResend(true);
+    }
+  }, [resendCountdown, canResend, useCodeInput]);
 
   const validateEmail = () => {
     const newErrors: Record<string, string> = {};
@@ -47,7 +67,7 @@ export default function VerifyEmailContent() {
     if (!code) {
       newErrors.code = 'Verification code is required';
     } else if (code.length !== 6) {
-      newErrors.code = 'Code must be 6 characters';
+      newErrors.code = 'Code must be 6 digits';
     }
     
     setErrors(newErrors);
@@ -63,6 +83,9 @@ export default function VerifyEmailContent() {
     try {
       await authService.resendVerificationEmail({ email });
       setUseCodeInput(true);
+      setCanResend(false);
+      setResendCountdown(60);
+      setCode('');
       toast.success('Verification email sent!', {
         description: 'Check your inbox for the verification code',
       });
@@ -88,6 +111,28 @@ export default function VerifyEmailContent() {
       window.location.href = '/login';
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Verification failed';
+      toast.error('Error', { description: errorMessage });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendClick = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!canResend) return;
+    
+    setIsLoading(true);
+    try {
+      await authService.resendVerificationEmail({ email });
+      setCanResend(false);
+      setResendCountdown(60);
+      setCode('');
+      toast.success('Verification email sent!', {
+        description: 'Check your inbox for the new verification code',
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send verification email';
       toast.error('Error', { description: errorMessage });
     } finally {
       setIsLoading(false);
@@ -140,7 +185,7 @@ export default function VerifyEmailContent() {
                   type="text"
                   placeholder="000000"
                   value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   disabled={isLoading}
                   maxLength={6}
                   className={errors.code ? 'border-red-500' : ''}
@@ -170,15 +215,36 @@ export default function VerifyEmailContent() {
             </Button>
 
             {useCodeInput && (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => setUseCodeInput(false)}
-                disabled={isLoading}
-              >
-                Use different email
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleResendClick}
+                  disabled={!canResend || isLoading}
+                >
+                  {canResend ? (
+                    'Resend Code'
+                  ) : (
+                    `Resend in ${resendCountdown}s`
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setUseCodeInput(false);
+                    setCode('');
+                    setCanResend(false);
+                    setResendCountdown(0);
+                  }}
+                  disabled={isLoading}
+                >
+                  Use different email
+                </Button>
+              </>
             )}
 
             <Link href="/login" className="text-sm text-center text-muted-foreground hover:text-primary">
