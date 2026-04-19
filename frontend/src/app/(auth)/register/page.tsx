@@ -64,9 +64,9 @@ export default function RegisterPage() {
     try {
       await register(formData);
       toast.success('Account created!', {
-        description: 'Welcome to STORE',
+        description: 'Please verify your email to activate your account',
       });
-      router.push('/');
+      router.push('/verify-email');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Registration failed';
       toast.error('Registration failed', { description: errorMessage });

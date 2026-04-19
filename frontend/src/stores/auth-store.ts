@@ -19,7 +19,7 @@ interface AuthState {
   setUser: (user: User | null) => void;
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<void>;
-  verifyEmail: (token: string) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
   resendVerificationEmail: (email: string) => Promise<void>;
 }
 
@@ -100,9 +100,13 @@ export const useAuthStore = create<AuthState>()(
         await authService.resetPassword({ token, password });
       },
 
-      verifyEmail: async (token: string) => {
-        await authService.verifyEmail({ token });
-        set({ isEmailVerified: true });
+      verifyEmail: async (email: string, code: string) => {
+        const response = await authService.verifyEmailByCode({ email, code });
+        set({ 
+          user: response.user,
+          isAuthenticated: true,
+          isEmailVerified: true,
+        });
       },
 
       resendVerificationEmail: async (email: string) => {

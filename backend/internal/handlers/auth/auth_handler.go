@@ -4,6 +4,7 @@ import (
 	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/services/auth"
 	"ecommerce-backend/pkg/response"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -68,6 +69,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	authResponse, err := h.authUseCase.Login(input)
 	if err != nil {
+		// Check if error is due to unverified email
+		if err.Error() == "EMAIL_NOT_VERIFIED" {
+			response.ErrorWithDetails(c, http.StatusForbidden, "EMAIL_NOT_VERIFIED", "Please verify your email before logging in", map[string]interface{}{
+				"email": input.Email,
+			})
+			return
+		}
 		// Don't expose specific error for security
 		response.Unauthorized(c, "Invalid email or password")
 		return
@@ -156,3 +164,77 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	response.Success(c, user)
 }
 
+// VerifyEmail verifies user email with verification code
+// @Summary Verify email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body auth.VerifyEmailInput true "Verification data"
+// @Success 200 {object} response.Response
+// @Router /auth/verify-email [post]
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	var input auth.VerifyEmailInput
+	
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	authResponse, err := h.authUseCase.VerifyEmail(input)
+	if err != nil {
+		// Check for specific errors
+		if err.Error() == "email not found" {
+			response.NotFound(c, "Email not found")
+			return
+		}
+		if err.Error() == "email already verified" {
+			response.Error(c, http.StatusBadRequest, "EMAIL_VERIFIED", "Email already verified")
+			return
+		}
+		if err.Error() == "verification code expired" {
+			response.Error(c, http.StatusBadRequest, "CODE_EXPIRED", "Verification code expired")
+			return
+		}
+		if err.Error() == "invalid verification code" {
+			response.Error(c, http.StatusBadRequest, "INVALID_CODE", "Invalid verification code")
+			return
+		}
+		response.InternalError(c, "Failed to verify email")
+		return
+	}
+
+	response.Success(c, authResponse)
+}
+
+// ResendVerificationEmail resends verification email
+// @Summary Resend verification email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body auth.ResendVerificationInput true "Email address"
+// @Success 200 {object} response.Response
+// @Router /auth/resend-verification-email [post]
+func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
+	var input auth.ResendVerificationInput
+	
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	if err := h.authUseCase.ResendVerificationEmail(input); err != nil {
+		// Check for specific errors
+		if err.Error() == "email not found" {
+			response.NotFound(c, "Email not found")
+			return
+		}
+		if err.Error() == "email already verified" {
+			response.Error(c, http.StatusBadRequest, "EMAIL_VERIFIED", "Email already verified")
+			return
+		}
+		response.InternalError(c, "Failed to resend verification email")
+		return
+	}
+
+	response.Success(c, gin.H{"message": "Verification email sent successfully"})
+}

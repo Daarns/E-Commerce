@@ -13,7 +13,6 @@ import (
 	adminHandler "ecommerce-backend/internal/handlers/admin"
 	authHandler "ecommerce-backend/internal/handlers/auth"
 	cartHandler "ecommerce-backend/internal/handlers/cart"
-	categoryHandler "ecommerce-backend/internal/handlers/category"
 	featuresHandler "ecommerce-backend/internal/handlers/features"
 	orderHandler "ecommerce-backend/internal/handlers/order"
 	productHandler "ecommerce-backend/internal/handlers/product"
@@ -21,6 +20,7 @@ import (
 	"ecommerce-backend/internal/repositories"
 	authService "ecommerce-backend/internal/services/auth"
 	cartService "ecommerce-backend/internal/services/cart"
+	emailService "ecommerce-backend/internal/services/email"
 	featuresService "ecommerce-backend/internal/services/features"
 	orderService "ecommerce-backend/internal/services/order"
 	productService "ecommerce-backend/internal/services/product"
@@ -30,6 +30,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
+	"github.com/zishang520/socket.io/servers/socket/v3"
+	"github.com/zishang520/socket.io/v3/pkg/types"
 	postgresDriver "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -110,9 +112,39 @@ func main() {
 	searchRepo := repositories.NewSearchRepository(db)
 	chatRepo := repositories.NewChatRepository(db)
 	activityRepo := repositories.NewActivityRepository(db)
+	emailQueueRepo := repositories.NewEmailQueueRepository(db)
+
+	// Initialize Email Service
+	emailConfig := emailService.EmailConfig{
+		Host:     os.Getenv("SMTP_HOST"),
+		Port:     587, // Gmail SMTP port
+		Username: os.Getenv("SMTP_USER"),
+		Password: os.Getenv("SMTP_PASSWORD"),
+		FromAddr: os.Getenv("EMAIL_FROM"),
+	}
+	
+	// Use defaults for Gmail if not configured
+	if emailConfig.Host == "" {
+		emailConfig.Host = "smtp.gmail.com"
+	}
+	if emailConfig.Username == "" {
+		emailConfig.Username = os.Getenv("GMAIL_USER")
+	}
+	if emailConfig.Password == "" {
+		emailConfig.Password = os.Getenv("GMAIL_PASSWORD")
+	}
+	if emailConfig.FromAddr == "" {
+		emailConfig.FromAddr = emailConfig.Username
+	}
+	
+	emailSvc, err := emailService.NewEmailService(emailConfig)
+	if err != nil {
+		log.Printf("Warning: failed to initialize email service: %v\n", err)
+		emailSvc = nil
+	}
 
 	// Initialize Services
-	authSvc := authService.NewAuthService(userRepo, jwtManager)
+	authSvc := authService.NewAuthService(userRepo, emailQueueRepo, jwtManager, emailSvc)
 	productSvc := productService.NewProductService(productRepo, categoryRepo)
 	cartSvc := cartService.NewCartService(cartRepo, addressRepo, productRepo)
 	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo)
@@ -125,7 +157,7 @@ func main() {
 	// Initialize Handlers
 	authH := authHandler.NewAuthHandler(authSvc)
 	productH := productHandler.NewProductHandler(productSvc)
-	categoryH := categoryHandler.NewCategoryHandler(productSvc)
+	categoryH := productHandler.NewCategoryHandler(productSvc)
 	cartH := cartHandler.NewCartHandler(cartSvc)
 	orderH := orderHandler.NewOrderHandler(orderSvc)
 	searchH := featuresHandler.NewSearchHandler(searchSvc)
@@ -172,6 +204,8 @@ func main() {
 			authRoutes.POST("/register", authH.Register)
 			authRoutes.POST("/login", authH.Login)
 			authRoutes.POST("/refresh", authH.Refresh)
+			authRoutes.POST("/verify-email", authH.VerifyEmail)
+			authRoutes.POST("/resend-verification-email", authH.ResendVerificationEmail)
 		}
 
 		// Category routes (public - read only)
@@ -356,6 +390,43 @@ func main() {
 		port = "8080"
 	}
 
+	// Initialize Socket.io server dengan CORS di ServerOptions
+	socketOptions := socket.DefaultServerOptions()
+	socketOptions.SetCors(&types.Cors{
+		Origin:      "*",
+		Credentials: true,
+	})
+
+	ioServer := socket.NewServer(nil, socketOptions)
+
+	ioServer.On("connection", func(clients ...any) {
+		client := clients[0].(*socket.Socket)
+		log.Printf("✨ Socket client connected: %s\n", client.Id())
+
+		client.On("disconnect", func(reasons ...any) {
+			log.Printf("🔌 Socket client disconnected: %s\n", client.Id())
+		})
+	})
+
+	// Start Socket.io server on port 8081
+	socketPort := "8081"
+	go func() {
+		mux := http.NewServeMux()
+		mux.Handle("/socket.io/", ioServer.ServeHandler(nil))
+
+		socketSrv := &http.Server{
+			Addr:    ":" + socketPort,
+			Handler: mux,
+		}
+
+		log.Printf("🔌 WebSocket server starting on http://localhost:%s/socket.io\n", socketPort)
+		if err := socketSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("⚠️ WebSocket server error: %v\n", err)
+		}
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: router,
@@ -363,7 +434,7 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		log.Printf("🚀 Server starting on http://localhost:%s\n", port)
+		log.Printf("🚀 API Server starting on http://localhost:%s\n", port)
 		log.Printf("📚 API Documentation: http://localhost:%s/api/v1/ping\n", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
@@ -375,7 +446,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("🛑 Shutting down server...")
+	log.Println("🛑 Shutting down servers...")
 
 	ctx2, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -384,7 +455,7 @@ func main() {
 		log.Fatal("Server forced to shutdown:", err)
 	}
 
-	log.Println("✅ Server exited gracefully")
+	log.Println("✅ Servers exited gracefully")
 }
 
 func initDB() (*gorm.DB, error) {

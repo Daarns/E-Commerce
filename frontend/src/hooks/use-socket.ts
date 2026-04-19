@@ -1,23 +1,13 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/stores/auth-store';
 import Cookies from 'js-cookie';
 
-interface SocketEvents {
-  'chat:message': (message: any) => void;
-  'chat:typing': (data: { conversation_id: string; user_id: string; is_typing: boolean }) => void;
-  'chat:reaction': (data: { message_id: string; emoji: string; user_id: string }) => void;
-  'chat:agent-assigned': (data: { conversation_id: string; agent_id: string }) => void;
-  'chat:status-changed': (data: { conversation_id: string; status: string }) => void;
-  'chat:connected': () => void;
-  'chat:disconnected': () => void;
-  'chat:error': (error: any) => void;
-}
-
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const SOCKET_URL = 'http://localhost:8081';
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
@@ -40,15 +30,17 @@ export function useSocket() {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 10,
-      transports: ['websocket', 'polling'], // Fallback to polling if WebSocket not available
+      transports: ['polling', 'websocket'], // Fallback to polling if WebSocket not available
     });
 
     socketRef.current.on('connect', () => {
       console.log('Socket connected:', socketRef.current?.id);
+      setIsConnected(true);
     });
 
     socketRef.current.on('disconnect', (reason) => {
       console.log('Socket disconnected:', reason);
+      setIsConnected(false);
     });
 
     socketRef.current.on('connect_error', (error) => {
@@ -63,7 +55,7 @@ export function useSocket() {
   }, [user]);
 
   const emit = useCallback(
-    (event: string, data?: any) => {
+    (event: string, data?: Record<string, unknown>) => {
       if (socketRef.current?.connected) {
         socketRef.current.emit(event, data);
       } else {
@@ -73,7 +65,7 @@ export function useSocket() {
     []
   );
 
-  const on = useCallback((event: string, callback: (...args: any[]) => void) => {
+  const on = useCallback((event: string, callback: (...args: unknown[]) => void) => {
     if (socketRef.current) {
       socketRef.current.on(event, callback);
       return () => {
@@ -82,24 +74,23 @@ export function useSocket() {
     }
   }, []);
 
-  const off = useCallback((event: string, callback?: (...args: any[]) => void) => {
+  const off = useCallback((event: string, callback?: (...args: unknown[]) => void) => {
     if (socketRef.current) {
       socketRef.current.off(event, callback);
     }
   }, []);
 
   return {
-    socket: socketRef.current,
     emit,
     on,
     off,
-    isConnected: socketRef.current?.connected || false,
+    isConnected,
   };
 }
 
 // Helper hook for chat-specific events
 export function useChatSocket(conversationId: string) {
-  const { socket, emit, on, off, isConnected } = useSocket();
+  const { emit, on, off, isConnected } = useSocket();
 
   const sendMessage = useCallback(
     (message: string) => {

@@ -25,7 +25,7 @@ type ProductReview struct {
 
 // TableName specifies the table name for ProductReview
 func (ProductReview) TableName() string {
-	return "product_reviews"
+	return "reviews"
 }
 
 // ReviewHelpfulVote represents a vote on whether a review is helpful
@@ -41,7 +41,7 @@ type ReviewHelpfulVote struct {
 
 // TableName specifies the table name for ReviewHelpfulVote
 func (ReviewHelpfulVote) TableName() string {
-	return "review_helpful_votes"
+	return "review_helpful"
 }
 
 // ReviewStatistics holds review stats for a product

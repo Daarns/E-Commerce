@@ -223,7 +223,7 @@ func (h *ProductHandler) GetFeaturedProducts(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, results)
+	response.Success(c, gin.H{"products": results})
 }
 
 // GetRelatedProducts retrieves related products

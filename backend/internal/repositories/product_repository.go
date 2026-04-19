@@ -457,3 +457,17 @@ func (r *ProductRepository) GetNewArrivals(limit int) ([]models.Product, error) 
 	
 	return products, err
 }
+
+// GetCandidatesForFeatured retrieves all active products with stock for featured scoring
+func (r *ProductRepository) GetCandidatesForFeatured() ([]models.Product, error) {
+	var products []models.Product
+	
+	err := r.db.Where("status = ? AND stock_quantity > 0", "active").
+		Preload("Category").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC").Limit(1)
+		}).
+		Find(&products).Error
+	
+	return products, err
+}

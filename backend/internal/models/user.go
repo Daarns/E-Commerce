@@ -44,7 +44,7 @@ func (u *User) IsCustomer() bool {
 
 // CanLogin checks if user is allowed to login
 func (u *User) CanLogin() bool {
-	return u.IsActive && u.DeletedAt == nil
+	return u.IsVerified && u.IsActive && u.DeletedAt == nil
 }
 
 // RefreshToken represents a refresh token

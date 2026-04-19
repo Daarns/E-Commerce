@@ -13,6 +13,7 @@ type ProductRepository interface {
 	GetFeaturedProducts(limit int) ([]models.Product, error)
 	GetBestSellers(limit int) ([]models.Product, error)
 	GetNewArrivals(limit int) ([]models.Product, error)
+	GetCandidatesForFeatured() ([]models.Product, error)
 }
 
 // CategoryRepository interface for dependency injection
@@ -77,7 +78,7 @@ type CategorySummary struct {
 	Children      []CategorySummary `json:"children,omitempty"`
 }
 
-// GetFeaturedProducts retrieves featured products with caching
+// GetFeaturedProducts retrieves featured products with balanced scoring and diversity
 func (s *DiscoveryService) GetFeaturedProducts(limit int) (*FeaturedProductsResponse, error) {
 	if limit <= 0 {
 		limit = 8
@@ -92,22 +93,25 @@ func (s *DiscoveryService) GetFeaturedProducts(limit int) (*FeaturedProductsResp
 		return cached.(*FeaturedProductsResponse), nil
 	}
 
-	// Fetch from database
-	products, err := s.productRepo.GetFeaturedProducts(limit)
+	// Fetch candidates
+	products, err := s.productRepo.GetCandidatesForFeatured()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch featured products: %w", err)
 	}
 
+	// Calculate scores and apply diversity rules
+	featured := s.applyDiversityRules(products, limit)
+
 	response := &FeaturedProductsResponse{
-		Products: make([]ProductSummary, len(products)),
+		Products: make([]ProductSummary, len(featured)),
 	}
 
-	for i, p := range products {
+	for i, p := range featured {
 		response.Products[i] = s.productToSummary(p)
 	}
 
-	// Cache for 5 minutes
-	s.cacheService.Set(cacheKey, response, 5*time.Minute)
+	// Cache for 24 hours
+	s.cacheService.Set(cacheKey, response, 24*time.Hour)
 
 	return response, nil
 }
@@ -270,3 +274,131 @@ func (s *DiscoveryService) InvalidateNewArrivalsCache() {
 	}
 }
 
+// ProductScore represents a product with its calculated score
+type ProductScore struct {
+	Product models.Product
+	Score   float64
+}
+
+// calculateFeaturedScore calculates a weighted score based on multiple criteria
+// Weights: 30% sold_count, 25% rating, 20% trending(views), 15% stock_alert, 10% new_product
+func (s *DiscoveryService) calculateFeaturedScore(p models.Product) float64 {
+	var score float64 = 0.0
+
+	// Normalize sold_count (assume max 1000 as baseline)
+	maxSoldCount := 1000.0
+	soldCountScore := float64(p.SoldCount) / maxSoldCount
+	if soldCountScore > 1.0 {
+		soldCountScore = 1.0
+	}
+	score += soldCountScore * 30.0
+
+	// Normalize rating (max 5.0)
+	ratingScore := p.AvgRating / 5.0
+	if ratingScore > 1.0 {
+		ratingScore = 1.0
+	}
+	score += ratingScore * 25.0
+
+	// Normalize view count (assume max 10000 as baseline)
+	maxViewCount := 10000.0
+	viewCountScore := float64(p.ViewCount) / maxViewCount
+	if viewCountScore > 1.0 {
+		viewCountScore = 1.0
+	}
+	score += viewCountScore * 20.0
+
+	// Stock alert bonus: if stock < threshold, add urgency bonus
+	stockAlertBonus := 0.0
+	if p.StockQuantity < p.StockAlertThreshold && p.StockQuantity > 0 {
+		// Product is low stock - bonus for urgency
+		stockAlertBonus = 1.0 - (float64(p.StockQuantity) / float64(p.StockAlertThreshold))
+	}
+	score += stockAlertBonus * 15.0
+
+	// New product bonus: if created within 30 days
+	newProductBonus := 0.0
+	daysSinceCreation := time.Since(p.CreatedAt).Hours() / 24
+	if daysSinceCreation <= 30 {
+		newProductBonus = 1.0 - (daysSinceCreation / 30.0)
+	}
+	score += newProductBonus * 10.0
+
+	return score
+}
+
+// applyDiversityRules filters and orders products to ensure balanced variety
+// - Mix of best sellers, top-rated, and trending
+// - Limit same category to max 3 items
+// - Ensure at least 1 top-rated per 3 items
+// - Ensure at least 1 trending per 4 items
+func (s *DiscoveryService) applyDiversityRules(products []models.Product, limit int) []models.Product {
+	if len(products) == 0 {
+		return products
+	}
+
+	// Calculate scores for all products
+	productScores := make([]ProductScore, len(products))
+	for i, p := range products {
+		productScores[i] = ProductScore{
+			Product: p,
+			Score:   s.calculateFeaturedScore(p),
+		}
+	}
+
+	// Sort by score descending
+	for i := 0; i < len(productScores)-1; i++ {
+		for j := i + 1; j < len(productScores); j++ {
+			if productScores[j].Score > productScores[i].Score {
+				productScores[i], productScores[j] = productScores[j], productScores[i]
+			}
+		}
+	}
+
+	// Apply diversity rules
+	result := []models.Product{}
+	categoryCount := make(map[string]int) // Count per category (by category ID)
+	topRatedCount := 0
+	trendingCount := 0
+
+	for _, ps := range productScores {
+		if len(result) >= limit {
+			break
+		}
+
+		// Check category limit: max 3 items per category
+		catID := ps.Product.CategoryID.String()
+		if categoryCount[catID] >= 3 {
+			continue
+		}
+
+		// Check if we need more top-rated (min 1 per 3 items)
+		if topRatedCount < (len(result)+1)/3 && ps.Product.AvgRating >= 4.0 {
+			result = append(result, ps.Product)
+			categoryCount[catID]++
+			topRatedCount++
+			continue
+		}
+
+		// Check if we need more trending (min 1 per 4 items)
+		if trendingCount < (len(result)+1)/4 && ps.Product.ViewCount >= 100 {
+			result = append(result, ps.Product)
+			categoryCount[catID]++
+			trendingCount++
+			continue
+		}
+
+		// Default: add product if it fits category limit
+		result = append(result, ps.Product)
+		categoryCount[catID]++
+
+		if ps.Product.AvgRating >= 4.0 {
+			topRatedCount++
+		}
+		if ps.Product.ViewCount >= 100 {
+			trendingCount++
+		}
+	}
+
+	return result
+}

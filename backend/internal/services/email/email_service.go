@@ -232,12 +232,17 @@ func (s *EmailService) SendPasswordReset(recipient EmailRecipient, resetLink str
 	return s.SendEmail(recipient, "Reset Your Password", htmlBody)
 }
 
-// SendEmailVerification sends email verification email
-func (s *EmailService) SendEmailVerification(recipient EmailRecipient, verificationLink string) error {
+// SendEmailVerification sends email verification email with code
+func (s *EmailService) SendEmailVerification(recipient interface{}, verificationCode string) error {
+	emailRecipient, ok := recipient.(EmailRecipient)
+	if !ok {
+		return fmt.Errorf("invalid recipient type")
+	}
+
 	data := EmailData{
-		"CustomerName":     recipient.Name,
-		"VerificationLink": verificationLink,
-		"ExpiresIn":        "24 hours",
+		"CustomerName":      emailRecipient.Name,
+		"VerificationCode":  verificationCode,
+		"ExpiresIn":         "24 hours",
 	}
 
 	htmlBody, err := s.renderTemplate("email_verification", data)
@@ -245,7 +250,7 @@ func (s *EmailService) SendEmailVerification(recipient EmailRecipient, verificat
 		return err
 	}
 
-	return s.SendEmail(recipient, "Verify Your Email Address", htmlBody)
+	return s.SendEmail(emailRecipient, "Verify Your Email Address - "+verificationCode, htmlBody)
 }
 
 // renderTemplate renders email template with data
@@ -466,32 +471,38 @@ const (
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: Arial, sans-serif; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #2c3e50; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; border: 1px solid #ddd; }
-        .footer { text-align: center; padding: 10px; color: #666; font-size: 12px; }
-        .button { display: inline-block; padding: 12px 24px; background-color: #2c3e50; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; text-align: center; }
+        .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }
+        .code-box { background: white; border: 2px solid #667eea; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; }
+        .code { font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #667eea; font-family: monospace; }
+        .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Verify Your Email Address</h1>
+            <h1>Welcome to E-Commerce!</h1>
+            <p>Verify your email address</p>
         </div>
         <div class="content">
             <p>Dear {{.CustomerName}},</p>
-            <p>Thank you for signing up! Please verify your email address to get started.</p>
+            <p>Thank you for registering with us! To complete your registration and activate your account, please verify your email address using the code below:</p>
             
-            <a href="{{.VerificationLink}}" class="button">Verify Email</a>
+            <div class="code-box">
+                <div class="code">{{.VerificationCode}}</div>
+            </div>
             
-            <p style="color: #666; font-size: 12px;">This link will expire in {{.ExpiresIn}}. If you didn't sign up for this account, please ignore this email.</p>
+            <p>Enter this 6-digit code on the verification page to confirm your email address.</p>
+            <p><strong>This code expires in {{.ExpiresIn}}.</strong></p>
             
-            <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #3498db;">{{.VerificationLink}}</p>
-        </div>
-        <div class="footer">
-            <p>&copy; 2024 E-Commerce. All rights reserved.</p>
+            <p>If you didn't create this account, you can safely ignore this email.</p>
+            
+            <div class="footer">
+                <p>© 2026 E-Commerce Platform. All rights reserved.</p>
+                <p>This is an automated message, please do not reply to this email.</p>
+            </div>
         </div>
     </div>
 </body>

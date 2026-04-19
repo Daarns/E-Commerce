@@ -60,6 +60,14 @@ func (r *UserRepository) Update(user *models.User) error {
 	return nil
 }
 
+// UpdateFields updates specific fields of a user by ID
+func (r *UserRepository) UpdateFields(userID uuid.UUID, updates map[string]interface{}) error {
+	if err := r.db.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("failed to update user fields: %w", err)
+	}
+	return nil
+}
+
 // Delete soft deletes a user
 func (r *UserRepository) Delete(id uuid.UUID) error {
 	if err := r.db.Model(&models.User{}).Where("id = ?", id).Update("deleted_at", gorm.Expr("CURRENT_TIMESTAMP")).Error; err != nil {

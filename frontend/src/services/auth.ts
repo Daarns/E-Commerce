@@ -23,10 +23,6 @@ export interface ResetPasswordInput {
 }
 
 export interface VerifyEmailInput {
-  token: string;
-}
-
-export interface VerifyEmailByCodeInput {
   email: string;
   code: string;
 }
@@ -35,15 +31,41 @@ export interface ResendVerificationEmailInput {
   email: string;
 }
 
+// Helper to extract error message from API response
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    // Check if it's axios error with response data
+    const axiosError = error as any;
+    if (axiosError.response?.data?.error) {
+      // Return error code to identify specific cases
+      const errorCode = axiosError.response.data.error.code;
+      if (errorCode === 'EMAIL_NOT_VERIFIED') {
+        return 'EMAIL_NOT_VERIFIED';
+      }
+      return axiosError.response.data.error.message || error.message;
+    }
+    return error.message;
+  }
+  return 'An unknown error occurred';
+}
+
 export const authService = {
   async login(input: LoginInput): Promise<AuthResponse> {
-    const response = await api.post<ApiResponse<AuthResponse>>('/auth/login', input);
-    return response.data.data!;
+    try {
+      const response = await api.post<ApiResponse<AuthResponse>>('/auth/login', input);
+      return response.data.data!;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
   },
 
-  async register(input: RegisterInput): Promise<AuthResponse> {
-    const response = await api.post<ApiResponse<AuthResponse>>('/auth/register', input);
-    return response.data.data!;
+  async register(input: RegisterInput): Promise<any> {
+    try {
+      const response = await api.post<ApiResponse<any>>('/auth/register', input);
+      return response.data.data!;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
   },
 
   async logout(): Promise<void> {
@@ -70,12 +92,9 @@ export const authService = {
     await api.post('/auth/reset-password', input);
   },
 
-  async verifyEmail(input: VerifyEmailInput): Promise<void> {
-    await api.post('/auth/verify-email', input);
-  },
-
-  async verifyEmailByCode(input: VerifyEmailByCodeInput): Promise<void> {
-    await api.post('/auth/verify-email-code', input);
+  async verifyEmailByCode(input: VerifyEmailInput): Promise<AuthResponse> {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/verify-email', input);
+    return response.data.data!;
   },
 
   async resendVerificationEmail(input: ResendVerificationEmailInput): Promise<void> {

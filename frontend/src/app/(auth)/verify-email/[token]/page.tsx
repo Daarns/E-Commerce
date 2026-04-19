@@ -1,62 +1,31 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { authService } from '@/services/auth';
 import { toast } from 'sonner';
 
-type VerificationStatus = 'loading' | 'success' | 'error' | 'expired';
+type VerificationStatus = 'loading' | 'success' | 'error' | 'expired' | 'not_found';
 
 function VerifyEmailConfirmContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get('token');
-
-  const [status, setStatus] = useState<VerificationStatus>('loading');
+  const [status, setStatus] = useState<VerificationStatus>('not_found');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const verifyEmail = async () => {
-      if (!token) {
-        setStatus('error');
-        setMessage('No verification token found');
-        return;
-      }
-
-      try {
-        await authService.verifyEmail({ token });
-        setStatus('success');
-        setMessage('Your email has been successfully verified!');
-        toast.success('Email verified!', {
-          description: 'You can now login to your account',
-        });
-        
-        // Redirect to login after 3 seconds
-        setTimeout(() => {
-          router.push('/login');
-        }, 3000);
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Verification failed';
-        
-        if (errorMessage.includes('expired')) {
-          setStatus('expired');
-          setMessage('Your verification link has expired. Please request a new one.');
-        } else {
-          setStatus('error');
-          setMessage(errorMessage);
-        }
-        
-        toast.error('Verification failed', { description: errorMessage });
-      }
-    };
-
-    verifyEmail();
-  }, [token, router]);
+    // Email verification is now done through the main verify-email page
+    // This page is kept for future magic link or token-based verification
+    setStatus('not_found');
+    setMessage('Please use the verification code sent to your email. Redirecting...');
+    
+    setTimeout(() => {
+      router.push('/verify-email');
+    }, 2000);
+  }, [router]);
 
   if (status === 'loading') {
     return (
@@ -113,40 +82,7 @@ function VerifyEmailConfirmContent() {
     );
   }
 
-  if (status === 'expired') {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-md px-4"
-      >
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="text-center">
-            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-orange-500" />
-            <CardTitle className="text-2xl font-bold">Link Expired</CardTitle>
-            <CardDescription>
-              Your verification link has expired
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Alert className="border-orange-200 bg-orange-50">
-              <AlertDescription className="text-orange-700">
-                Verification links expire after 24 hours. Please request a new verification link.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={() => router.push('/verify-email')}>
-              Request New Link
-            </Button>
-          </CardFooter>
-        </Card>
-      </motion.div>
-    );
-  }
-
-  // Error state
+  // Default: redirect to main verify-email page
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -156,25 +92,22 @@ function VerifyEmailConfirmContent() {
     >
       <Card className="border-0 shadow-lg">
         <CardHeader className="text-center">
-          <XCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
-          <CardTitle className="text-2xl font-bold">Verification Failed</CardTitle>
+          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-blue-500" />
+          <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
           <CardDescription>
-            {message}
+            {message || 'Please use the verification code sent to your email'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Alert className="border-red-200 bg-red-50">
-            <AlertDescription className="text-red-700">
-              {message || 'An error occurred while verifying your email. Please try again.'}
+          <Alert className="border-blue-200 bg-blue-50">
+            <AlertDescription className="text-blue-700">
+              A verification code has been sent to your email address. Please enter it on the verification page.
             </AlertDescription>
           </Alert>
         </CardContent>
-        <CardFooter className="flex flex-col gap-2">
+        <CardFooter>
           <Button className="w-full" onClick={() => router.push('/verify-email')}>
-            Try Again
-          </Button>
-          <Button variant="outline" className="w-full" onClick={() => router.push('/login')}>
-            Back to Login
+            Go to Verification Page
           </Button>
         </CardFooter>
       </Card>
