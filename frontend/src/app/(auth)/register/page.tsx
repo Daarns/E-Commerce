@@ -66,7 +66,8 @@ export default function RegisterPage() {
       toast.success('Account created!', {
         description: 'Please verify your email to activate your account',
       });
-      router.push('/verify-email');
+      // Pass email as query param so verify page auto-fills it
+      router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Registration failed';
       toast.error('Registration failed', { description: errorMessage });

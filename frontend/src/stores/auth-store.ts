@@ -49,12 +49,13 @@ export const useAuthStore = create<AuthState>()(
       },
 
       register: async (input: RegisterInput) => {
+        // Register returns message and email only - user must verify email first
         const response = await authService.register(input);
         
-        Cookies.set('access_token', response.access_token, { expires: 1/96 });
-        Cookies.set('refresh_token', response.refresh_token, { expires: 7 });
-        
-        set({ user: response.user, isAuthenticated: true, isEmailVerified: response.user.is_verified });
+        // Don't set authenticated state - user needs to verify email first
+        // Response contains: { message, email, user_id }
+        // No tokens issued until email verification
+        set({ user: null, isAuthenticated: false, isEmailVerified: false });
       },
 
       logout: async () => {

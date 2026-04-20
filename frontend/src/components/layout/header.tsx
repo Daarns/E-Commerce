@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -37,7 +37,11 @@ export function Header() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const { itemCount } = useCartStore();
   const { getWishlistCount } = useWishlistStore();
-  const wishlistCount = getWishlistCount();
+  const [wishlistCount, setWishlistCount] = useState(0);
+
+  useEffect(() => {
+    setWishlistCount(getWishlistCount());
+  }, [getWishlistCount]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

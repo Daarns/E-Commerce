@@ -5,6 +5,7 @@ import (
 	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -22,25 +23,66 @@ func NewWishlistHandler(wishlistService *features.WishlistService) *WishlistHand
 	}
 }
 
-// AddToWishlist adds a product to user's wishlist
-// POST /api/v1/wishlist/:productID
+// extractUserID extracts user_id from context, handling both UUID and string types
+func (h *WishlistHandler) extractUserID(c *gin.Context) string {
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		return ""
+	}
+	
+	// Try UUID type first (from auth middleware)
+	if userUUID, ok := userIDVal.(uuid.UUID); ok {
+		return userUUID.String()
+	}
+	
+	// Fall back to string type
+	if userStr, ok := userIDVal.(string); ok {
+		return userStr
+	}
+	
+	return ""
+}
+
+// AddToWishlist adds a product to user's wishlist or guest wishlist
+// POST /api/v1/wishlist
+// Body: { "product_id": "uuid" }
+// Returns 201 if authenticated, 202 if guest (client handles persistence)
 func (h *WishlistHandler) AddToWishlist(c *gin.Context) {
-	userID := c.GetString("user_id")
+	userID := h.extractUserID(c)
+	
+	// Parse request body
+	var req struct {
+		ProductID string `json:"product_id" binding:"required,uuid"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_REQUEST", "product_id is required and must be a valid UUID")
+		return
+	}
+
+	productUUID, err := uuid.Parse(req.ProductID)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_PRODUCT", "Invalid product ID format")
+		return
+	}
+
+	// If guest user (no authentication), return mock wishlist response
+	// Frontend will handle persistence via localStorage
 	if userID == "" {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		c.JSON(http.StatusAccepted, gin.H{
+			"status": "success",
+			"data": gin.H{
+				"id":         uuid.New().String(),
+				"product_id": productUUID.String(),
+				"user_id":    nil,
+				"created_at": time.Now(),
+			},
+		})
 		return
 	}
 
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, "INVALID_USER", "Invalid user ID")
-		return
-	}
-
-	productID := c.Param("productID")
-	productUUID, err := uuid.Parse(productID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_PRODUCT", "Invalid product ID format")
 		return
 	}
 
@@ -61,25 +103,36 @@ func (h *WishlistHandler) AddToWishlist(c *gin.Context) {
 	response.Created(c, result)
 }
 
-// RemoveFromWishlist removes a product from user's wishlist
-// DELETE /api/v1/wishlist/:productID
+// RemoveFromWishlist removes a product from user's wishlist or guest wishlist
+// DELETE /api/v1/wishlist
+// Body: { "product_id": "uuid" }
 func (h *WishlistHandler) RemoveFromWishlist(c *gin.Context) {
-	userID := c.GetString("user_id")
+	// Parse request body
+	var req struct {
+		ProductID string `json:"product_id" binding:"required,uuid"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_REQUEST", "product_id is required and must be a valid UUID")
+		return
+	}
+
+	productUUID, err := uuid.Parse(req.ProductID)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_PRODUCT", "Invalid product ID format")
+		return
+	}
+
+	userID := h.extractUserID(c)
+	
+	// If guest user, just return success (frontend handles removal)
 	if userID == "" {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		response.Success(c, gin.H{"message": "Product removed from wishlist"})
 		return
 	}
 
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, "INVALID_USER", "Invalid user ID")
-		return
-	}
-
-	productID := c.Param("productID")
-	productUUID, err := uuid.Parse(productID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_PRODUCT", "Invalid product ID format")
 		return
 	}
 
@@ -96,12 +149,20 @@ func (h *WishlistHandler) RemoveFromWishlist(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Product removed from wishlist"})
 }
 
-// GetWishlist retrieves user's wishlist
+// GetWishlist retrieves user's wishlist (authenticated users only)
 // GET /api/v1/wishlist?page=1&page_size=10
 func (h *WishlistHandler) GetWishlist(c *gin.Context) {
-	userID := c.GetString("user_id")
+	userID := h.extractUserID(c)
+	
 	if userID == "" {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		// Return empty wishlist for guests
+		response.Success(c, gin.H{
+			"items":       []interface{}{},
+			"total":       0,
+			"page":        1,
+			"page_size":   10,
+			"total_pages": 0,
+		})
 		return
 	}
 
@@ -131,24 +192,34 @@ func (h *WishlistHandler) GetWishlist(c *gin.Context) {
 }
 
 // CheckProduct checks if a product is in user's wishlist
-// GET /api/v1/wishlist/:productID/check
+// POST /api/v1/wishlist/check
+// Body: { "product_id": "uuid" }
 func (h *WishlistHandler) CheckProduct(c *gin.Context) {
-	userID := c.GetString("user_id")
+	// Parse request body
+	var req struct {
+		ProductID string `json:"product_id" binding:"required,uuid"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_REQUEST", "product_id is required and must be a valid UUID")
+		return
+	}
+
+	productUUID, err := uuid.Parse(req.ProductID)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_PRODUCT", "Invalid product ID format")
+		return
+	}
+
+	userID := h.extractUserID(c)
 	if userID == "" {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		// Guest users always return not in wishlist
+		response.Success(c, gin.H{"is_in_wishlist": false})
 		return
 	}
 
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, "INVALID_USER", "Invalid user ID")
-		return
-	}
-
-	productID := c.Param("productID")
-	productUUID, err := uuid.Parse(productID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_PRODUCT", "Invalid product ID format")
 		return
 	}
 
@@ -164,9 +235,10 @@ func (h *WishlistHandler) CheckProduct(c *gin.Context) {
 // GetWishlistCount returns count of items in user's wishlist
 // GET /api/v1/wishlist/count
 func (h *WishlistHandler) GetWishlistCount(c *gin.Context) {
-	userID := c.GetString("user_id")
+	userID := h.extractUserID(c)
 	if userID == "" {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		// Return 0 count for guests
+		response.Success(c, gin.H{"count": 0})
 		return
 	}
 
@@ -186,11 +258,12 @@ func (h *WishlistHandler) GetWishlistCount(c *gin.Context) {
 }
 
 // ClearWishlist clears all items from user's wishlist
-// DELETE /api/v1/wishlist
+// POST /api/v1/wishlist/clear
 func (h *WishlistHandler) ClearWishlist(c *gin.Context) {
-	userID := c.GetString("user_id")
+	userID := h.extractUserID(c)
 	if userID == "" {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		// Return success for guests (no-op)
+		response.Success(c, gin.H{"message": "Wishlist cleared"})
 		return
 	}
 

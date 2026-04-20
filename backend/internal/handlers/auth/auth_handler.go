@@ -4,6 +4,7 @@ import (
 	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/services/auth"
 	"ecommerce-backend/pkg/response"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -72,9 +73,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		// Check if error is due to unverified email
 		if err.Error() == "EMAIL_NOT_VERIFIED" {
-			response.ErrorWithDetails(c, http.StatusForbidden, "EMAIL_NOT_VERIFIED", "Please verify your email before logging in", map[string]interface{}{
-				"email": input.Email,
-			})
+			// Automatically check/send verification email when user tries to login unverified
+			emailSent, err := h.authUseCase.SendVerificationEmailOnLogin(input.Email)
+			if err != nil {
+				// Don't fail - just warn but still return proper error response
+				fmt.Printf("Warning: failed to check/send verification email on login: %v\n", err)
+			}
+			
+			// Return 403 with info about email being sent or code being reused
+			details := map[string]interface{}{
+				"email":       input.Email,
+				"email_sent":  emailSent, // Frontend can use this to determine if to show "Email sent" toast
+			}
+			
+			response.ErrorWithDetails(c, http.StatusForbidden, "EMAIL_NOT_VERIFIED", "Please verify your email before logging in.", details)
 			return
 		}
 		// Don't expose specific error for security

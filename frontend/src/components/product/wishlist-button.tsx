@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Heart, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWishlistStore } from '@/stores/wishlist-store';
@@ -21,16 +21,13 @@ export function WishlistButton({
   showLabel = false,
 }: WishlistButtonProps) {
   const user = useAuthStore((state) => state.user);
-  const { isInWishlist, addToWishlist, removeFromWishlist, items } = useWishlistStore();
   const [isLoading, setIsLoading] = useState(false);
-  const [inWishlist, setInWishlist] = useState(false);
-  const [wishlistId, setWishlistId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const item = items.find((i) => i.product_id === productId);
-    setInWishlist(!!item);
-    setWishlistId(item?.id || null);
-  }, [items, productId]);
+  
+  // Subscribe to wishlist changes
+  const inWishlist = useWishlistStore((state) => 
+    state.items.some((item) => item.product_id === productId)
+  );
+  const { addToWishlist, removeFromWishlist } = useWishlistStore();
 
   const handleClick = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -43,13 +40,18 @@ export function WishlistButton({
 
     setIsLoading(true);
     try {
-      if (inWishlist && wishlistId) {
-        await removeFromWishlist(wishlistId);
+      if (inWishlist) {
+        const wishlistItem = useWishlistStore.getState().items.find(
+          (item) => item.product_id === productId
+        );
+        if (wishlistItem) {
+          await removeFromWishlist(wishlistItem.id);
+        }
       } else {
         await addToWishlist(productId);
       }
     } catch (error) {
-      console.error('Error updating wishlist:', error);
+      // Error is already handled with toast in store
     } finally {
       setIsLoading(false);
     }
@@ -57,11 +59,12 @@ export function WishlistButton({
 
   return (
     <Button
-      variant={variant}
+      variant={inWishlist ? 'default' : variant}
       size={size}
       onClick={handleClick}
       disabled={isLoading}
       title={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
+      className={inWishlist ? 'bg-red-500 hover:bg-red-600' : ''}
     >
       {isLoading ? (
         <Loader2 className="h-5 w-5 animate-spin" />
@@ -69,7 +72,7 @@ export function WishlistButton({
         <>
           <Heart
             className={`h-5 w-5 ${
-              inWishlist ? 'fill-red-500 text-red-500' : ''
+              inWishlist ? 'fill-white text-white' : ''
             }`}
           />
           {showLabel && (

@@ -43,16 +43,29 @@ export const useWishlistStore = create<WishlistState>()(
           }));
           toast.success('Added to wishlist');
           return item;
-        } catch (error) {
-          console.error('Failed to add to wishlist:', error);
-          toast.error('Failed to add to wishlist');
-          throw error;
+        } catch (error: any) {
+          // Handle 409 Conflict - product already in wishlist
+          if (error?.response?.status === 409) {
+            toast.info('Already in your wishlist', {
+              description: 'Click the heart icon again to remove it'
+            });
+            // Return a dummy item to signal success to the UI (item already in store)
+            return { id: '', product_id: productId, user_id: '', created_at: '' } as Wishlist;
+          } else {
+            console.error('Failed to add to wishlist:', error);
+            toast.error('Failed to add to wishlist');
+            throw error;
+          }
         }
       },
 
       removeFromWishlist: async (wishlistId: string) => {
         try {
-          await wishlistService.removeFromWishlist(wishlistId);
+          // Find the product_id from the wishlist item
+          const wishlistItem = get().items.find((item) => item.id === wishlistId);
+          if (wishlistItem) {
+            await wishlistService.removeFromWishlist(wishlistItem.product_id);
+          }
           set((state) => ({
             items: state.items.filter((item) => item.id !== wishlistId),
           }));

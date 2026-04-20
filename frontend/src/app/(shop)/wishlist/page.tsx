@@ -1,30 +1,43 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, ShoppingBag, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ProductGrid } from '@/components/product/product-grid';
+import { WishlistItem } from '@/components/product/wishlist-item';
 import { useWishlistStore } from '@/stores/wishlist-store';
 import { useAuthStore } from '@/stores/auth-store';
 
 export default function WishlistPage() {
   const user = useAuthStore((state) => state.user);
-  const { items, isLoading, loadWishlist } = useWishlistStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { items, isLoading, loadWishlist: loadWishlistFn } = useWishlistStore();
   const [pageLoading, setPageLoading] = useState(true);
 
+  // Memoize loadWishlist to prevent infinite loops
+  const handleLoadWishlist = useCallback(async () => {
+    if (user && isAuthenticated) {
+      await loadWishlistFn();
+    }
+  }, [user, isAuthenticated, loadWishlistFn]);
+
   useEffect(() => {
+    let isMounted = true;
+
     async function load() {
-      await loadWishlist();
-      setPageLoading(false);
+      await handleLoadWishlist();
+      if (isMounted) {
+        setPageLoading(false);
+      }
     }
-    if (user) {
-      load();
-    } else {
-      setPageLoading(false);
-    }
-  }, [user, loadWishlist]);
+
+    load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [handleLoadWishlist]);
 
   if (!user) {
     return (
@@ -81,10 +94,23 @@ export default function WishlistPage() {
         {/* Products */}
         {items.length > 0 ? (
           <>
-            <ProductGrid
-              products={items.map((item) => item.product!).filter((p) => p)}
-              columns={4}
-            />
+            <motion.div
+              layout
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            >
+              <AnimatePresence mode="popLayout">
+                {items.map((item, index) => (
+                  item.product && (
+                    <WishlistItem
+                      key={item.id}
+                      wishlistId={item.id}
+                      product={item.product}
+                      index={index}
+                    />
+                  )
+                ))}
+              </AnimatePresence>
+            </motion.div>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

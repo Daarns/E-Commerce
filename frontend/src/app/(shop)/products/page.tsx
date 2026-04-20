@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { SlidersHorizontal, X, ChevronDown } from 'lucide-react';
+import { SlidersHorizontal, X, ChevronDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -23,72 +23,163 @@ const sortOptions = [
   { value: 'name_asc', label: 'Name: A to Z' },
 ];
 
+// Helper to capitalize category name properly (e.g., "laptops" -> "Laptops", "laptop gaming" -> "Laptop Gaming")
+const capitalizeCategoryName = (name: string): string => {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 function ProductsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [totalProducts, setTotalProducts] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const observerTarget = useRef<HTMLDivElement>(null);
   
-  // Filter state
+  // Filter state - use slug for URL/display, ID for API
+  const [searchInputValue, setSearchInputValue] = useState(searchParams.get('search') || '');
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
-  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || '');
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedCategorySlug, setSelectedCategorySlug] = useState(searchParams.get('category') || '');
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'popular' | 'name_asc' | 'name_desc'>(
     (searchParams.get('sort') as 'newest' | 'price_asc' | 'price_desc' | 'popular' | 'name_asc' | 'name_desc') || 'newest'
   );
-  const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page') || '1'));
   const [minPrice, setMinPrice] = useState(searchParams.get('min_price') || '');
   const [maxPrice, setMaxPrice] = useState(searchParams.get('max_price') || '');
 
-  // Update URL with filters
-  const updateURL = useCallback((params: Record<string, string>) => {
-    const newParams = new URLSearchParams(searchParams);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value) {
-        newParams.set(key, value);
-      } else {
-        newParams.delete(key);
-      }
-    });
-    router.push(`/products?${newParams.toString()}`, { scroll: false });
-  }, [router, searchParams]);
-
-  // Debounced search
+  // Debounced search - only updates searchQuery state AFTER 500ms
   const debouncedSearch = useCallback(
     debounce((query: string) => {
-      updateURL({ search: query, page: '1' });
+      setIsSearching(false); // Done waiting
+      setCurrentPage(1); // Reset to page 1
+      setProducts([]); // Clear old products
+      setSearchQuery(query); // Update search query - THIS triggers the fetch in useEffect
     }, 500),
-    [updateURL]
+    []
   );
 
-  // Fetch products
+  // Fetch initial products when search/filters change
   useEffect(() => {
     async function fetchProducts() {
-      setIsLoading(true);
+      const isFirstPage = currentPage === 1;
+      if (isFirstPage) {
+        setIsLoading(true);
+      } else {
+        setIsLoadingMore(true);
+      }
+
       try {
+        // Convert category slug to ID for API call
+        let categoryId: string | undefined = undefined;
+        if (selectedCategorySlug && selectedCategorySlug !== 'all') {
+          const selectedCat = categories.find(c => c.slug === selectedCategorySlug);
+          categoryId = selectedCat?.id;
+        }
+
         const result = await productService.getProducts({
           page: currentPage,
-          limit: 12,
+          limit: 15,
           search: searchQuery,
-          category_id: selectedCategory,
+          category_id: categoryId,
           sort_by: sortBy,
           min_price: minPrice ? parseFloat(minPrice) : undefined,
           max_price: maxPrice ? parseFloat(maxPrice) : undefined,
         });
-        setProducts(result.products);
+
+        if (currentPage === 1) {
+          // First page: replace all products
+          setProducts(result.products);
+        } else {
+          // Subsequent pages: append products (infinite scroll)
+          setProducts((prev) => [...prev, ...result.products]);
+        }
+
         setTotalProducts(result.meta.total);
-        setTotalPages(result.meta.total_pages);
       } catch (error) {
         console.error('Failed to fetch products:', error);
       } finally {
         setIsLoading(false);
+        setIsLoadingMore(false);
       }
     }
+
     fetchProducts();
-  }, [currentPage, searchQuery, selectedCategory, sortBy, minPrice, maxPrice]);
+  }, [currentPage, searchQuery, selectedCategorySlug, sortBy, minPrice, maxPrice, categories]);
+
+  // Update URL when filters change
+  useEffect(() => {
+    const newParams = new URLSearchParams(searchParams);
+    
+    if (searchQuery) {
+      newParams.set('search', searchQuery);
+    } else {
+      newParams.delete('search');
+    }
+    
+    if (selectedCategorySlug && selectedCategorySlug !== 'all') {
+      newParams.set('category', selectedCategorySlug);
+    } else {
+      newParams.delete('category');
+    }
+    
+    if (minPrice) {
+      newParams.set('min_price', minPrice);
+    } else {
+      newParams.delete('min_price');
+    }
+    
+    if (maxPrice) {
+      newParams.set('max_price', maxPrice);
+    } else {
+      newParams.delete('max_price');
+    }
+    
+    if (sortBy !== 'newest') {
+      newParams.set('sort', sortBy);
+    } else {
+      newParams.delete('sort');
+    }
+    
+    newParams.set('page', '1');
+    
+    router.push(`/products?${newParams.toString()}`, { scroll: false });
+  }, [searchQuery, selectedCategorySlug, minPrice, maxPrice, sortBy, router]);
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore && !isLoading) {
+          // Check if there are more pages
+          const totalPages = Math.ceil(totalProducts / 15);
+          if (currentPage < totalPages) {
+            setCurrentPage((prev) => prev + 1);
+          }
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [isLoadingMore, isLoading, currentPage, totalProducts]);
 
   // Fetch categories
   useEffect(() => {
@@ -104,15 +195,16 @@ function ProductsPageContent() {
   }, []);
 
   const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
-    debouncedSearch(value);
+    setSearchInputValue(value); // Update input field display immediately
+    setIsSearching(value.length > 0); // Show loading indicator while typing
+    debouncedSearch(value); // Schedule fetch after 500ms of no typing
   };
 
   const handleCategoryChange = (value: string | null) => {
     const newValue = value || 'all';
-    setSelectedCategory(newValue === 'all' ? '' : newValue);
+    setSelectedCategorySlug(newValue === 'all' ? '' : newValue);
     setCurrentPage(1);
-    updateURL({ category: newValue === 'all' ? '' : newValue, page: '1' });
+    setProducts([]);
   };
 
   type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'popular' | 'name_asc' | 'name_desc';
@@ -120,21 +212,24 @@ function ProductsPageContent() {
   const handleSortChange = (value: string | null) => {
     if (value) {
       setSortBy(value as SortOption);
-      updateURL({ sort: value });
+      setCurrentPage(1);
+      setProducts([]);
     }
   };
 
   const clearFilters = () => {
+    setSearchInputValue('');
     setSearchQuery('');
-    setSelectedCategory('');
+    setSelectedCategorySlug('');
     setMinPrice('');
     setMaxPrice('');
     setSortBy('newest');
     setCurrentPage(1);
+    setProducts([]);
     router.push('/products');
   };
 
-  const hasActiveFilters = searchQuery || selectedCategory || minPrice || maxPrice;
+  const hasActiveFilters = searchQuery || selectedCategorySlug || minPrice || maxPrice;
 
   const FilterContent = () => (
     <div className="space-y-6">
@@ -143,7 +238,7 @@ function ProductsPageContent() {
         <label className="text-sm font-medium">Search</label>
         <Input
           placeholder="Search products..."
-          value={searchQuery}
+          value={searchInputValue}
           onChange={(e) => handleSearchChange(e.target.value)}
         />
       </div>
@@ -151,15 +246,19 @@ function ProductsPageContent() {
       {/* Categories */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Category</label>
-        <Select value={selectedCategory || 'all'} onValueChange={handleCategoryChange}>
+        <Select value={selectedCategorySlug || 'all'} onValueChange={handleCategoryChange}>
           <SelectTrigger>
-            <SelectValue placeholder="All Categories" />
+            <SelectValue placeholder="All Categories">
+              {selectedCategorySlug && selectedCategorySlug !== 'all' 
+                ? capitalizeCategoryName(categories.find(c => c.slug === selectedCategorySlug)?.name || selectedCategorySlug)
+                : 'All Categories'}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
             {categories.map((cat) => (
-              <SelectItem key={cat.id} value={cat.slug || cat.id}>
-                {cat.name}
+              <SelectItem key={cat.id} value={cat.slug}>
+                {capitalizeCategoryName(cat.name)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -176,7 +275,8 @@ function ProductsPageContent() {
             value={minPrice}
             onChange={(e) => {
               setMinPrice(e.target.value);
-              updateURL({ min_price: e.target.value, page: '1' });
+              setCurrentPage(1);
+              setProducts([]);
             }}
           />
           <Input
@@ -185,7 +285,8 @@ function ProductsPageContent() {
             value={maxPrice}
             onChange={(e) => {
               setMaxPrice(e.target.value);
-              updateURL({ max_price: e.target.value, page: '1' });
+              setCurrentPage(1);
+              setProducts([]);
             }}
           />
         </div>
@@ -207,7 +308,7 @@ function ProductsPageContent() {
         <div>
           <h1 className="text-3xl font-bold">Products</h1>
           <p className="text-muted-foreground">
-            {isLoading ? 'Loading...' : `${totalProducts} products found`}
+            {isLoading && currentPage === 1 ? 'Loading...' : hasActiveFilters || products.length > 0 ? `${totalProducts} products found` : ''}
           </p>
         </div>
         
@@ -260,15 +361,15 @@ function ProductsPageContent() {
               <X
                 className="h-3 w-3 cursor-pointer"
                 onClick={() => {
+                  setSearchInputValue('');
                   setSearchQuery('');
-                  updateURL({ search: '' });
                 }}
               />
             </Badge>
           )}
-          {selectedCategory && (
+          {selectedCategorySlug && (
             <Badge variant="secondary" className="gap-1">
-              Category: {categories.find(c => c.slug === selectedCategory)?.name || selectedCategory}
+              Category: {capitalizeCategoryName(categories.find(c => c.slug === selectedCategorySlug)?.name || selectedCategorySlug)}
               <X
                 className="h-3 w-3 cursor-pointer"
                 onClick={() => handleCategoryChange('all')}
@@ -283,7 +384,6 @@ function ProductsPageContent() {
                 onClick={() => {
                   setMinPrice('');
                   setMaxPrice('');
-                  updateURL({ min_price: '', max_price: '' });
                 }}
               />
             </Badge>
@@ -302,68 +402,41 @@ function ProductsPageContent() {
 
         {/* Products Grid */}
         <div className="flex-1">
-          {isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="space-y-4">
-                  <Skeleton className="aspect-[3/4] rounded-lg" />
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
+          {/* Initial loading state */}
+          {isLoading && currentPage === 1 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {[...Array(10)].map((_, i) => (
+                <div key={i} className="space-y-3">
+                  <Skeleton className="aspect-square rounded-lg" />
+                  <Skeleton className="h-3 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
                 </div>
               ))}
             </div>
-          ) : products.length === 0 ? (
+          )}
+
+          {/* No products state - only show if search is active */}
+          {products.length === 0 && !isLoading && hasActiveFilters && (
             <div className="text-center py-12">
               <p className="text-muted-foreground mb-4">No products found</p>
               <Button onClick={clearFilters}>Clear Filters</Button>
             </div>
-          ) : (
+          )}
+
+          {/* Products Grid with infinite scroll */}
+          {products.length > 0 && (
             <>
-              <ProductGrid products={products} columns={3} />
-              
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex justify-center gap-2 mt-8">
-                  <Button
-                    variant="outline"
-                    disabled={currentPage === 1}
-                    onClick={() => {
-                      setCurrentPage(currentPage - 1);
-                      updateURL({ page: String(currentPage - 1) });
-                    }}
-                  >
-                    Previous
-                  </Button>
-                  <div className="flex items-center gap-1">
-                    {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                      const page = i + 1;
-                      return (
-                        <Button
-                          key={page}
-                          variant={currentPage === page ? 'default' : 'outline'}
-                          size="icon"
-                          onClick={() => {
-                            setCurrentPage(page);
-                            updateURL({ page: String(page) });
-                          }}
-                        >
-                          {page}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                  <Button
-                    variant="outline"
-                    disabled={currentPage === totalPages}
-                    onClick={() => {
-                      setCurrentPage(currentPage + 1);
-                      updateURL({ page: String(currentPage + 1) });
-                    }}
-                  >
-                    Next
-                  </Button>
+              <ProductGrid products={products} columns={5} />
+
+              {/* Show loading indicator while loading more */}
+              {isLoadingMore && (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               )}
+
+              {/* Intersection observer target for infinite scroll */}
+              <div ref={observerTarget} className="h-4" />
             </>
           )}
         </div>

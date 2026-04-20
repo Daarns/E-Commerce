@@ -133,7 +133,21 @@ export default function VerifyEmailContent() {
       });
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send verification email';
-      toast.error('Error', { description: errorMessage });
+      
+      // Check if it's a rate limit error and extract remaining seconds
+      if (errorMessage.includes('RESEND_RATE_LIMIT') || errorMessage.includes('resend_rate_limit')) {
+        // Try to extract remaining seconds from error message if available
+        const match = errorMessage.match(/(\d+)/);
+        const remainingSeconds = match ? parseInt(match[1]) : 60;
+        
+        setResendCountdown(remainingSeconds);
+        setCanResend(false);
+        toast.error('Please wait', { 
+          description: `Resend available in ${remainingSeconds} seconds` 
+        });
+      } else {
+        toast.error('Error', { description: errorMessage });
+      }
     } finally {
       setIsLoading(false);
     }

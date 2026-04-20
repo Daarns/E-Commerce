@@ -52,10 +52,12 @@ export default function LoginPage() {
 
   const handleVerificationRedirect = () => {
     setShowVerificationDialog(false);
-    toast.loading('Redirecting to email verification...');
+    const loadingId = toast.loading('Redirecting to email verification...');
     setTimeout(() => {
+      // Dismiss the loading toast before redirect
+      toast.dismiss(loadingId);
       router.push(`/verify-email?email=${encodeURIComponent(pendingEmail)}`);
-    }, 1500);
+    }, 1000); // 1 second as requested
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

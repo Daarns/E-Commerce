@@ -1,12 +1,14 @@
 package auth
 
 import (
+	"crypto/rand"
 	"ecommerce-backend/internal/models"
 	"ecommerce-backend/internal/repositories"
+	emailService "ecommerce-backend/internal/services/email"
 	"ecommerce-backend/pkg/jwt"
 	"ecommerce-backend/pkg/password"
-	"crypto/rand"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -61,13 +63,7 @@ type AuthService struct {
 
 // EmailService interface for dependency injection
 type EmailService interface {
-	SendEmailVerification(recipient interface{}, verificationCode string) error
-}
-
-// EmailRecipient represents email recipient
-type EmailRecipient struct {
-	Email string
-	Name  string
+	SendEmailVerification(recipient emailService.EmailRecipient, verificationCode string) error
 }
 
 // NewAuthService creates a new auth use case
@@ -121,6 +117,7 @@ func (uc *AuthService) Register(input RegisterInput) (map[string]interface{}, er
 		IsVerified:                 false, // Require email verification
 		IsActive:                   true,  // Will be fully active after verification
 		EmailVerificationToken:     &verificationToken,
+		EmailVerificationCode:      &verificationCode,
 		EmailVerificationExpiresAt: &expiresAt,
 		EmailVerificationAttempts: 0,
 		LastCodeSentAt:           &now,
@@ -165,7 +162,7 @@ func (uc *AuthService) Register(input RegisterInput) (map[string]interface{}, er
 	if uc.emailService != nil {
 		go func() {
 			if err := uc.emailService.SendEmailVerification(
-				EmailRecipient{
+				emailService.EmailRecipient{
 					Email: user.Email,
 					Name:  user.Name,
 				},
@@ -334,7 +331,7 @@ func (uc *AuthService) VerifyEmail(input VerifyEmailInput) (*AuthResponse, error
 	}
 
 	// Check if verification token exists
-	if user.EmailVerificationToken == nil {
+	if user.EmailVerificationToken == nil || user.EmailVerificationCode == nil {
 		return nil, fmt.Errorf("verification code not found")
 	}
 
@@ -348,8 +345,8 @@ func (uc *AuthService) VerifyEmail(input VerifyEmailInput) (*AuthResponse, error
 		return nil, fmt.Errorf("too many failed attempts, please request a new code")
 	}
 
-	// Validate verification code matches stored token
-	if *user.EmailVerificationToken != input.Code {
+	// Validate verification code matches stored code (not token)
+	if *user.EmailVerificationCode != input.Code {
 		// Increment attempts
 		user.EmailVerificationAttempts++
 		_ = uc.userRepo.UpdateFields(user.ID, map[string]interface{}{
@@ -362,6 +359,7 @@ func (uc *AuthService) VerifyEmail(input VerifyEmailInput) (*AuthResponse, error
 	if err := uc.userRepo.UpdateFields(user.ID, map[string]interface{}{
 		"is_verified":                   true,
 		"email_verification_token":      nil,
+		"email_verification_code":       nil,
 		"email_verification_expires_at": nil,
 		"email_verification_attempts":   0,
 		"last_code_sent_at":             nil,
@@ -413,6 +411,7 @@ func (uc *AuthService) ResendVerificationEmail(input ResendVerificationInput) er
 	// Update user with new token and reset attempts
 	if err := uc.userRepo.UpdateFields(user.ID, map[string]interface{}{
 		"email_verification_token":      verificationToken,
+		"email_verification_code":       verificationCode,
 		"email_verification_expires_at": expiresAt,
 		"email_verification_attempts":   0, // Reset attempts on new code
 		"last_code_sent_at":            now,
@@ -450,7 +449,7 @@ func (uc *AuthService) ResendVerificationEmail(input ResendVerificationInput) er
 	if uc.emailService != nil {
 		go func() {
 			if err := uc.emailService.SendEmailVerification(
-				EmailRecipient{
+				emailService.EmailRecipient{
 					Email: user.Email,
 					Name:  user.Name,
 				},
@@ -466,13 +465,133 @@ func (uc *AuthService) ResendVerificationEmail(input ResendVerificationInput) er
 	return nil
 }
 
+// SendVerificationEmailOnLogin sends verification email when unverified user tries to login
+// This is called automatically on failed login due to unverified status
+// Smart logic:
+// - If valid code already exists (not expired): REUSE it (no new email)
+// - If code expired or missing: Generate NEW code and send email
+// Returns: (emailSent bool, error)
+//   emailSent=true: code was NEW and email was sent
+//   emailSent=false: code was REUSED from before, no email sent
+func (uc *AuthService) SendVerificationEmailOnLogin(email string) (bool, error) {
+	// Normalize email
+	email = strings.ToLower(strings.TrimSpace(email))
+
+	// Get user by email
+	user, err := uc.userRepo.GetByEmail(email)
+	if err != nil {
+		return false, fmt.Errorf("user not found")
+	}
+
+	// Check if already verified
+	if user.IsVerified {
+		return false, fmt.Errorf("user already verified")
+	}
+
+	now := time.Now()
+	emailSent := false
+	verificationCode := ""
+	verificationToken := ""
+	expiresAt := time.Time{}
+
+	// SMART LOGIC: Check if valid code already exists
+	if user.EmailVerificationCode != nil && 
+	   user.EmailVerificationExpiresAt != nil &&
+	   user.EmailVerificationExpiresAt.After(now) {
+		// Code still valid - REUSE it
+		verificationCode = *user.EmailVerificationCode
+		if user.EmailVerificationToken != nil {
+			verificationToken = *user.EmailVerificationToken
+		}
+		expiresAt = *user.EmailVerificationExpiresAt
+		emailSent = false
+		fmt.Printf("Code still valid for user %s, reusing existing code (expires in %v)\n", 
+			email, expiresAt.Sub(now).Minutes())
+	} else {
+		// Code missing or expired - GENERATE NEW code
+		verificationCode = generateVerificationCode()
+		verificationToken = uuid.New().String()
+		expiresAt = now.Add(20 * time.Minute)
+		emailSent = true
+		fmt.Printf("Generating new code for user %s\n", email)
+	}
+
+	// Update user with verification token and code
+	// RESET last_code_sent_at to NULL so user can immediately resend after email
+	// Rate limit only applies when user manually clicks "Resend" button
+	if err := uc.userRepo.UpdateFields(user.ID, map[string]interface{}{
+		"email_verification_token":      verificationToken,
+		"email_verification_code":       verificationCode,
+		"email_verification_expires_at": expiresAt,
+		"email_verification_attempts":   0,
+		"last_code_sent_at":             nil, // RESET to allow immediate resend after login email
+	}); err != nil {
+		return false, fmt.Errorf("failed to update verification token: %w", err)
+	}
+
+	// Only send email if NEW code was generated
+	if emailSent {
+		// Create email queue for verification email
+		emailQueue := &models.EmailQueue{
+			ID:             uuid.New(),
+			EmailType:      models.EmailTypeEmailVerification,
+			Status:         models.EmailQueueStatusPending,
+			RecipientEmail: user.Email,
+			RecipientName:  user.Name,
+			Subject:        "Verify Your Email - STORE",
+			Body:           fmt.Sprintf("Your verification code is: %s\n\nThis code will expire in 20 minutes.", verificationCode),
+			HtmlBody:       fmt.Sprintf(`<p>Your verification code is: <strong>%s</strong></p><p>This code will expire in 20 minutes.</p>`, verificationCode),
+			Data: models.EmailQueueData{
+				"user_id":             user.ID.String(),
+				"email":               user.Email,
+				"verification_code":   verificationCode,
+				"verification_token":  verificationToken,
+				"expires_at":          expiresAt.Format(time.RFC3339),
+			},
+			UserID:       &user.ID,
+			AttemptCount: 0,
+			MaxAttempts:  5,
+		}
+
+		if err := uc.emailQueueRepo.Create(emailQueue); err != nil {
+			return false, fmt.Errorf("failed to create email queue: %w", err)
+		}
+
+		// Send verification email (async)
+		if uc.emailService != nil {
+			go func(u *models.User, code string) {
+				if err := uc.emailService.SendEmailVerification(
+					emailService.EmailRecipient{
+						Email: u.Email,
+						Name:  u.Name,
+					},
+					code,
+				); err != nil {
+					fmt.Printf("Failed to send verification email to %s: %v\n", u.Email, err)
+				} else {
+					fmt.Printf("Verification email sent to %s on login\n", u.Email)
+				}
+			}(user, verificationCode)
+		}
+	}
+
+	return emailSent, nil
+}
+
 // generateVerificationCode generates a random 6-digit code
 func generateVerificationCode() string {
 	const charset = "0123456789"
 	b := make([]byte, 6)
 	for i := range b {
-		num, _ := rand.Int(rand.Reader, nil)
-		b[i] = charset[num.Uint64()%uint64(len(charset))]
+		max := big.NewInt(int64(len(charset)))
+		num, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			// Fallback: use simple random if crypto/rand fails
+			fmt.Printf("Warning: failed to generate crypto random number: %v\n", err)
+			b[i] = charset[i%len(charset)]
+			continue
+		}
+		b[i] = charset[num.Int64()%int64(len(charset))]
 	}
 	return string(b)
 }

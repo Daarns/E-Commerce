@@ -119,6 +119,10 @@ func (s *EmailService) SendEmail(to EmailRecipient, subject, htmlBody string) er
 		from = s.config.Username
 	}
 
+	// Debug: Log SMTP config (without password)
+	fmt.Printf("[EMAIL] Attempting to send email via SMTP: host=%s:%d, from=%s, to=%s\n", 
+		s.config.Host, s.config.Port, from, to.Email)
+
 	// Prepare email message
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/html; charset=\"UTF-8\"\r\n\r\n%s",
@@ -133,10 +137,14 @@ func (s *EmailService) SendEmail(to EmailRecipient, subject, htmlBody string) er
 
 	// Send email
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
+	fmt.Printf("[EMAIL] Connecting to SMTP server: %s\n", addr)
+	
 	if err := smtp.SendMail(addr, auth, from, []string{to.Email}, []byte(msg)); err != nil {
+		fmt.Printf("[EMAIL] ❌ FAILED to send email to %s: %v\n", to.Email, err)
 		return fmt.Errorf("failed to send email: %w", err)
 	}
 
+	fmt.Printf("[EMAIL] ✅ Successfully sent email to %s: %s\n", to.Email, subject)
 	return nil
 }
 
@@ -233,16 +241,11 @@ func (s *EmailService) SendPasswordReset(recipient EmailRecipient, resetLink str
 }
 
 // SendEmailVerification sends email verification email with code
-func (s *EmailService) SendEmailVerification(recipient interface{}, verificationCode string) error {
-	emailRecipient, ok := recipient.(EmailRecipient)
-	if !ok {
-		return fmt.Errorf("invalid recipient type")
-	}
-
+func (s *EmailService) SendEmailVerification(recipient EmailRecipient, verificationCode string) error {
 	data := EmailData{
-		"CustomerName":      emailRecipient.Name,
+		"CustomerName":      recipient.Name,
 		"VerificationCode":  verificationCode,
-		"ExpiresIn":         "24 hours",
+		"ExpiresIn":         "20 minutes",
 	}
 
 	htmlBody, err := s.renderTemplate("email_verification", data)
@@ -250,7 +253,7 @@ func (s *EmailService) SendEmailVerification(recipient interface{}, verification
 		return err
 	}
 
-	return s.SendEmail(emailRecipient, "Verify Your Email Address - "+verificationCode, htmlBody)
+	return s.SendEmail(recipient, "Verify Your Email Address", htmlBody)
 }
 
 // renderTemplate renders email template with data

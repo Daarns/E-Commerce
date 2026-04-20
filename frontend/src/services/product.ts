@@ -87,7 +87,42 @@ export const productService = {
     if (filter?.search) params.append('search', filter.search);
     if (filter?.min_price) params.append('min_price', filter.min_price.toString());
     if (filter?.max_price) params.append('max_price', filter.max_price.toString());
-    if (filter?.sort_by) params.append('sort_by', filter.sort_by);
+    
+    // Map frontend sort values to backend sort_by and sort_order
+    if (filter?.sort_by) {
+      let sortBy = 'created_at';
+      let sortOrder = 'desc';
+      
+      switch (filter.sort_by) {
+        case 'newest':
+          sortBy = 'created_at';
+          sortOrder = 'desc';
+          break;
+        case 'price_asc':
+          sortBy = 'regular_price';
+          sortOrder = 'asc';
+          break;
+        case 'price_desc':
+          sortBy = 'regular_price';
+          sortOrder = 'desc';
+          break;
+        case 'popular':
+          sortBy = 'sold_count';
+          sortOrder = 'desc';
+          break;
+        case 'name_asc':
+          sortBy = 'name';
+          sortOrder = 'asc';
+          break;
+        case 'name_desc':
+          sortBy = 'name';
+          sortOrder = 'desc';
+          break;
+      }
+      
+      params.append('sort_by', sortBy);
+      params.append('sort_order', sortOrder);
+    }
 
     const response = await api.get<ApiResponse<{ products: Product[] }>>(`/products?${params}`);
     return {
@@ -228,14 +263,14 @@ export const wishlistService = {
     return response.data.data!;
   },
 
-  async removeFromWishlist(wishlistId: string): Promise<void> {
-    await api.delete(`/wishlist/${wishlistId}`);
+  async removeFromWishlist(productId: string): Promise<void> {
+    await api.delete('/wishlist', { data: { product_id: productId } });
   },
 
   async isProductInWishlist(productId: string): Promise<boolean> {
     try {
-      const response = await api.get<ApiResponse<{ in_wishlist: boolean }>>(`/wishlist/check/${productId}`);
-      return response.data.data?.in_wishlist || false;
+      const response = await api.post<ApiResponse<{ is_in_wishlist: boolean }>>('/wishlist/check', { product_id: productId });
+      return response.data.data?.is_in_wishlist || false;
     } catch {
       return false;
     }

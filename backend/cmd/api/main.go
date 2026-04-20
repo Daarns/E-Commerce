@@ -113,6 +113,7 @@ func main() {
 	chatRepo := repositories.NewChatRepository(db)
 	activityRepo := repositories.NewActivityRepository(db)
 	emailQueueRepo := repositories.NewEmailQueueRepository(db)
+	wishlistRepo := repositories.NewWishlistRepository(db)
 
 	// Initialize Email Service
 	emailConfig := emailService.EmailConfig{
@@ -151,6 +152,7 @@ func main() {
 	newsletterSvc := featuresService.NewNewsletterService(newsletterRepo)
 	searchSvc := featuresService.NewSearchService(searchRepo, productRepo, categoryRepo)
 	chatSvc := featuresService.NewChatService(chatRepo, userRepo)
+	wishlistSvc := featuresService.NewWishlistService(wishlistRepo, productRepo)
 	activitySvc := utils.NewActivityService(activityRepo)
 	exportSvc := utils.NewExportService(userRepo, orderRepo)
 
@@ -162,6 +164,7 @@ func main() {
 	orderH := orderHandler.NewOrderHandler(orderSvc)
 	searchH := featuresHandler.NewSearchHandler(searchSvc)
 	chatH := featuresHandler.NewChatHandler(chatSvc)
+	wishlistH := productHandler.NewWishlistHandler(wishlistSvc)
 	adminUserH := adminHandler.NewAdminUserHandler(exportSvc)
 	adminActivityH := adminHandler.NewAdminActivityHandler(activitySvc)
 
@@ -255,6 +258,18 @@ func main() {
 			cartRoutes.DELETE("/items/:itemId", cartH.RemoveFromCart)
 			cartRoutes.DELETE("", cartH.ClearCart)
 			cartRoutes.POST("/refresh", cartH.RefreshCartPrices)
+		}
+
+		// Wishlist routes (public with optional session or auth)
+		wishlistRoutes := v1.Group("/wishlist")
+		wishlistRoutes.Use(middleware.OptionalAuthMiddleware(jwtManager))
+		{
+			wishlistRoutes.POST("", wishlistH.AddToWishlist)
+			wishlistRoutes.DELETE("", wishlistH.RemoveFromWishlist)
+			wishlistRoutes.GET("", wishlistH.GetWishlist)
+			wishlistRoutes.GET("/count", wishlistH.GetWishlistCount)
+			wishlistRoutes.POST("/check", wishlistH.CheckProduct)
+			wishlistRoutes.POST("/clear", wishlistH.ClearWishlist)
 		}
 
 		// Protected routes (require authentication)
