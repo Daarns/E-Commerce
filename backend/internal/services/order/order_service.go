@@ -41,12 +41,12 @@ func NewOrderService(
 
 // CheckoutInput represents checkout input
 type CheckoutInput struct {
-	AddressID      uuid.UUID `json:"address_id" binding:"required"`
-	PromoCode      string    `json:"promo_code"`
-	PaymentMethod  string    `json:"payment_method" binding:"required"`
-	ShippingMethod string    `json:"shipping_method" binding:"required"`
-	CustomerNotes  string    `json:"customer_notes"`
-	IdempotencyKey string    `json:"idempotency_key" binding:"required"`
+	AddressID      string `json:"address_id" binding:"required"`
+	PromoCode      string `json:"promo_code"`
+	PaymentMethod  string `json:"payment_method" binding:"required"`
+	ShippingMethod string `json:"shipping_method" binding:"required"`
+	CustomerNotes  string `json:"customer_notes"`
+	IdempotencyKey string `json:"idempotency_key" binding:"required"`
 }
 
 // CheckoutResult represents checkout result
@@ -58,6 +58,12 @@ type CheckoutResult struct {
 
 // Checkout processes checkout with pessimistic locking
 func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*CheckoutResult, error) {
+	// Parse address ID from string
+	addressID, err := uuid.Parse(input.AddressID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address_id format")
+	}
+
 	// Get cart
 	cart, err := uc.cartRepo.GetCartByUserID(userID)
 	if err != nil {
@@ -69,7 +75,7 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 	}
 
 	// Get and validate address
-	address, err := uc.addressRepo.GetByID(input.AddressID)
+	address, err := uc.addressRepo.GetByID(addressID)
 	if err != nil {
 		return nil, fmt.Errorf("address not found")
 	}

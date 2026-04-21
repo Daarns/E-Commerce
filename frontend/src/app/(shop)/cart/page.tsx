@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import gsap from 'gsap';
-import { Minus, Plus, X, ArrowRight, ShoppingBag, Sparkles } from 'lucide-react';
+import { Minus, Plus, X, ArrowRight, ShoppingBag, Sparkles, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -16,11 +16,22 @@ import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ValidCartItem } from '@/types';
+import { promoService } from '@/services/order';
 
 export default function CartPage() {
   const { cart, isLoading, updateQuantity, removeItem, fetchCart } = useCartStore();
   const cartRef = useRef<HTMLDivElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
+  
+  // Promo code state
+  const [promoCode, setPromoCode] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string;
+    discount: number;
+    discount_type: string;
+    discount_value: number;
+  } | null>(null);
+  const [promoLoading, setPromoLoading] = useState(false);
 
   useEffect(() => {
     fetchCart();
@@ -74,6 +85,38 @@ export default function CartPage() {
     });
   };
 
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) {
+      toast.error('Please enter a promo code');
+      return;
+    }
+
+    setPromoLoading(true);
+    try {
+      const result = await promoService.validatePromoCode(promoCode);
+      setAppliedPromo({
+        code: promoCode,
+        discount: 0,
+        ...result
+      });
+      toast.success('Promo code applied!', {
+        description: `You saved ${formatCurrency(result.discount_value)}`,
+      });
+      setPromoCode('');
+    } catch (error) {
+      toast.error('Invalid promo code', {
+        description: error instanceof Error ? error.message : 'The code is not valid or expired',
+      });
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    toast.info('Promo code removed');
+  };
+
   if (isLoading) {
     return <CartSkeleton />;
   }
@@ -92,8 +135,18 @@ export default function CartPage() {
     return sum + (price * item.quantity);
   }, 0);
 
+  // Calculate discount based on applied promo
+  let discount = 0;
+  if (appliedPromo) {
+    if (appliedPromo.discount_type === 'percentage') {
+      discount = (subtotal * appliedPromo.discount_value) / 100;
+    } else if (appliedPromo.discount_type === 'fixed') {
+      discount = appliedPromo.discount_value;
+    }
+  }
+
   const shipping = subtotal > 500000 ? 0 : 15000;
-  const total = subtotal + shipping;
+  const total = Math.max(0, subtotal - discount + shipping);
 
   return (
     <div className="container mx-auto px-4 py-8" ref={cartRef}>
@@ -241,10 +294,45 @@ export default function CartPage() {
                 {/* Promo Code */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Promo Code</label>
-                  <div className="flex gap-2">
-                    <Input placeholder="Enter code" />
-                    <Button variant="secondary">Apply</Button>
-                  </div>
+                  {appliedPromo ? (
+                    <div className="flex items-center gap-2 p-3 bg-green-50 rounded-md border border-green-200">
+                      <Check className="h-4 w-4 text-green-600" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-green-900">{appliedPromo.code}</p>
+                        <p className="text-xs text-green-700">Save {formatCurrency(discount)}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleRemovePromo}
+                        className="h-6 w-6 p-0 flex-shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="Enter code" 
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleApplyPromo()}
+                        disabled={promoLoading}
+                      />
+                      <Button 
+                        variant="secondary"
+                        onClick={handleApplyPromo}
+                        disabled={promoLoading || !promoCode.trim()}
+                        className="flex-shrink-0"
+                      >
+                        {promoLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Apply'
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <Separator />
@@ -255,6 +343,12 @@ export default function CartPage() {
                     <span className="text-muted-foreground">Subtotal</span>
                     <span>{formatCurrency(subtotal)}</span>
                   </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Discount</span>
+                      <span className="text-green-600 font-medium">-{formatCurrency(discount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Shipping</span>
                     <span>
