@@ -267,6 +267,13 @@ export const wishlistService = {
     await api.delete('/wishlist', { data: { product_id: productId } });
   },
 
+  async toggleWishlist(productId: string): Promise<{ is_wishlisted: boolean; product: Wishlist | null }> {
+    const response = await api.post<ApiResponse<{ is_wishlisted: boolean; product: Wishlist | null }>>('/wishlist/toggle', { 
+      product_id: productId 
+    });
+    return response.data.data!;
+  },
+
   async isProductInWishlist(productId: string): Promise<boolean> {
     try {
       const response = await api.post<ApiResponse<{ is_in_wishlist: boolean }>>('/wishlist/check', { product_id: productId });

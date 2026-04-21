@@ -25,12 +25,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [showQuickView, setShowQuickView] = useState(false);
-  const [isAddingToWishlist, setIsAddingToWishlist] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const { addToCart } = useCartStore();
-  const { addToWishlist, removeFromWishlist } = useWishlistStore();
+  const { toggleWishlist } = useWishlistStore();
   // Subscribe to wishlist items changes
   const isWishlisted = useWishlistStore((state) => state.items.some((item) => item.product_id === product.id));
+  const isToggling = useWishlistStore((state) => state.isToggling(product.id));
   const cardRef = useRef<HTMLDivElement>(null);
 
   const discountPercentage = product.sale_price
@@ -74,22 +74,10 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
     
-    setIsAddingToWishlist(true);
     try {
-      if (isWishlisted) {
-        const wishlistItem = useWishlistStore.getState().items.find(
-          (item) => item.product_id === product.id
-        );
-        if (wishlistItem) {
-          await removeFromWishlist(wishlistItem.id);
-        }
-      } else {
-        await addToWishlist(product.id);
-      }
+      await toggleWishlist(product.id);
     } catch {
       // Error is already handled with toast in store
-    } finally {
-      setIsAddingToWishlist(false);
     }
   };
 
@@ -168,7 +156,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                       isWishlisted ? 'bg-red-500 hover:bg-red-600' : ''
                     }`}
                     onClick={handleToggleWishlist}
-                    disabled={isAddingToWishlist}
+                    disabled={isToggling}
                   >
                     <Heart
                       className={`h-4 w-4 ${

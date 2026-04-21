@@ -282,3 +282,77 @@ func (h *WishlistHandler) ClearWishlist(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Wishlist cleared"})
 }
 
+
+// ToggleWishlist toggles a product in user's wishlist (adds if not present, removes if present)
+// POST /api/v1/wishlist/toggle
+// Body: { "product_id": "uuid" }
+// Returns: { "is_wishlisted": boolean, "product": Wishlist | null }
+func (h *WishlistHandler) ToggleWishlist(c *gin.Context) {
+	// Parse request body
+	var req struct {
+		ProductID string `json:"product_id" binding:"required,uuid"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+response.Error(c, http.StatusBadRequest, "INVALID_REQUEST", "product_id is required and must be a valid UUID")
+return
+}
+
+productUUID, err := uuid.Parse(req.ProductID)
+if err != nil {
+response.Error(c, http.StatusBadRequest, "INVALID_PRODUCT", "Invalid product ID format")
+return
+}
+
+userID := h.extractUserID(c)
+
+// If guest user, return success (client handles state locally)
+if userID == "" {
+response.Success(c, gin.H{"is_wishlisted": true, "product": nil})
+return
+}
+
+userUUID, err := uuid.Parse(userID)
+if err != nil {
+response.Error(c, http.StatusBadRequest, "INVALID_USER", "Invalid user ID")
+return
+}
+
+// Check if product exists in wishlist
+exists, err := h.wishlistService.CheckProduct(c.Request.Context(), userUUID, productUUID)
+if err != nil {
+response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to check wishlist")
+return
+}
+
+var isWishlisted bool
+var result interface{}
+
+if exists.IsInWishlist {
+	// Product is in wishlist, remove it
+err = h.wishlistService.RemoveFromWishlist(c.Request.Context(), userUUID, productUUID)
+if err != nil {
+response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to remove from wishlist")
+return
+}
+isWishlisted = false
+result = nil
+} else {
+// Product not in wishlist, add it
+item, err := h.wishlistService.AddToWishlist(c.Request.Context(), userUUID, productUUID)
+if err != nil {
+if err.Error() == "product not found" {
+response.Error(c, http.StatusNotFound, "PRODUCT_NOT_FOUND", "Product not found")
+return
+}
+response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to add to wishlist")
+return
+}
+isWishlisted = true
+result = item
+}
+
+response.Success(c, gin.H{
+"is_wishlisted": isWishlisted,
+"product":       result,
+})
+}

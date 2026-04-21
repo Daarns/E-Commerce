@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, ShoppingBag, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Heart, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { WishlistItem } from '@/components/product/wishlist-item';
+import { ProductCard } from '@/components/product/product-card';
 import { useWishlistStore } from '@/stores/wishlist-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { Product } from '@/types';
 
 export default function WishlistPage() {
   const user = useAuthStore((state) => state.user);
@@ -70,6 +71,11 @@ export default function WishlistPage() {
     );
   }
 
+  // Extract products from wishlist items
+  const products = items
+    .map((item) => item.product)
+    .filter((product): product is Product => product !== null && product !== undefined);
+
   return (
     <div className="container mx-auto px-4 py-12">
       <motion.div
@@ -91,25 +97,20 @@ export default function WishlistPage() {
           )}
         </div>
 
-        {/* Products */}
+        {/* Products Grid */}
         {items.length > 0 ? (
           <>
             <motion.div
               layout
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
             >
-              <AnimatePresence mode="popLayout">
-                {items.map((item, index) => (
-                  item.product && (
-                    <WishlistItem
-                      key={item.id}
-                      wishlistId={item.id}
-                      product={item.product}
-                      index={index}
-                    />
-                  )
-                ))}
-              </AnimatePresence>
+              {products.map((product, index) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  index={index}
+                />
+              ))}
             </motion.div>
             <motion.div
               initial={{ opacity: 0 }}

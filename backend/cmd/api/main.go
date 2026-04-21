@@ -266,6 +266,7 @@ func main() {
 		{
 			wishlistRoutes.POST("", wishlistH.AddToWishlist)
 			wishlistRoutes.DELETE("", wishlistH.RemoveFromWishlist)
+			wishlistRoutes.POST("/toggle", wishlistH.ToggleWishlist)
 			wishlistRoutes.GET("", wishlistH.GetWishlist)
 			wishlistRoutes.GET("/count", wishlistH.GetWishlistCount)
 			wishlistRoutes.POST("/check", wishlistH.CheckProduct)
