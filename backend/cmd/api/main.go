@@ -279,6 +279,7 @@ func main() {
 		{
 			protected.POST("/auth/logout", authH.Logout)
 			protected.GET("/auth/me", authH.GetProfile)
+			protected.PUT("/auth/me", authH.UpdateProfile)
 
 			// Cart merge (after login)
 			protected.POST("/cart/merge", cartH.MergeGuestCart)

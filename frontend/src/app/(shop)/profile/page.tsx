@@ -42,6 +42,8 @@ import {
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/auth-store';
 import { Address } from '@/types';
+import { authService } from '@/services/auth';
+import userService from '@/services/user';
 
 // Mock user data
 const MOCK_USER = {
@@ -160,9 +162,28 @@ export default function ProfilePage() {
   useEffect(() => {
     async function loadProfile() {
       setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setAddresses(MOCK_ADDRESSES);
-      setIsLoading(false);
+      try {
+        const userProfile = await authService.getProfile();
+        setUserData({
+          id: userProfile.id,
+          email: userProfile.email,
+          name: userProfile.name,
+          phone: userProfile.phone || '+62 0000 0000 0000',
+          avatar: userProfile.avatar_url || '/placeholder-avatar.jpg',
+          created_at: userProfile.created_at,
+        });
+        setFormData({
+          name: userProfile.name,
+          phone: userProfile.phone || '',
+        });
+        setAddresses(MOCK_ADDRESSES);
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+        // Keep mock data as fallback
+        setAddresses(MOCK_ADDRESSES);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadProfile();
   }, []);
@@ -175,10 +196,24 @@ export default function ProfilePage() {
   }, [isAuthenticated, isLoading, router]);
 
   const handleSaveProfile = async () => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setUserData(prev => ({ ...prev, ...formData }));
-    setIsEditing(false);
+    try {
+      const updatedUser = await userService.updateProfile({
+        name: formData.name,
+        phone: formData.phone,
+      });
+      setUserData({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        phone: updatedUser.phone || '+62 0000 0000 0000',
+        avatar: updatedUser.avatar_url || '/placeholder-avatar.jpg',
+        created_at: updatedUser.created_at,
+      });
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      alert('Failed to update profile. Please try again.');
+    }
   };
 
   const handleCancelEdit = () => {

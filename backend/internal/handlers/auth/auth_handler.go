@@ -177,6 +177,38 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	response.Success(c, user)
 }
 
+// UpdateProfile updates the current user's profile
+// @Summary Update user profile
+// @Tags auth
+// @Security Bearer
+// @Accept json
+// @Produce json
+// @Param input body auth.UpdateProfileInput true "Profile update data"
+// @Success 200 {object} response.Response
+// @Router /auth/me [put]
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	// Get user ID from context
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		response.Unauthorized(c, "Authentication required")
+		return
+	}
+
+	var input auth.UpdateProfileInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	user, err := h.authUseCase.UpdateProfile(userID, input)
+	if err != nil {
+		response.InternalError(c, "Failed to update profile")
+		return
+	}
+
+	response.Success(c, user)
+}
+
 // VerifyEmail verifies user email with verification code
 // @Summary Verify email
 // @Tags auth

@@ -45,6 +45,12 @@ type ResendVerificationInput struct {
 	Email string `json:"email" binding:"required,email"`
 }
 
+// UpdateProfileInput represents profile update input
+type UpdateProfileInput struct {
+	Name  string `json:"name" binding:"required,min=2"`
+	Phone string `json:"phone"`
+}
+
 // AuthResponse represents authentication response
 type AuthResponse struct {
 	User         *models.User `json:"user"`
@@ -272,6 +278,29 @@ func (uc *AuthService) GetUserByID(userID uuid.UUID) (*models.User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("user not found")
 	}
+	return user, nil
+}
+
+// UpdateProfile updates the current user's name and phone
+func (uc *AuthService) UpdateProfile(userID uuid.UUID, input UpdateProfileInput) (*models.User, error) {
+	// Get current user
+	user, err := uc.userRepo.GetByID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	// Update fields
+	user.Name = input.Name
+	if input.Phone != "" {
+		user.Phone = &input.Phone
+	}
+	user.UpdatedAt = time.Now()
+
+	// Save to database
+	if err := uc.userRepo.Update(user); err != nil {
+		return nil, fmt.Errorf("failed to update profile: %w", err)
+	}
+
 	return user, nil
 }
 
