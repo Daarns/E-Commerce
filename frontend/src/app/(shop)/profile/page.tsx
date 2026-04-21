@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import gsap from 'gsap';
 import { 
@@ -44,6 +43,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { Address } from '@/types';
 import { authService } from '@/services/auth';
 import userService from '@/services/user';
+import { AvatarSVG } from '@/components/common/avatar';
 
 // Mock user data
 const MOCK_USER = {
@@ -51,7 +51,6 @@ const MOCK_USER = {
   email: 'john.doe@example.com',
   name: 'John Doe',
   phone: '+62 812 3456 7890',
-  avatar: '/placeholder-avatar.jpg',
   created_at: '2024-01-15T10:00:00Z',
 };
 
@@ -169,7 +168,6 @@ export default function ProfilePage() {
           email: userProfile.email,
           name: userProfile.name,
           phone: userProfile.phone || '+62 0000 0000 0000',
-          avatar: userProfile.avatar_url || '/placeholder-avatar.jpg',
           created_at: userProfile.created_at,
         });
         setFormData({
@@ -206,7 +204,6 @@ export default function ProfilePage() {
         email: updatedUser.email,
         name: updatedUser.name,
         phone: updatedUser.phone || '+62 0000 0000 0000',
-        avatar: updatedUser.avatar_url || '/placeholder-avatar.jpg',
         created_at: updatedUser.created_at,
       });
       setIsEditing(false);
@@ -320,17 +317,8 @@ export default function ProfilePage() {
           <div className="flex flex-col sm:flex-row items-center gap-6">
             {/* Avatar */}
             <div className="relative group">
-              <div className="h-24 w-24 rounded-full overflow-hidden bg-gray-700 ring-4 ring-white/20">
-                <Image
-                  src={userData.avatar}
-                  alt={userData.name}
-                  width={96}
-                  height={96}
-                  className="object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect fill="%23374151" width="96" height="96"/><text x="48" y="56" text-anchor="middle" fill="%23fff" font-size="32">JD</text></svg>';
-                  }}
-                />
+              <div className="h-24 w-24 rounded-full overflow-hidden bg-gray-700 ring-4 ring-white/20 flex items-center justify-center">
+                <AvatarSVG name={userData.name} size={96} />
               </div>
               <button className="absolute bottom-0 right-0 p-2 bg-white dark:bg-gray-700 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
                 <Camera className="h-4 w-4 text-gray-700 dark:text-gray-200" />
