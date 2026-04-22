@@ -89,7 +89,7 @@ func (r *OrderRepository) GetByID(id uuid.UUID) (*models.Order, error) {
 	var order models.Order
 	err := r.db.Preload("Items").
 		Preload("StatusHistory", func(db *gorm.DB) *gorm.DB {
-			return db.Order("changed_at ASC")
+			return db.Order("created_at ASC")
 		}).
 		Preload("PromoCode").
 		First(&order, "id = ?", id).Error
@@ -108,7 +108,7 @@ func (r *OrderRepository) GetByOrderNumber(orderNumber string) (*models.Order, e
 	var order models.Order
 	err := r.db.Preload("Items").
 		Preload("StatusHistory", func(db *gorm.DB) *gorm.DB {
-			return db.Order("changed_at ASC")
+			return db.Order("created_at ASC")
 		}).
 		Preload("PromoCode").
 		First(&order, "order_number = ?", orderNumber).Error

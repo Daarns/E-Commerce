@@ -3,15 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { gsap } from 'gsap';
 import Image from 'next/image';
 import Link from 'next/link';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Check, 
-  MapPin, 
-  Truck, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  MapPin,
+  Truck,
   CreditCard,
   ShoppingBag,
   Plus,
@@ -30,105 +29,52 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
 import { formatCurrency } from '@/lib/utils';
 import { Address } from '@/types';
-import { orderService } from '@/services/order';
+import { orderService, promoService } from '@/services/order';
+import addressService from '@/services/address';
+import shippingService, { ShippingMethod, formatEstimate } from '@/services/shipping';
 
 // Checkout Steps
 const STEPS = [
   { id: 1, name: 'Address', icon: MapPin },
   { id: 2, name: 'Shipping', icon: Truck },
-  { id: 3, name: 'Payment', icon: CreditCard },
-  { id: 4, name: 'Review', icon: ShoppingBag },
+  { id: 3, name: 'Review', icon: ShoppingBag },
 ];
 
-// Mock shipping options
-const SHIPPING_OPTIONS = [
-  { 
-    id: 'regular', 
-    name: 'Regular Shipping', 
-    description: '5-7 business days',
-    price: 15000,
-    icon: '📦'
-  },
-  { 
-    id: 'express', 
-    name: 'Express Shipping', 
-    description: '2-3 business days',
-    price: 35000,
-    icon: '🚀'
-  },
-  { 
-    id: 'same-day', 
-    name: 'Same Day Delivery', 
-    description: 'Today before 9 PM',
-    price: 50000,
-    icon: '⚡'
-  },
-];
-
-// Mock payment methods
-const PAYMENT_METHODS = [
-  { id: 'bank-transfer', name: 'Bank Transfer', description: 'BCA, Mandiri, BNI, BRI' },
-  { id: 'e-wallet', name: 'E-Wallet', description: 'GoPay, OVO, DANA, ShopeePay' },
-  { id: 'credit-card', name: 'Credit Card', description: 'Visa, Mastercard, JCB' },
-  { id: 'cod', name: 'Cash on Delivery', description: 'Pay when package arrives' },
-];
-
-// Mock addresses for demo
-const MOCK_ADDRESSES: Address[] = [
-  {
-    id: '1',
-    user_id: '1',
-    label: 'Home',
-    recipient_name: 'John Doe',
-    phone: '+62 812 3456 7890',
-    street_address: 'Jl. Sudirman No. 123',
-    address_line2: 'Apartment Tower A, Unit 15B',
-    city: 'Jakarta Selatan',
-    province: 'DKI Jakarta',
-    postal_code: '12190',
-    country: 'Indonesia',
-    is_default: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    user_id: '1',
-    label: 'Office',
-    recipient_name: 'John Doe',
-    phone: '+62 812 3456 7890',
-    street_address: 'Menara BCA, Lt. 25',
-    address_line2: 'Jl. MH Thamrin No. 1',
-    city: 'Jakarta Pusat',
-    province: 'DKI Jakarta',
-    postal_code: '10310',
-    country: 'Indonesia',
-    is_default: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+// Payment is handled entirely by Midtrans Snap UI — no local selection needed.
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const { cart, getCartTotal, clearCart } = useCartStore();
-  
+
   const [currentStep, setCurrentStep] = useState(1);
-  const [addresses, setAddresses] = useState<Address[]>(MOCK_ADDRESSES);
-  const [selectedAddress, setSelectedAddress] = useState<string>(MOCK_ADDRESSES[0]?.id || '');
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<string>('');
   const [selectedShipping, setSelectedShipping] = useState<string>('regular');
-  const [selectedPayment, setSelectedPayment] = useState<string>('bank-transfer');
   const [promoCode, setPromoCode] = useState('');
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showAddressForm, setShowAddressForm] = useState(false);
-  
-  // New address form state
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(true);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
+
+  // Shipping methods from API
+  const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
+  const [isLoadingShipping, setIsLoadingShipping] = useState(false);
+  const [shippingError, setShippingError] = useState<string | null>(null);
+  const [shippingFetched, setShippingFetched] = useState(false);
+
+  // When true: clicking "Next" after editing a step will jump straight back to Review (step 4)
+  // instead of proceeding sequentially. Set when user clicks "Edit" from the Review step.
+  const [returnToReview, setReturnToReview] = useState(false);
+
+  // Address form state (shared for add & edit)
   const [newAddress, setNewAddress] = useState({
-    label: '',
     recipient_name: '',
     phone: '',
     street_address: '',
@@ -136,7 +82,6 @@ export default function CheckoutPage() {
     city: '',
     province: '',
     postal_code: '',
-    country: 'Indonesia',
   });
 
   // Redirect if not authenticated
@@ -153,32 +98,112 @@ export default function CheckoutPage() {
     }
   }, [cart, router]);
 
+  // Fetch addresses from API on mount
+  const loadAddresses = async () => {
+    setIsLoadingAddresses(true);
+    setAddressError(null);
+    try {
+      const data = await addressService.getAddresses();
+      setAddresses(data);
+      // Auto-select default address if none selected yet
+      if (!selectedAddress) {
+        const defaultAddr = data.find(a => a.is_default);
+        if (defaultAddr) setSelectedAddress(defaultAddr.id);
+      }
+    } catch {
+      setAddressError('Gagal memuat alamat. Silakan coba lagi.');
+    } finally {
+      setIsLoadingAddresses(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) loadAddresses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  // Fetch shipping methods from API — lazy: only when user reaches step 2
+  const loadShippingMethods = async () => {
+    setIsLoadingShipping(true);
+    setShippingError(null);
+    try {
+      const data = await shippingService.getMethods();
+      setShippingMethods(data);
+      setShippingFetched(true);
+      // Pre-select first method if none selected yet
+      if (!selectedShipping && data.length > 0) {
+        setSelectedShipping(data[0].code);
+      }
+    } catch {
+      setShippingError('Gagal memuat opsi pengiriman. Silakan coba lagi.');
+    } finally {
+      setIsLoadingShipping(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentStep === 2 && !shippingFetched) {
+      loadShippingMethods();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
   // Calculate totals
   const subtotal = getCartTotal();
-  const shippingCost = SHIPPING_OPTIONS.find(s => s.id === selectedShipping)?.price || 0;
+  // Use price from selected shipping method object (fallback 0 if not yet loaded)
+  const shippingCost = shippingMethods.find(s => s.code === selectedShipping)?.price ?? 0;
   const total = subtotal + shippingCost - promoDiscount;
 
-  // Apply promo code
+  // Maps backend promo error messages → friendly Indonesian copy
+  const getFriendlyPromoError = (error: unknown): string => {
+    const err = error as Error & { code?: string };
+    const msg = err?.message?.toLowerCase() ?? '';
+
+    if (msg.includes('already used') || msg.includes('sudah digunakan')) {
+      return `Kode promo "${promoCode.toUpperCase()}" sudah pernah Anda gunakan sebelumnya. Silakan gunakan kode promo lain.`;
+    }
+    if (msg.includes('not found') || msg.includes('invalid') || msg.includes('not valid')) {
+      return `Kode promo "${promoCode.toUpperCase()}" tidak ditemukan atau tidak berlaku. Mohon periksa kembali kode yang Anda masukkan.`;
+    }
+    if (msg.includes('expired')) {
+      return `Kode promo "${promoCode.toUpperCase()}" sudah tidak berlaku. Masa berlaku kode ini telah habis.`;
+    }
+    if (msg.includes('minimum') || msg.includes('min')) {
+      return `Total belanja Anda belum memenuhi syarat minimum untuk menggunakan kode promo ini.`;
+    }
+    if (msg.includes('usage limit') || msg.includes('kuota')) {
+      return `Kode promo "${promoCode.toUpperCase()}" telah mencapai batas penggunaan maksimum.`;
+    }
+    return err?.message || 'Kode promo tidak dapat digunakan. Silakan coba kode lain.';
+  };
+
+  // Apply promo code via real API
   const handleApplyPromo = async () => {
     if (!promoCode) return;
-    
     setIsApplyingPromo(true);
-    // Mock promo code application
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (promoCode.toUpperCase() === 'SAVE10') {
-      setPromoDiscount(subtotal * 0.1);
-    } else if (promoCode.toUpperCase() === 'FLAT20K') {
-      setPromoDiscount(20000);
-    } else {
-      alert('Invalid promo code');
+    try {
+      const result = await promoService.validatePromoCode(promoCode, subtotal);
+      setPromoDiscount(result.discount_amount);
+    } catch (error) {
+      setPromoDiscount(0);
+      alert(getFriendlyPromoError(error));
+    } finally {
+      setIsApplyingPromo(false);
     }
-    setIsApplyingPromo(false);
+  };
+
+  const handleRemovePromo = () => {
+    setPromoCode('');
+    setPromoDiscount(0);
   };
 
   // Handle step navigation
   const nextStep = () => {
-    if (currentStep < STEPS.length) {
+    if (returnToReview) {
+      // User was editing from Review — jump straight back to Review
+      setReturnToReview(false);
+      setCurrentStep(4);
+    } else if (currentStep < STEPS.length) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -195,63 +220,91 @@ export default function CheckoutPage() {
         return selectedAddress !== '';
       case 2:
         return selectedShipping !== '';
-      case 3:
-        return selectedPayment !== '';
-      case 4:
-        return agreedToTerms;
       default:
         return true;
     }
   };
 
+  // Load Midtrans Snap.js script once on mount
+  useEffect(() => {
+    const snapUrl = process.env.NEXT_PUBLIC_MIDTRANS_SNAP_URL;
+    const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY;
+    if (!snapUrl || !clientKey) return;
+    if (document.querySelector(`script[src="${snapUrl}"]`)) return; // already loaded
+
+    const script = document.createElement('script');
+    script.src = snapUrl;
+    script.setAttribute('data-client-key', clientKey);
+    script.async = true;
+    document.head.appendChild(script);
+
+    return () => {
+      // Leave script in DOM — removing it would break subsequent navigations
+    };
+  }, []);
+
   // Handle order submission
   const handlePlaceOrder = async () => {
     if (!canProceed()) return;
-    
     setIsProcessing(true);
-    
+
     try {
-      // Call actual checkout API
       const result = await orderService.checkout({
         address_id: selectedAddress,
         shipping_method: selectedShipping,
-        payment_method: selectedPayment,
+        payment_method: 'midtrans_snap', // Midtrans Snap UI handles payment method selection
         promo_code: promoCode || undefined,
+        customer_email: user?.email ?? '',
         idempotency_key: `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
       });
-      
-      // If payment URL exists (from Midtrans), redirect to payment page
-      if (result.payment_url) {
-        router.push(`/payment?order_id=${result.order.id}`);
+
+      const orderId = result.order.id;
+      const orderNumber = result.order.order_number;
+
+      // If backend returned a Snap token, open Midtrans payment popup
+      if (result.snap_token) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const snap = (window as any).snap;
+        if (!snap) {
+          // Snap.js not yet loaded — fallback to redirect URL
+          if (result.redirect_url) window.location.href = result.redirect_url;
+          return;
+        }
+
+        snap.pay(result.snap_token, {
+          onSuccess: () => {
+            clearCart();
+            router.push(`/orders/${orderId}?payment=success`);
+          },
+          onPending: () => {
+            clearCart();
+            router.push(`/orders/${orderId}?payment=pending`);
+          },
+          onError: () => {
+            setIsProcessing(false);
+            alert(`Pembayaran untuk order ${orderNumber} gagal. Silakan coba lagi.`);
+          },
+          onClose: () => {
+            // User closed popup without paying — order sudah dibuat, arahkan ke detail order
+            setIsProcessing(false);
+            router.push(`/orders/${orderId}?payment=cancelled`);
+          },
+        });
       } else {
-        // Otherwise redirect to order confirmation
+        // No Snap token (Midtrans unavailable) — go to order detail
         clearCart();
-        router.push(`/orders/${result.order.id}?success=true`);
+        router.push(`/orders/${orderId}?success=true`);
       }
     } catch (error) {
       console.error('Checkout failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to place order. Please try again.');
-    } finally {
+      alert(error instanceof Error ? error.message : 'Gagal membuat order. Silakan coba lagi.');
       setIsProcessing(false);
     }
   };
 
-  // Add new address
-  const handleAddAddress = () => {
-    const address: Address = {
-      id: Date.now().toString(),
-      user_id: user?.id || '1',
-      ...newAddress,
-      is_default: addresses.length === 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    
-    setAddresses([...addresses, address]);
-    setSelectedAddress(address.id);
-    setShowAddressForm(false);
+  // Reset address form
+  const resetAddressForm = () => {
     setNewAddress({
-      label: '',
       recipient_name: '',
       phone: '',
       street_address: '',
@@ -259,8 +312,72 @@ export default function CheckoutPage() {
       city: '',
       province: '',
       postal_code: '',
-      country: 'Indonesia',
     });
+    setEditingAddress(null);
+    setShowAddressForm(false);
+  };
+
+  // Open edit mode — pre-fill form with selected address data
+  const handleOpenEdit = (address: Address) => {
+    setEditingAddress(address);
+    setNewAddress({
+      recipient_name: address.recipient_name,
+      phone: address.phone,
+      street_address: address.street_address,
+      address_line2: address.address_line2 ?? '',
+      city: address.city,
+      province: address.province,
+      postal_code: address.postal_code,
+    });
+    setShowAddressForm(true);
+  };
+
+  // Create address via API
+  const handleAddAddress = async () => {
+    setIsSavingAddress(true);
+    try {
+      const created = await addressService.createAddress({
+        ...newAddress,
+        is_default: addresses.length === 0,
+      });
+      setAddresses(prev => [...prev, created]);
+      setSelectedAddress(created.id);
+      resetAddressForm();
+    } catch {
+      alert('Gagal menyimpan alamat. Silakan coba lagi.');
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
+
+  // Update address via API
+  const handleUpdateAddress = async () => {
+    if (!editingAddress) return;
+    setIsSavingAddress(true);
+    try {
+      const updated = await addressService.updateAddress(editingAddress.id, newAddress);
+      setAddresses(prev => prev.map(a => a.id === updated.id ? updated : a));
+      resetAddressForm();
+    } catch {
+      alert('Gagal memperbarui alamat. Silakan coba lagi.');
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
+
+  // Delete address via API
+  const handleDeleteAddress = async (id: string) => {
+    setDeletingAddressId(id);
+    try {
+      await addressService.deleteAddress(id);
+      setAddresses(prev => prev.filter(a => a.id !== id));
+      // If deleted address was selected, reset selection
+      if (selectedAddress === id) setSelectedAddress('');
+    } catch {
+      alert('Gagal menghapus alamat. Silakan coba lagi.');
+    } finally {
+      setDeletingAddressId(null);
+    }
   };
 
   // Animation variants
@@ -289,14 +406,17 @@ export default function CheckoutPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowAddressForm(!showAddressForm)}
+                onClick={() => {
+                  resetAddressForm();
+                  setShowAddressForm(prev => !prev);
+                }}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add New
               </Button>
             </div>
 
-            {/* Address Form */}
+            {/* Add / Edit Address Form */}
             <AnimatePresence>
               {showAddressForm && (
                 <motion.div
@@ -307,93 +427,87 @@ export default function CheckoutPage() {
                 >
                   <Card>
                     <CardContent className="pt-6 space-y-4">
+                      <p className="text-sm font-semibold text-muted-foreground">
+                        {editingAddress ? 'Edit Alamat' : 'Tambah Alamat Baru'}
+                      </p>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Label</Label>
+                          <Label>Nama Penerima</Label>
                           <Input
-                            placeholder="e.g., Home, Office"
-                            value={newAddress.label}
-                            onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Recipient Name</Label>
-                          <Input
-                            placeholder="Full name"
+                            placeholder="Nama lengkap"
                             value={newAddress.recipient_name}
                             onChange={(e) => setNewAddress({ ...newAddress, recipient_name: e.target.value })}
                           />
                         </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Phone Number</Label>
-                        <Input
-                          placeholder="+62 xxx xxxx xxxx"
-                          value={newAddress.phone}
-                          onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Address Line 1</Label>
-                        <Input
-                          placeholder="Street address"
-                          value={newAddress.street_address}
-                          onChange={(e) => setNewAddress({ ...newAddress, street_address: e.target.value })}
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Address Line 2 (Optional)</Label>
-                        <Input
-                          placeholder="Apartment, suite, etc."
-                          value={newAddress.address_line2}
-                          onChange={(e) => setNewAddress({ ...newAddress, address_line2: e.target.value })}
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
+
                         <div className="space-y-2">
-                          <Label>City</Label>
+                          <Label>Nomor Telepon</Label>
                           <Input
-                            placeholder="City"
+                            placeholder="+62 xxx xxxx xxxx"
+                            value={newAddress.phone}
+                            onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Alamat Lengkap</Label>
+                          <Input
+                            placeholder="Nama jalan, nomor rumah"
+                            value={newAddress.street_address}
+                            onChange={(e) => setNewAddress({ ...newAddress, street_address: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Alamat Tambahan (Opsional)</Label>
+                          <Input
+                            placeholder="Apartemen, RT/RW, patokan, dll."
+                            value={newAddress.address_line2}
+                            onChange={(e) => setNewAddress({ ...newAddress, address_line2: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Kota</Label>
+                          <Input
+                            placeholder="Kota"
                             value={newAddress.city}
                             onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
                           />
                         </div>
+
                         <div className="space-y-2">
-                          <Label>Province</Label>
+                          <Label>Provinsi</Label>
                           <Input
-                            placeholder="Province"
+                            placeholder="Provinsi"
                             value={newAddress.province}
                             onChange={(e) => setNewAddress({ ...newAddress, province: e.target.value })}
                           />
                         </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
+
                         <div className="space-y-2">
-                          <Label>Postal Code</Label>
+                          <Label>Kode Pos</Label>
                           <Input
-                            placeholder="Postal code"
+                            placeholder="Kode pos"
                             value={newAddress.postal_code}
                             onChange={(e) => setNewAddress({ ...newAddress, postal_code: e.target.value })}
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label>Country</Label>
-                          <Input
-                            value={newAddress.country}
-                            onChange={(e) => setNewAddress({ ...newAddress, country: e.target.value })}
-                          />
-                        </div>
                       </div>
-                      
-                      <div className="flex gap-2 pt-4">
-                        <Button onClick={handleAddAddress}>Save Address</Button>
-                        <Button variant="outline" onClick={() => setShowAddressForm(false)}>
-                          Cancel
+
+                      <div className="flex gap-2 pt-2">
+                        <Button
+                          onClick={editingAddress ? handleUpdateAddress : handleAddAddress}
+                          disabled={isSavingAddress}
+                        >
+                          {isSavingAddress
+                            ? 'Menyimpan...'
+                            : editingAddress
+                              ? 'Simpan Perubahan'
+                              : 'Simpan Alamat'}
+                        </Button>
+                        <Button variant="outline" onClick={resetAddressForm} disabled={isSavingAddress}>
+                          Batal
                         </Button>
                       </div>
                     </CardContent>
@@ -402,52 +516,105 @@ export default function CheckoutPage() {
               )}
             </AnimatePresence>
 
-            {/* Address List */}
-            <RadioGroup value={selectedAddress} onValueChange={(value) => setSelectedAddress(String(value))}>
+            {/* Loading Skeleton */}
+            {isLoadingAddresses && (
               <div className="space-y-4">
-                {addresses.map((address) => (
-                  <motion.div
-                    key={address.id}
-                    whileHover={{ scale: 1.01 }}
-                    className={`relative p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                      selectedAddress === address.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                    onClick={() => setSelectedAddress(address.id)}
-                  >
+                {[1, 2].map(i => (
+                  <div key={i} className="p-4 rounded-lg border-2 border-border animate-pulse">
                     <div className="flex items-start gap-4">
-                      <RadioGroupItem value={address.id} id={address.id} />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="font-medium">{address.label}</span>
-                          {address.is_default && (
-                            <Badge variant="secondary" className="text-xs">Default</Badge>
-                          )}
-                        </div>
-                        <p className="text-sm font-medium">{address.recipient_name}</p>
-                        <p className="text-sm text-muted-foreground">{address.phone}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {address.street_address}
-                          {address.address_line2 && `, ${address.address_line2}`}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {address.city}, {address.province} {address.postal_code}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="icon">
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <div className="h-4 w-4 rounded-full bg-muted mt-1" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-1/3 bg-muted rounded" />
+                        <div className="h-3 w-1/4 bg-muted rounded" />
+                        <div className="h-3 w-2/3 bg-muted rounded" />
+                        <div className="h-3 w-1/2 bg-muted rounded" />
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
-            </RadioGroup>
+            )}
+
+            {/* Error State */}
+            {!isLoadingAddresses && addressError && (
+              <div className="text-center py-6 space-y-3">
+                <p className="text-sm text-destructive">{addressError}</p>
+                <Button variant="outline" size="sm" onClick={loadAddresses}>
+                  Coba Lagi
+                </Button>
+              </div>
+            )}
+
+            {/* Address List */}
+            {!isLoadingAddresses && !addressError && (
+              <>
+                {addresses.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed border-border rounded-lg">
+                    <MapPin className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Belum ada alamat tersimpan.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Tambahkan alamat pengiriman di atas.</p>
+                  </div>
+                ) : (
+                  <RadioGroup value={selectedAddress} onValueChange={(value) => setSelectedAddress(String(value))}>
+                    <div className="space-y-4">
+                      {addresses.map((address) => (
+                        <motion.div
+                          key={address.id}
+                          whileHover={{ scale: 1.01 }}
+                          className={`relative p-4 rounded-lg border-2 cursor-pointer transition-colors ${selectedAddress === address.id
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border hover:border-primary/50'
+                            }`}
+                          onClick={() => setSelectedAddress(address.id)}
+                        >
+                          <div className="flex items-start gap-4">
+                            <RadioGroupItem value={address.id} id={address.id} className="mt-1" />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-sm font-semibold">{address.recipient_name}</p>
+                                {address.is_default && (
+                                  <Badge variant="secondary" className="text-xs">Default</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">{address.phone}</p>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {address.street_address}
+                                {address.address_line2 && `, ${address.address_line2}`}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {address.city}, {address.province} {address.postal_code}
+                              </p>
+                            </div>
+                            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleOpenEdit(address)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleDeleteAddress(address.id)}
+                                disabled={deletingAddressId === address.id}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          {deletingAddressId === address.id && (
+                            <p className="text-xs text-muted-foreground mt-2 ml-8">Menghapus alamat...</p>
+                          )}
+                        </motion.div>
+                      ))}
+                    </div>
+                  </RadioGroup>
+                )}
+              </>
+            )}
           </motion.div>
         );
 
@@ -462,107 +629,73 @@ export default function CheckoutPage() {
             transition={{ duration: 0.3 }}
             className="space-y-6"
           >
-            <h2 className="text-xl font-semibold">Shipping Method</h2>
-            
-            <RadioGroup value={selectedShipping} onValueChange={(value) => setSelectedShipping(String(value))}>
+            <h2 className="text-xl font-semibold">Metode Pengiriman</h2>
+
+            {/* Loading Skeleton */}
+            {isLoadingShipping && (
               <div className="space-y-4">
-                {SHIPPING_OPTIONS.map((option) => (
-                  <motion.div
-                    key={option.id}
-                    whileHover={{ scale: 1.01 }}
-                    className={`relative p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                      selectedShipping === option.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                    onClick={() => setSelectedShipping(option.id)}
-                  >
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="p-4 rounded-lg border-2 border-border animate-pulse">
                     <div className="flex items-center gap-4">
-                      <RadioGroupItem value={option.id} id={option.id} />
-                      <span className="text-2xl">{option.icon}</span>
-                      <div className="flex-1">
-                        <p className="font-medium">{option.name}</p>
-                        <p className="text-sm text-muted-foreground">{option.description}</p>
+                      <div className="h-4 w-4 rounded-full bg-muted" />
+                      <div className="h-8 w-8 rounded bg-muted" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-1/3 bg-muted rounded" />
+                        <div className="h-3 w-1/4 bg-muted rounded" />
                       </div>
-                      <p className="font-semibold">{formatCurrency(option.price)}</p>
+                      <div className="h-4 w-16 bg-muted rounded" />
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
-            </RadioGroup>
+            )}
+
+            {/* Error State */}
+            {!isLoadingShipping && shippingError && (
+              <div className="text-center py-6 space-y-3">
+                <p className="text-sm text-destructive">{shippingError}</p>
+                <Button variant="outline" size="sm" onClick={loadShippingMethods}>
+                  Coba Lagi
+                </Button>
+              </div>
+            )}
+
+            {/* Shipping Options from DB */}
+            {!isLoadingShipping && !shippingError && (
+              <RadioGroup value={selectedShipping} onValueChange={(value) => setSelectedShipping(String(value))}>
+                <div className="space-y-4">
+                  {shippingMethods.map((method) => (
+                    <motion.div
+                      key={method.code}
+                      whileHover={{ scale: 1.01 }}
+                      className={`relative p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                        selectedShipping === method.code
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => setSelectedShipping(method.code)}
+                    >
+                      <div className="flex items-center gap-4">
+                        <RadioGroupItem value={method.code} id={`shipping-${method.code}`} />
+                        <span className="text-2xl">{method.icon}</span>
+                        <div className="flex-1">
+                          <p className="font-medium">{method.name}</p>
+                          <p className="text-sm text-muted-foreground">{formatEstimate(method)}</p>
+                        </div>
+                        <p className="font-semibold">{formatCurrency(method.price)}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </RadioGroup>
+            )}
           </motion.div>
         );
 
       case 3:
-        return (
-          <motion.div
-            key="payment"
-            variants={stepVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            transition={{ duration: 0.3 }}
-            className="space-y-6"
-          >
-            <h2 className="text-xl font-semibold">Payment Method</h2>
-            
-            <RadioGroup value={selectedPayment} onValueChange={(value) => setSelectedPayment(String(value))}>
-              <div className="space-y-4">
-                {PAYMENT_METHODS.map((method) => (
-                  <motion.div
-                    key={method.id}
-                    whileHover={{ scale: 1.01 }}
-                    className={`relative p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                      selectedPayment === method.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                    onClick={() => setSelectedPayment(method.id)}
-                  >
-                    <div className="flex items-center gap-4">
-                      <RadioGroupItem value={method.id} id={method.id} />
-                      <div className="flex-1">
-                        <p className="font-medium">{method.name}</p>
-                        <p className="text-sm text-muted-foreground">{method.description}</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </RadioGroup>
-
-            {/* Promo Code */}
-            <div className="pt-6">
-              <h3 className="font-medium mb-4">Promo Code</h3>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter promo code"
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value)}
-                  className="max-w-xs"
-                />
-                <Button 
-                  variant="outline" 
-                  onClick={handleApplyPromo}
-                  disabled={isApplyingPromo || !promoCode}
-                >
-                  {isApplyingPromo ? 'Applying...' : 'Apply'}
-                </Button>
-              </div>
-              {promoDiscount > 0 && (
-                <p className="text-sm text-green-600 mt-2">
-                  Promo applied: -{formatCurrency(promoDiscount)}
-                </p>
-              )}
-            </div>
-          </motion.div>
-        );
-
-      case 4:
         const selectedAddr = addresses.find(a => a.id === selectedAddress);
-        const selectedShip = SHIPPING_OPTIONS.find(s => s.id === selectedShipping);
-        const selectedPay = PAYMENT_METHODS.find(p => p.id === selectedPayment);
-        
+        const selectedShip = shippingMethods.find(s => s.code === selectedShipping);
+
         return (
           <motion.div
             key="review"
@@ -580,7 +713,11 @@ export default function CheckoutPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-medium">Shipping Address</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setReturnToReview(true); setCurrentStep(1); }}
+                  >
                     Edit
                   </Button>
                 </div>
@@ -607,7 +744,11 @@ export default function CheckoutPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-medium">Shipping Method</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={() => setCurrentStep(2)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setReturnToReview(true); setCurrentStep(2); }}
+                  >
                     Edit
                   </Button>
                 </div>
@@ -617,29 +758,22 @@ export default function CheckoutPage() {
                   <div className="flex items-center gap-2 text-sm">
                     <span>{selectedShip.icon}</span>
                     <span>{selectedShip.name}</span>
-                    <span className="text-muted-foreground">({selectedShip.description})</span>
+                    <span className="text-muted-foreground">({formatEstimate(selectedShip)})</span>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Payment Summary */}
+            {/* Payment info — handled by Midtrans */}
             <Card>
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium">Payment Method</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={() => setCurrentStep(3)}>
-                    Edit
-                  </Button>
-                </div>
+                <CardTitle className="text-sm font-medium">Payment</CardTitle>
               </CardHeader>
               <CardContent>
-                {selectedPay && (
-                  <div className="text-sm">
-                    <p>{selectedPay.name}</p>
-                    <p className="text-muted-foreground">{selectedPay.description}</p>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CreditCard className="h-4 w-4" />
+                  <span>Pilih metode pembayaran di halaman berikutnya (Midtrans Snap)</span>
+                </div>
               </CardContent>
             </Card>
 
@@ -725,11 +859,10 @@ export default function CheckoutPage() {
             {STEPS.map((step, index) => (
               <div key={step.id} className="flex items-center">
                 <motion.div
-                  className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors ${
-                    currentStep >= step.id
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-muted-foreground/30 text-muted-foreground'
-                  }`}
+                  className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors ${currentStep >= step.id
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-muted-foreground/30 text-muted-foreground'
+                    }`}
                   animate={{
                     scale: currentStep === step.id ? 1.1 : 1,
                   }}
@@ -741,17 +874,15 @@ export default function CheckoutPage() {
                   )}
                 </motion.div>
                 <span
-                  className={`ml-2 text-sm font-medium hidden sm:block ${
-                    currentStep >= step.id ? 'text-foreground' : 'text-muted-foreground'
-                  }`}
+                  className={`ml-2 text-sm font-medium hidden sm:block ${currentStep >= step.id ? 'text-foreground' : 'text-muted-foreground'
+                    }`}
                 >
                   {step.name}
                 </span>
                 {index < STEPS.length - 1 && (
                   <div
-                    className={`w-12 sm:w-24 h-0.5 mx-2 sm:mx-4 ${
-                      currentStep > step.id ? 'bg-primary' : 'bg-muted'
-                    }`}
+                    className={`w-12 sm:w-24 h-0.5 mx-2 sm:mx-4 ${currentStep > step.id ? 'bg-primary' : 'bg-muted'
+                      }`}
                   />
                 )}
               </div>
@@ -776,13 +907,13 @@ export default function CheckoutPage() {
                 <ChevronLeft className="h-4 w-4 mr-2" />
                 Previous
               </Button>
-              
+
               {currentStep < STEPS.length ? (
                 <Button
                   onClick={nextStep}
                   disabled={!canProceed()}
                 >
-                  Next
+                  {returnToReview ? 'Save & Back to Review' : 'Next'}
                   <ChevronRight className="h-4 w-4 ml-2" />
                 </Button>
               ) : (
@@ -820,6 +951,43 @@ export default function CheckoutPage() {
                     <p className="text-sm text-muted-foreground">
                       +{cart.items.length - 3} more items
                     </p>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Promo Code — single location, always visible */}
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Promo Code</p>
+                  {promoDiscount > 0 ? (
+                    <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-md px-3 py-2">
+                      <span className="text-sm text-green-700 font-medium">{promoCode.toUpperCase()} applied</span>
+                      <button
+                        onClick={handleRemovePromo}
+                        className="text-xs text-red-500 hover:text-red-700 ml-2"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Promo code"
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                        className="text-sm h-8"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleApplyPromo}
+                        disabled={isApplyingPromo || !promoCode}
+                        className="shrink-0 h-8"
+                      >
+                        {isApplyingPromo ? '...' : 'Apply'}
+                      </Button>
+                    </div>
                   )}
                 </div>
 

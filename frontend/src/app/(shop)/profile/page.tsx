@@ -4,20 +4,18 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import gsap from 'gsap';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Edit2, 
-  Save, 
+import {
+  User,
+  Mail,
+  MapPin,
+  Edit2,
+  Save,
   X,
   Plus,
   Trash2,
   Camera,
   Shield,
   Bell,
-  CreditCard,
   Heart,
   Package,
   LogOut,
@@ -31,10 +29,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogDescription,
   DialogFooter
@@ -43,7 +41,9 @@ import { useAuthStore } from '@/stores/auth-store';
 import { Address } from '@/types';
 import { authService } from '@/services/auth';
 import userService from '@/services/user';
+import addressService from '@/services/address';
 import { AvatarSVG } from '@/components/common/avatar';
+import { toast } from 'sonner';
 
 // Mock user data
 const MOCK_USER = {
@@ -54,35 +54,7 @@ const MOCK_USER = {
   created_at: '2024-01-15T10:00:00Z',
 };
 
-// Mock addresses
-const MOCK_ADDRESSES: Address[] = [
-  {
-    id: '1',
-    user_id: '1',
-    label: 'Home',
-    recipient_name: 'John Doe',
-    phone: '+62 812 3456 7890',
-    street_address: 'Jl. Sudirman No. 123',
-    city: 'Jakarta Selatan',
-    province: 'DKI Jakarta',
-    postal_code: '12190',
-    country: 'Indonesia',
-    is_default: true,
-  },
-  {
-    id: '2',
-    user_id: '1',
-    label: 'Office',
-    recipient_name: 'John Doe',
-    phone: '+62 813 9876 5432',
-    street_address: 'Menara BCA, Lt. 25',
-    city: 'Jakarta Pusat',
-    province: 'DKI Jakarta',
-    postal_code: '10310',
-    country: 'Indonesia',
-    is_default: false,
-  },
-];
+
 
 type ProfileTab = 'profile' | 'addresses' | 'security' | 'notifications';
 
@@ -95,33 +67,32 @@ const TABS: { id: ProfileTab; label: string; icon: React.ReactNode }[] = [
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { isAuthenticated, logout } = useAuthStore();
   const headerRef = useRef<HTMLDivElement>(null);
-  
+
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
   const [isLoading, setIsLoading] = useState(true);
   const [userData, setUserData] = useState(MOCK_USER);
   const [addresses, setAddresses] = useState<Address[]>([]);
+  const [addressLoading, setAddressLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  
+
   // Form states
   const [formData, setFormData] = useState({
     name: userData.name,
     phone: userData.phone,
   });
-  
+
   const [addressForm, setAddressForm] = useState<Partial<Address>>({
-    label: '',
     recipient_name: '',
     phone: '',
     street_address: '',
     city: '',
     province: '',
     postal_code: '',
-    country: 'Indonesia',
     is_default: false,
   });
 
@@ -136,6 +107,10 @@ export default function ProfilePage() {
     new: false,
     confirm: false,
   });
+  const [securityLoading, setSecurityLoading] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteConfirmPassword, setDeleteConfirmPassword] = useState('');
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
 
   // Notification settings
   const [notifications, setNotifications] = useState({
@@ -162,7 +137,10 @@ export default function ProfilePage() {
     async function loadProfile() {
       setIsLoading(true);
       try {
-        const userProfile = await authService.getProfile();
+        const [userProfile, userAddresses] = await Promise.all([
+          authService.getProfile(),
+          addressService.getAddresses(),
+        ]);
         setUserData({
           id: userProfile.id,
           email: userProfile.email,
@@ -174,11 +152,10 @@ export default function ProfilePage() {
           name: userProfile.name,
           phone: userProfile.phone || '',
         });
-        setAddresses(MOCK_ADDRESSES);
+        setAddresses(userAddresses);
       } catch (error) {
         console.error('Failed to load profile:', error);
-        // Keep mock data as fallback
-        setAddresses(MOCK_ADDRESSES);
+        toast.error('Failed to load profile data');
       } finally {
         setIsLoading(false);
       }
@@ -218,50 +195,85 @@ export default function ProfilePage() {
     setIsEditing(false);
   };
 
-  const handleAddressSubmit = async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    if (editingAddress) {
-      // Update existing address
-      setAddresses(prev => 
-        prev.map(a => a.id === editingAddress.id 
-          ? { ...a, ...addressForm } as Address
-          : addressForm.is_default ? { ...a, is_default: false } : a
-        )
-      );
-    } else {
-      // Add new address
-      const newAddress: Address = {
-        ...(addressForm as Address),
-        id: `addr-${Date.now()}`,
-        user_id: userData.id,
-      };
-      
-      if (addressForm.is_default) {
-        setAddresses(prev => [...prev.map(a => ({ ...a, is_default: false })), newAddress]);
-      } else {
-        setAddresses(prev => [...prev, newAddress]);
-      }
-    }
-    
-    setShowAddressModal(false);
-    setEditingAddress(null);
+  const resetAddressForm = () => {
     setAddressForm({
-      label: '',
       recipient_name: '',
       phone: '',
       street_address: '',
       city: '',
       province: '',
       postal_code: '',
-      country: 'Indonesia',
       is_default: false,
     });
   };
 
-  const handleDeleteAddress = (id: string) => {
-    setAddresses(prev => prev.filter(a => a.id !== id));
-    setShowDeleteConfirm(null);
+  const handleAddressSubmit = async () => {
+    setAddressLoading(true);
+    try {
+      if (editingAddress) {
+        // Update existing address
+        const updated = await addressService.updateAddress(editingAddress.id, addressForm);
+        setAddresses(prev =>
+          prev.map(a =>
+            a.id === updated.id
+              ? { ...updated }
+              : addressForm.is_default ? { ...a, is_default: false } : a
+          )
+        );
+        toast.success('Address updated successfully');
+      } else {
+        // Create new address
+        const created = await addressService.createAddress(addressForm);
+        if (addressForm.is_default) {
+          setAddresses(prev => [
+            ...prev.map(a => ({ ...a, is_default: false })),
+            { ...created },
+          ]);
+        } else {
+          setAddresses(prev => [...prev, { ...created }]);
+        }
+        toast.success('Address added successfully');
+      }
+      setShowAddressModal(false);
+      setEditingAddress(null);
+      resetAddressForm();
+    } catch (error) {
+      console.error('Failed to save address:', error);
+      toast.error('Failed to save address. Please try again.');
+    } finally {
+      setAddressLoading(false);
+    }
+  };
+
+  const handleDeleteAddress = async (id: string) => {
+    setAddressLoading(true);
+    try {
+      await addressService.deleteAddress(id);
+      setAddresses(prev => prev.filter(a => a.id !== id));
+      setShowDeleteConfirm(null);
+      toast.success('Address deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete address:', error);
+      toast.error('Failed to delete address. Please try again.');
+    } finally {
+      setAddressLoading(false);
+    }
+  };
+
+  const handleSetDefault = async (id: string) => {
+    setAddressLoading(true);
+    try {
+      await addressService.setDefault(id);
+      setAddresses(prev =>
+        prev.map(a => ({ ...a, is_default: a.id === id }))
+      );
+      toast.success('Default address updated');
+    } catch (error) {
+      console.error('Failed to set default:', error);
+      toast.error('Failed to update default address.');
+    } finally {
+      setAddressLoading(false);
+    }
   };
 
   const handleEditAddress = (address: Address) => {
@@ -272,13 +284,49 @@ export default function ProfilePage() {
 
   const handlePasswordChange = async () => {
     if (passwordForm.new !== passwordForm.confirm) {
-      alert('Passwords do not match');
+      toast.error('Passwords do not match');
       return;
     }
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setPasswordForm({ current: '', new: '', confirm: '' });
-    alert('Password changed successfully');
+    if (passwordForm.new.length < 8) {
+      toast.error('New password must be at least 8 characters');
+      return;
+    }
+    setSecurityLoading(true);
+    try {
+      await authService.changePassword(passwordForm.current, passwordForm.new);
+      setPasswordForm({ current: '', new: '', confirm: '' });
+      toast.success('Password changed successfully. Please log in again on other devices.');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to change password';
+      // Axios wraps the response error message
+      const axiosMsg = (error as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message;
+      toast.error(axiosMsg ?? msg);
+    } finally {
+      setSecurityLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deleteConfirmPassword) {
+      toast.error('Please enter your password to confirm');
+      return;
+    }
+    setSecurityLoading(true);
+    try {
+      await authService.deleteAccount(deleteConfirmPassword);
+      toast.success('Account deleted. Goodbye!');
+      logout();
+      router.push('/');
+    } catch (error) {
+      const axiosMsg = (error as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message;
+      toast.error(axiosMsg ?? 'Failed to delete account');
+    } finally {
+      setSecurityLoading(false);
+      setShowDeleteDialog(false);
+      setDeleteConfirmPassword('');
+    }
   };
 
   const handleLogout = () => {
@@ -309,7 +357,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div 
+      <div
         ref={headerRef}
         className="bg-gradient-to-r from-gray-900 to-gray-800 dark:from-gray-800 dark:to-gray-900 text-white py-12"
       >
@@ -324,7 +372,7 @@ export default function ProfilePage() {
                 <Camera className="h-4 w-4 text-gray-700 dark:text-gray-200" />
               </button>
             </div>
-            
+
             {/* User Info */}
             <div className="text-center sm:text-left">
               <h1 className="text-2xl font-bold">{userData.name}</h1>
@@ -352,19 +400,18 @@ export default function ProfilePage() {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                        activeTab === tab.id
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${activeTab === tab.id
                           ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
                           : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-                      }`}
+                        }`}
                     >
                       {tab.icon}
                       <span className="font-medium">{tab.label}</span>
                     </button>
                   ))}
-                  
+
                   <Separator className="my-4" />
-                  
+
                   {/* Quick Links */}
                   <button
                     onClick={() => router.push('/orders')}
@@ -376,7 +423,7 @@ export default function ProfilePage() {
                     </span>
                     <ChevronRight className="h-4 w-4" />
                   </button>
-                  
+
                   <button
                     onClick={() => router.push('/wishlist')}
                     className="w-full flex items-center justify-between px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
@@ -387,9 +434,9 @@ export default function ProfilePage() {
                     </span>
                     <ChevronRight className="h-4 w-4" />
                   </button>
-                  
+
                   <Separator className="my-4" />
-                  
+
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -454,7 +501,7 @@ export default function ProfilePage() {
                             </p>
                           )}
                         </div>
-                        
+
                         <div className="space-y-2">
                           <Label htmlFor="email">Email Address</Label>
                           <p className="text-gray-900 dark:text-gray-100 font-medium py-2 flex items-center gap-2">
@@ -464,7 +511,7 @@ export default function ProfilePage() {
                             </span>
                           </p>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <Label htmlFor="phone">Phone Number</Label>
                           {isEditing ? (
@@ -500,26 +547,34 @@ export default function ProfilePage() {
                         <CardTitle>Saved Addresses</CardTitle>
                         <CardDescription>Manage your delivery addresses</CardDescription>
                       </div>
-                      <Button onClick={() => {
-                        setEditingAddress(null);
-                        setAddressForm({
-                          label: '',
-                          recipient_name: userData.name,
-                          phone: userData.phone,
-                          street_address: '',
-                          city: '',
-                          province: '',
-                          postal_code: '',
-                          country: 'Indonesia',
-                          is_default: false,
-                        });
-                        setShowAddressModal(true);
-                      }}>
+                      <Button
+                        disabled={addressLoading}
+                        onClick={() => {
+                          setEditingAddress(null);
+                          resetAddressForm();
+                          setAddressForm(prev => ({
+                            ...prev,
+                            recipient_name: userData.name,
+                            phone: userData.phone,
+                          }));
+                          setShowAddressModal(true);
+                        }}
+                      >
                         <Plus className="h-4 w-4 mr-2" />
                         Add Address
                       </Button>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="relative">
+                      {/* Loading overlay */}
+                      {addressLoading && (
+                        <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-10 flex items-center justify-center rounded-md">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            <span className="text-sm">Saving...</span>
+                          </div>
+                        </div>
+                      )}
+
                       {addresses.length === 0 ? (
                         <div className="text-center py-12">
                           <MapPin className="h-12 w-12 mx-auto text-gray-400 mb-4" />
@@ -531,47 +586,65 @@ export default function ProfilePage() {
                           {addresses.map(address => (
                             <div
                               key={address.id}
-                              className={`relative p-4 rounded-lg border-2 transition-colors ${
-                                address.is_default
+                              className={`relative p-4 rounded-lg border-2 transition-colors ${address.is_default
                                   ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                                   : 'border-gray-200 dark:border-gray-700'
-                              }`}
+                                }`}
                             >
+                              {/* Header: badge + action buttons */}
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-semibold">{address.label}</span>
                                   {address.is_default && (
                                     <span className="text-xs px-2 py-0.5 bg-green-500 text-white rounded-full">
                                       Default
                                     </span>
                                   )}
                                 </div>
-                                <div className="flex gap-1">
+                                <div className="flex gap-1 shrink-0">
                                   <Button
                                     variant="ghost"
-                                    size="icon-sm"
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    disabled={addressLoading}
                                     onClick={() => handleEditAddress(address)}
                                   >
-                                    <Edit2 className="h-4 w-4" />
+                                    <Edit2 className="h-3.5 w-3.5" />
                                   </Button>
                                   <Button
                                     variant="ghost"
-                                    size="icon-sm"
-                                    className="text-red-600 hover:text-red-700"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-red-600 hover:text-red-700"
+                                    disabled={addressLoading}
                                     onClick={() => setShowDeleteConfirm(address.id)}
                                   >
-                                    <Trash2 className="h-4 w-4" />
+                                    <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
                                 </div>
                               </div>
+
+                              {/* Address details */}
                               <p className="font-medium">{address.recipient_name}</p>
                               <p className="text-sm text-gray-600 dark:text-gray-400">{address.phone}</p>
                               <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                                 {address.street_address}
+                                {address.address_line2 && `, ${address.address_line2}`}
                               </p>
                               <p className="text-sm text-gray-600 dark:text-gray-400">
                                 {address.city}, {address.province} {address.postal_code}
                               </p>
+
+                              {/* Set as Default button for non-default addresses */}
+                              {!address.is_default && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="mt-3 w-full text-xs h-7"
+                                  disabled={addressLoading}
+                                  onClick={() => handleSetDefault(address.id)}
+                                >
+                                  Set as Default
+                                </Button>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -580,6 +653,7 @@ export default function ProfilePage() {
                   </Card>
                 </motion.div>
               )}
+
 
               {/* Security Tab */}
               {activeTab === 'security' && (
@@ -614,7 +688,7 @@ export default function ProfilePage() {
                           </button>
                         </div>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="new-password">New Password</Label>
                         <div className="relative">
@@ -633,7 +707,7 @@ export default function ProfilePage() {
                           </button>
                         </div>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="confirm-password">Confirm New Password</Label>
                         <div className="relative">
@@ -652,32 +726,52 @@ export default function ProfilePage() {
                           </button>
                         </div>
                       </div>
-                      
-                      <Button 
+
+                      <Button
                         onClick={handlePasswordChange}
-                        disabled={!passwordForm.current || !passwordForm.new || !passwordForm.confirm}
+                        disabled={securityLoading || !passwordForm.current || !passwordForm.new || !passwordForm.confirm}
                       >
-                        Update Password
+                        {securityLoading ? (
+                          <span className="flex items-center gap-2">
+                            <span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            Updating...
+                          </span>
+                        ) : (
+                          'Update Password'
+                        )}
                       </Button>
                     </CardContent>
                   </Card>
-                  
-                  <Card className="mt-6">
+
+                  <Card className="mt-6 border-red-200 dark:border-red-900">
                     <CardHeader>
                       <CardTitle className="text-red-600">Danger Zone</CardTitle>
-                      <CardDescription>Irreversible actions</CardDescription>
+                      <CardDescription>Irreversible and destructive actions</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <Button variant="destructive">
-                        Delete Account
-                      </Button>
-                      <p className="text-sm text-gray-500 mt-2">
-                        This will permanently delete your account and all associated data.
-                      </p>
+                      <div className="flex items-start gap-4">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">Delete Account</p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Permanently delete your account and all associated data. This action cannot be undone.
+                          </p>
+                        </div>
+                        <Button
+                          variant="destructive"
+                          disabled={securityLoading}
+                          onClick={() => {
+                            setDeleteConfirmPassword('');
+                            setShowDeleteDialog(true);
+                          }}
+                        >
+                          Delete Account
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>
               )}
+
 
               {/* Notifications Tab */}
               {activeTab === 'notifications' && (
@@ -705,27 +799,25 @@ export default function ProfilePage() {
                             <p className="text-sm text-gray-500">{item.desc}</p>
                           </div>
                           <button
-                            onClick={() => setNotifications(prev => ({ 
-                              ...prev, 
-                              [item.key]: !prev[item.key as keyof typeof notifications] 
+                            onClick={() => setNotifications(prev => ({
+                              ...prev,
+                              [item.key]: !prev[item.key as keyof typeof notifications]
                             }))}
-                            className={`relative w-12 h-6 rounded-full transition-colors ${
-                              notifications[item.key as keyof typeof notifications]
+                            className={`relative w-12 h-6 rounded-full transition-colors ${notifications[item.key as keyof typeof notifications]
                                 ? 'bg-green-500'
                                 : 'bg-gray-300 dark:bg-gray-600'
-                            }`}
-                          >
-                            <span 
-                              className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                                notifications[item.key as keyof typeof notifications] ? 'translate-x-6' : ''
                               }`}
+                          >
+                            <span
+                              className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${notifications[item.key as keyof typeof notifications] ? 'translate-x-6' : ''
+                                }`}
                             />
                           </button>
                         </div>
                       ))}
                     </CardContent>
                   </Card>
-                  
+
                   <Card className="mt-6">
                     <CardHeader>
                       <CardTitle>Push Notifications</CardTitle>
@@ -742,20 +834,18 @@ export default function ProfilePage() {
                             <p className="text-sm text-gray-500">{item.desc}</p>
                           </div>
                           <button
-                            onClick={() => setNotifications(prev => ({ 
-                              ...prev, 
-                              [item.key]: !prev[item.key as keyof typeof notifications] 
+                            onClick={() => setNotifications(prev => ({
+                              ...prev,
+                              [item.key]: !prev[item.key as keyof typeof notifications]
                             }))}
-                            className={`relative w-12 h-6 rounded-full transition-colors ${
-                              notifications[item.key as keyof typeof notifications]
+                            className={`relative w-12 h-6 rounded-full transition-colors ${notifications[item.key as keyof typeof notifications]
                                 ? 'bg-green-500'
                                 : 'bg-gray-300 dark:bg-gray-600'
-                            }`}
-                          >
-                            <span 
-                              className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                                notifications[item.key as keyof typeof notifications] ? 'translate-x-6' : ''
                               }`}
+                          >
+                            <span
+                              className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${notifications[item.key as keyof typeof notifications] ? 'translate-x-6' : ''
+                                }`}
                             />
                           </button>
                         </div>
@@ -778,15 +868,6 @@ export default function ProfilePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="addr-label">Label</Label>
-              <Input
-                id="addr-label"
-                placeholder="e.g., Home, Office"
-                value={addressForm.label}
-                onChange={e => setAddressForm(prev => ({ ...prev, label: e.target.value }))}
-              />
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="addr-name">Recipient Name</Label>
@@ -806,48 +887,51 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="addr-street">Street Address</Label>
+              <Label htmlFor="addr-street">Street Address <span className="text-red-500">*</span></Label>
               <Input
                 id="addr-street"
+                placeholder="Jl. Sudirman No. 123"
                 value={addressForm.street_address}
                 onChange={e => setAddressForm(prev => ({ ...prev, street_address: e.target.value }))}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="addr-line2">Address Line 2 <span className="text-xs text-muted-foreground">(optional)</span></Label>
+              <Input
+                id="addr-line2"
+                placeholder="Apt, Suite, Floor, Building, etc."
+                value={addressForm.address_line2 ?? ''}
+                onChange={e => setAddressForm(prev => ({ ...prev, address_line2: e.target.value }))}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="addr-city">City</Label>
+                <Label htmlFor="addr-city">City <span className="text-red-500">*</span></Label>
                 <Input
                   id="addr-city"
+                  placeholder="Jakarta Selatan"
                   value={addressForm.city}
                   onChange={e => setAddressForm(prev => ({ ...prev, city: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="addr-province">Province</Label>
+                <Label htmlFor="addr-province">Province <span className="text-red-500">*</span></Label>
                 <Input
                   id="addr-province"
+                  placeholder="DKI Jakarta"
                   value={addressForm.province}
                   onChange={e => setAddressForm(prev => ({ ...prev, province: e.target.value }))}
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="addr-postal">Postal Code</Label>
-                <Input
-                  id="addr-postal"
-                  value={addressForm.postal_code}
-                  onChange={e => setAddressForm(prev => ({ ...prev, postal_code: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="addr-country">Country</Label>
-                <Input
-                  id="addr-country"
-                  value={addressForm.country}
-                  onChange={e => setAddressForm(prev => ({ ...prev, country: e.target.value }))}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="addr-postal">Postal Code <span className="text-red-500">*</span></Label>
+              <Input
+                id="addr-postal"
+                placeholder="12190"
+                value={addressForm.postal_code}
+                onChange={e => setAddressForm(prev => ({ ...prev, postal_code: e.target.value }))}
+              />
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -860,15 +944,31 @@ export default function ProfilePage() {
             </label>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowAddressModal(false)}>
+            <Button
+              variant="ghost"
+              disabled={addressLoading}
+              onClick={() => {
+                setShowAddressModal(false);
+                setEditingAddress(null);
+                resetAddressForm();
+              }}
+            >
               Cancel
             </Button>
-            <Button onClick={handleAddressSubmit}>
-              {editingAddress ? 'Update' : 'Add'} Address
+            <Button onClick={handleAddressSubmit} disabled={addressLoading}>
+              {addressLoading ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Saving...
+                </span>
+              ) : (
+                <>{editingAddress ? 'Update' : 'Add'} Address</>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!showDeleteConfirm} onOpenChange={() => setShowDeleteConfirm(null)}>
@@ -883,11 +983,68 @@ export default function ProfilePage() {
             <Button variant="ghost" onClick={() => setShowDeleteConfirm(null)}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={() => showDeleteConfirm && handleDeleteAddress(showDeleteConfirm)}
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Account Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={open => { setShowDeleteDialog(open); if (!open) setDeleteConfirmPassword(''); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Delete Account</DialogTitle>
+            <DialogDescription>
+              This will permanently delete your account and all associated data (orders, addresses, wishlist). <strong>This action cannot be undone.</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="delete-password">Enter your password to confirm</Label>
+              <div className="relative">
+                <Input
+                  id="delete-password"
+                  type={showDeletePassword ? 'text' : 'password'}
+                  placeholder="Your current password"
+                  value={deleteConfirmPassword}
+                  onChange={e => setDeleteConfirmPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleDeleteAccount()}
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setShowDeletePassword(v => !v)}
+                >
+                  {showDeletePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              disabled={securityLoading}
+              onClick={() => { setShowDeleteDialog(false); setDeleteConfirmPassword(''); }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={securityLoading || !deleteConfirmPassword}
+              onClick={handleDeleteAccount}
+            >
+              {securityLoading ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Deleting...
+                </span>
+              ) : (
+                'Delete My Account'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

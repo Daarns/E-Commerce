@@ -63,6 +63,8 @@ type Order struct {
 	PaymentProvider      string     `gorm:"column:payment_provider;size:50" json:"payment_provider"`
 	PaymentTransactionID string     `gorm:"column:payment_transaction_id;size:255" json:"payment_transaction_id"`
 	PaidAt               *time.Time `gorm:"column:paid_at" json:"paid_at"`
+	SnapToken            string     `gorm:"column:snap_token;size:512" json:"snap_token,omitempty"`  // Midtrans token, valid 24h
+	CustomerEmail        string     `gorm:"column:customer_email;size:255" json:"customer_email,omitempty"` // Stored at checkout for retry
 
 	// Shipping
 	ShippingMethod string     `gorm:"column:shipping_method;size:50" json:"shipping_method"`
@@ -84,7 +86,7 @@ type Order struct {
 	// Items
 	Items []OrderItem `gorm:"foreignKey:OrderID" json:"items,omitempty"`
 
-	// Status History
+	// Status History — backed by order_status_workflows table
 	StatusHistory []OrderStatusHistory `gorm:"foreignKey:OrderID" json:"status_history,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
@@ -176,20 +178,21 @@ func (oi *OrderItem) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// OrderStatusHistory tracks order status changes
+// OrderStatusHistory tracks order status changes.
+// Uses the order_status_workflows table (shared with workflow engine).
 type OrderStatusHistory struct {
 	ID         uuid.UUID  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	OrderID    uuid.UUID  `gorm:"type:uuid;not null" json:"order_id"`
 	FromStatus string     `gorm:"column:from_status;size:50" json:"from_status"`
 	ToStatus   string     `gorm:"column:to_status;size:50;not null" json:"to_status"`
 	Notes      string     `gorm:"type:text" json:"notes"`
-	ChangedBy  *uuid.UUID `gorm:"column:changed_by;type:uuid" json:"changed_by"`
-	ChangedAt  time.Time  `gorm:"column:changed_at;default:CURRENT_TIMESTAMP" json:"changed_at"`
+	ChangedBy  *uuid.UUID `gorm:"-" json:"changed_by,omitempty"` // not in order_status_workflows, ignored
+	ChangedAt  time.Time  `gorm:"column:created_at;default:CURRENT_TIMESTAMP" json:"changed_at"`
 }
 
-// TableName sets the table name
+// TableName maps to the existing order_status_workflows table
 func (OrderStatusHistory) TableName() string {
-	return "order_status_history"
+	return "order_status_workflows"
 }
 
 // BeforeCreate generates UUID

@@ -3,7 +3,10 @@ package order
 import (
 	"ecommerce-backend/internal/models"
 	"ecommerce-backend/internal/repositories"
+	paymentSvc "ecommerce-backend/internal/services/payment"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -18,6 +21,8 @@ type OrderService struct {
 	productRepo   *repositories.ProductRepository
 	promoCodeRepo *repositories.PromoCodeRepository
 	addressRepo   *repositories.AddressRepository
+	shippingRepo  *repositories.ShippingRepository
+	snapService   *paymentSvc.SnapService
 }
 
 // NewOrderService creates a new order service
@@ -28,6 +33,8 @@ func NewOrderService(
 	productRepo *repositories.ProductRepository,
 	promoCodeRepo *repositories.PromoCodeRepository,
 	addressRepo *repositories.AddressRepository,
+	shippingRepo *repositories.ShippingRepository,
+	snapService *paymentSvc.SnapService,
 ) *OrderService {
 	return &OrderService{
 		db:            db,
@@ -36,6 +43,8 @@ func NewOrderService(
 		productRepo:   productRepo,
 		promoCodeRepo: promoCodeRepo,
 		addressRepo:   addressRepo,
+		shippingRepo:  shippingRepo,
+		snapService:   snapService,
 	}
 }
 
@@ -47,13 +56,14 @@ type CheckoutInput struct {
 	ShippingMethod string `json:"shipping_method" binding:"required"`
 	CustomerNotes  string `json:"customer_notes"`
 	IdempotencyKey string `json:"idempotency_key" binding:"required"`
+	CustomerEmail  string `json:"customer_email"` // Used for Midtrans customer details
 }
 
 // CheckoutResult represents checkout result
 type CheckoutResult struct {
-	Order          *models.Order   `json:"order"`
-	PaymentURL     string          `json:"payment_url,omitempty"`
-	ExpiresAt      string          `json:"expires_at,omitempty"`
+	Order       *models.Order `json:"order"`
+	SnapToken   string        `json:"snap_token,omitempty"`
+	RedirectURL string        `json:"redirect_url,omitempty"`
 }
 
 // Checkout processes checkout with pessimistic locking
@@ -135,21 +145,9 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 		
 		discount = promo.CalculateDiscount(subtotal)
 		promoCodeID = &promo.ID
-		
-		// Record usage
-		usage := &models.PromoCodeUsage{
-			PromoCodeID:    promo.ID,
-			UserID:         userID,
-			DiscountAmount: discount,
-		}
-		if err := uc.promoCodeRepo.RecordUsage(usage); err != nil {
-			return nil, fmt.Errorf("failed to apply promo code: %w", err)
-		}
-		
-		// Increment usage count
-		if err := uc.promoCodeRepo.IncrementUsage(promo.ID); err != nil {
-			return nil, fmt.Errorf("failed to apply promo code: %w", err)
-		}
+		// NOTE: RecordUsage + IncrementUsage are intentionally deferred to
+		// the payment webhook (ProcessWebhook) once payment is confirmed.
+		// This prevents promo quota being consumed on unpaid orders.
 	}
 
 	// Calculate shipping cost (mock calculation)
@@ -190,6 +188,7 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 		ShippingMethod:  input.ShippingMethod,
 		CustomerNotes:   input.CustomerNotes,
 		IdempotencyKey:  input.IdempotencyKey,
+		CustomerEmail:   input.CustomerEmail, // Stored so retry payment always has the email
 		
 		// Items
 		Items: orderItems,
@@ -207,34 +206,105 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 		fmt.Printf("Warning: failed to clear cart: %v\n", err)
 	}
 
-	// TODO: Integrate with Midtrans for payment URL
-	// For now, return mock payment URL
-	result := &CheckoutResult{
-		Order:      createdOrder,
-		PaymentURL: fmt.Sprintf("https://sandbox.midtrans.com/pay/%s", createdOrder.OrderNumber),
-		ExpiresAt:  "24h",
+	// Create Midtrans Snap transaction
+	result := &CheckoutResult{Order: createdOrder}
+
+	if uc.snapService != nil {
+		snapResult, err := uc.snapService.CreateTransaction(createdOrder, input.CustomerEmail)
+		if err != nil {
+			// Log but don't fail — order is already created; user can retry payment
+			fmt.Printf("Warning: Midtrans Snap error for order %s: %v\n", createdOrder.OrderNumber, err)
+		} else {
+			result.SnapToken = snapResult.Token
+			result.RedirectURL = snapResult.RedirectURL
+			// Persist snap_token so we can reuse it (valid 24h) without hitting Midtrans again
+			if saveErr := uc.orderRepo.Update(&models.Order{
+				ID:        createdOrder.ID,
+				SnapToken: snapResult.Token,
+			}); saveErr != nil {
+				fmt.Printf("Warning: failed to save snap_token for order %s: %v\n", createdOrder.OrderNumber, saveErr)
+			}
+		}
 	}
 
 	return result, nil
 }
 
-// calculateShippingCost calculates shipping cost based on method
+// GetOrCreateSnapToken returns a Midtrans Snap token for an unpaid order.
+// Reuses the stored token if the order was created within the last 24 hours
+// (Midtrans Snap tokens are valid for 24 hours). Generates a new token otherwise.
+func (uc *OrderService) GetOrCreateSnapToken(orderID uuid.UUID, userID uuid.UUID, customerEmail string) (string, string, error) {
+	order, err := uc.orderRepo.GetByID(orderID)
+	if err != nil {
+		return "", "", fmt.Errorf("order not found")
+	}
+	// Ownership check
+	if order.UserID != userID {
+		return "", "", fmt.Errorf("forbidden")
+	}
+	// Only allow for unpaid orders
+	if order.PaymentStatus != models.PaymentStatusUnpaid {
+		return "", "", fmt.Errorf("order is already paid")
+	}
+	if uc.snapService == nil {
+		return "", "", fmt.Errorf("payment service unavailable")
+	}
+
+	// Reuse existing token if still within 24-hour validity window
+	if order.SnapToken != "" && time.Since(order.CreatedAt) < 24*time.Hour {
+		return order.SnapToken, "", nil
+	}
+
+	// Use stored email if frontend didn't provide one (e.g. retry from orders page for old orders)
+	if customerEmail == "" && order.CustomerEmail != "" {
+		customerEmail = order.CustomerEmail
+	}
+	// Generate new token — use CreateTransaction first
+	snapResult, err := uc.snapService.CreateTransaction(order, customerEmail)
+	if err != nil {
+		errMsg := err.Error()
+		// Midtrans rejects duplicate order_ids. Fall back to retry transaction with a timestamp suffix.
+		if strings.Contains(errMsg, "sudah digunakan") || strings.Contains(errMsg, "order_id") {
+			suffix := fmt.Sprintf("%d", time.Now().Unix())
+			snapResult, err = uc.snapService.CreateRetryTransaction(order, customerEmail, suffix)
+			if err != nil {
+				return "", "", fmt.Errorf("failed to create payment token: %w", err)
+			}
+		} else {
+			return "", "", fmt.Errorf("failed to create payment token: %w", err)
+		}
+	}
+
+	// Persist new token to DB
+	if saveErr := uc.orderRepo.Update(&models.Order{
+		ID:        order.ID,
+		SnapToken: snapResult.Token,
+	}); saveErr != nil {
+		fmt.Printf("Warning: failed to save snap_token for order %s: %v\n", order.OrderNumber, saveErr)
+	}
+
+	return snapResult.Token, snapResult.RedirectURL, nil
+}
+
+// calculateShippingCost fetches shipping cost from the shipping_methods table.
+// Falls back to hardcoded values if DB lookup fails (resilience).
 func (uc *OrderService) calculateShippingCost(method string, subtotal decimal.Decimal) decimal.Decimal {
-	// Mock shipping calculation
+	if uc.shippingRepo != nil {
+		shippingMethod, err := uc.shippingRepo.GetByCode(method)
+		if err == nil {
+			return shippingMethod.Price
+		}
+		fmt.Printf("Warning: shipping method '%s' not found in DB, using fallback: %v\n", method, err)
+	}
+
+	// Fallback values (matches seed data in 018_shipping_methods.up.sql)
 	switch method {
 	case "regular":
 		return decimal.NewFromInt(15000)
 	case "express":
-		return decimal.NewFromInt(25000)
+		return decimal.NewFromInt(35000)
 	case "same_day":
 		return decimal.NewFromInt(50000)
-	case "free":
-		// Free shipping for orders above threshold
-		threshold := decimal.NewFromInt(500000)
-		if subtotal.GreaterThanOrEqual(threshold) {
-			return decimal.Zero
-		}
-		return decimal.NewFromInt(15000)
 	default:
 		return decimal.NewFromInt(15000)
 	}

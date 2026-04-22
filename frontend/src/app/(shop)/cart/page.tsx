@@ -5,33 +5,31 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import gsap from 'gsap';
-import { Minus, Plus, X, ArrowRight, ShoppingBag, Sparkles, Loader2, Check } from 'lucide-react';
+import { Minus, Plus, X, ArrowRight, ShoppingBag, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useCartStore } from '@/stores/cart-store';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ValidCartItem } from '@/types';
-import { promoService } from '@/services/order';
+
+// Helper: decimal string from Go shopspring → number
+function toNum(val: string | number | undefined | null): number {
+  if (val === undefined || val === null) return 0;
+  return typeof val === 'number' ? val : parseFloat(val) || 0;
+}
 
 export default function CartPage() {
   const { cart, isLoading, updateQuantity, removeItem, fetchCart } = useCartStore();
   const cartRef = useRef<HTMLDivElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
-  
-  // Promo code state
-  const [promoCode, setPromoCode] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{
-    code: string;
-    discount: number;
-    discount_type: string;
-    discount_value: number;
-  } | null>(null);
-  const [promoLoading, setPromoLoading] = useState(false);
+
+  // Removing / updating state
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCart();
@@ -41,7 +39,6 @@ export default function CartPage() {
   useEffect(() => {
     if (!isLoading && cart && cartRef.current && summaryRef.current) {
       const ctx = gsap.context(() => {
-        // Animate cart items
         gsap.from('.cart-item', {
           x: -50,
           opacity: 0,
@@ -49,8 +46,6 @@ export default function CartPage() {
           stagger: 0.1,
           ease: 'power3.out',
         });
-
-        // Animate summary with bounce
         gsap.from(summaryRef.current, {
           x: 50,
           opacity: 0,
@@ -58,16 +53,21 @@ export default function CartPage() {
           ease: 'back.out(1.7)',
         });
       }, cartRef);
-
       return () => ctx.revert();
     }
   }, [isLoading, cart]);
 
   const handleQuantityChange = async (itemId: string, newQuantity: number) => {
-    await updateQuantity(itemId, newQuantity);
+    setUpdatingId(itemId);
+    try {
+      await updateQuantity(itemId, newQuantity);
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const handleRemoveItem = async (itemId: string, itemName: string) => {
+    setRemovingId(itemId);
     // Animate out before removing
     const element = document.querySelector(`[data-item-id="${itemId}"]`);
     if (element) {
@@ -78,44 +78,11 @@ export default function CartPage() {
         ease: 'power2.in',
       });
     }
-    
     await removeItem(itemId);
-    toast.success('Removed from cart', {
-      description: itemName,
-    });
+    toast.success('Removed from cart', { description: itemName });
+    setRemovingId(null);
   };
 
-  const handleApplyPromo = async () => {
-    if (!promoCode.trim()) {
-      toast.error('Please enter a promo code');
-      return;
-    }
-
-    setPromoLoading(true);
-    try {
-      const result = await promoService.validatePromoCode(promoCode);
-      setAppliedPromo({
-        code: promoCode,
-        discount: 0,
-        ...result
-      });
-      toast.success('Promo code applied!', {
-        description: `You saved ${formatCurrency(result.discount_value)}`,
-      });
-      setPromoCode('');
-    } catch (error) {
-      toast.error('Invalid promo code', {
-        description: error instanceof Error ? error.message : 'The code is not valid or expired',
-      });
-    } finally {
-      setPromoLoading(false);
-    }
-  };
-
-  const handleRemovePromo = () => {
-    setAppliedPromo(null);
-    toast.info('Promo code removed');
-  };
 
   if (isLoading) {
     return <CartSkeleton />;
@@ -125,28 +92,15 @@ export default function CartPage() {
     return <EmptyCart />;
   }
 
-  // Filter items that have valid product data
+  // Only render items that have product data populated
   const validItems = cart.items.filter((item): item is ValidCartItem => !!item.product);
 
   const subtotal = validItems.reduce((sum, item) => {
-    const price = item.variant?.price_adjustment 
-      ? (item.product.sale_price || item.product.regular_price) + item.variant.price_adjustment
-      : (item.product.sale_price || item.product.regular_price);
-    return sum + (price * item.quantity);
+    const price = toNum(item.price);
+    return sum + price * item.quantity;
   }, 0);
 
-  // Calculate discount based on applied promo
-  let discount = 0;
-  if (appliedPromo) {
-    if (appliedPromo.discount_type === 'percentage') {
-      discount = (subtotal * appliedPromo.discount_value) / 100;
-    } else if (appliedPromo.discount_type === 'fixed') {
-      discount = appliedPromo.discount_value;
-    }
-  }
 
-  const shipping = subtotal > 500000 ? 0 : 15000;
-  const total = Math.max(0, subtotal - discount + shipping);
 
   return (
     <div className="container mx-auto px-4 py-8" ref={cartRef}>
@@ -158,7 +112,8 @@ export default function CartPage() {
       >
         <h1 className="text-3xl font-bold mb-2">Shopping Cart</h1>
         <p className="text-muted-foreground">
-          {cart.items.length} {cart.items.length === 1 ? 'item' : 'items'} in your cart
+          {cart.item_count ?? validItems.reduce((s, i) => s + i.quantity, 0)}{' '}
+          {(cart.item_count ?? 1) === 1 ? 'item' : 'items'} in your cart
         </p>
       </motion.div>
 
@@ -167,10 +122,9 @@ export default function CartPage() {
         <div className="lg:col-span-2 space-y-4">
           <AnimatePresence mode="popLayout">
             {validItems.map((item) => {
-              const itemPrice = item.variant?.price_adjustment 
-                ? (item.product.sale_price || item.product.regular_price) + item.variant.price_adjustment
-                : (item.product.sale_price || item.product.regular_price);
-              
+              // price is snapshot price per unit from backend
+              const itemPrice = toNum(item.price);
+
               return (
                 <motion.div
                   key={item.id}
@@ -184,7 +138,7 @@ export default function CartPage() {
                     <CardContent className="p-4">
                       <div className="flex gap-4">
                         {/* Product Image */}
-                        <Link 
+                        <Link
                           href={`/products/${item.product.slug}`}
                           className="relative w-24 h-24 flex-shrink-0 bg-muted rounded-lg overflow-hidden group"
                         >
@@ -201,7 +155,7 @@ export default function CartPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
-                              <Link 
+                              <Link
                                 href={`/products/${item.product.slug}`}
                                 className="font-semibold hover:text-primary transition-colors line-clamp-1"
                               >
@@ -216,14 +170,20 @@ export default function CartPage() {
                                 </Badge>
                               )}
                             </div>
-                            
+
+                            {/* Remove Button */}
                             <Button
                               variant="ghost"
                               size="icon"
                               className="flex-shrink-0"
+                              disabled={removingId === item.id}
                               onClick={() => handleRemoveItem(item.id, item.product.name)}
                             >
-                              <X className="h-4 w-4" />
+                              {removingId === item.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <X className="h-4 w-4" />
+                              )}
                             </Button>
                           </div>
 
@@ -235,19 +195,26 @@ export default function CartPage() {
                                 size="icon"
                                 className="h-8 w-8"
                                 onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                                disabled={item.quantity <= 1}
+                                disabled={item.quantity <= 1 || updatingId === item.id}
                               >
                                 <Minus className="h-3 w-3" />
                               </Button>
                               <span className="w-12 text-center text-sm font-medium">
-                                {item.quantity}
+                                {updatingId === item.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin mx-auto" />
+                                ) : (
+                                  item.quantity
+                                )}
                               </span>
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
                                 onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                                disabled={item.quantity >= (item.variant?.stock_quantity || item.product.stock_quantity)}
+                                disabled={
+                                  updatingId === item.id ||
+                                  item.quantity >= (item.variant?.stock_quantity ?? item.product.stock_quantity)
+                                }
                               >
                                 <Plus className="h-3 w-3" />
                               </Button>
@@ -275,9 +242,7 @@ export default function CartPage() {
           {/* Continue Shopping */}
           <motion.div layout>
             <Button variant="outline" asChild className="w-full sm:w-auto">
-              <Link href="/products">
-                Continue Shopping
-              </Link>
+              <Link href="/products">Continue Shopping</Link>
             </Button>
           </motion.div>
         </div>
@@ -288,52 +253,6 @@ export default function CartPage() {
             <Card>
               <CardContent className="p-6 space-y-4">
                 <h2 className="text-lg font-semibold">Order Summary</h2>
-                
-                <Separator />
-
-                {/* Promo Code */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Promo Code</label>
-                  {appliedPromo ? (
-                    <div className="flex items-center gap-2 p-3 bg-green-50 rounded-md border border-green-200">
-                      <Check className="h-4 w-4 text-green-600" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-green-900">{appliedPromo.code}</p>
-                        <p className="text-xs text-green-700">Save {formatCurrency(discount)}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleRemovePromo}
-                        className="h-6 w-6 p-0 flex-shrink-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Input 
-                        placeholder="Enter code" 
-                        value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleApplyPromo()}
-                        disabled={promoLoading}
-                      />
-                      <Button 
-                        variant="secondary"
-                        onClick={handleApplyPromo}
-                        disabled={promoLoading || !promoCode.trim()}
-                        className="flex-shrink-0"
-                      >
-                        {promoLoading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          'Apply'
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                </div>
 
                 <Separator />
 
@@ -343,36 +262,13 @@ export default function CartPage() {
                     <span className="text-muted-foreground">Subtotal</span>
                     <span>{formatCurrency(subtotal)}</span>
                   </div>
-                  {discount > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Discount</span>
-                      <span className="text-green-600 font-medium">-{formatCurrency(discount)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Shipping</span>
-                    <span>
-                      {shipping === 0 ? (
-                        <span className="text-green-600 font-medium">FREE</span>
-                      ) : (
-                        formatCurrency(shipping)
-                      )}
-                    </span>
-                  </div>
-                  {subtotal < 500000 && shipping > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Add {formatCurrency(500000 - subtotal)} more for free shipping
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    🏷️ Have a promo code? Enter it at checkout.
+                  </p>
                 </div>
 
                 <Separator />
 
-                {/* Total */}
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Total</span>
-                  <span>{formatCurrency(total)}</span>
-                </div>
 
                 {/* Checkout Button */}
                 <Button className="w-full gap-2" size="lg" asChild>
@@ -382,7 +278,7 @@ export default function CartPage() {
                   </Link>
                 </Button>
 
-                {/* Trust Badges */}
+                {/* Trust Badge */}
                 <div className="pt-4 space-y-2 text-center text-sm text-muted-foreground">
                   <p className="flex items-center justify-center gap-2">
                     <Sparkles className="h-4 w-4" />
@@ -403,13 +299,18 @@ function EmptyCart() {
 
   useEffect(() => {
     if (containerRef.current) {
-      gsap.from(containerRef.current.children, {
-        y: 50,
-        opacity: 0,
-        duration: 0.8,
-        stagger: 0.2,
-        ease: 'power3.out',
-      });
+      gsap.fromTo(
+        containerRef.current.children,
+        { y: 50, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          stagger: 0.2,
+          ease: 'power3.out',
+          clearProps: 'all', // remove inline styles after animation so CSS takes over
+        }
+      );
     }
   }, []);
 

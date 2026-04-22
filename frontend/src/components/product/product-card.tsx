@@ -13,7 +13,9 @@ import { Product } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 import { useCartStore } from '@/stores/cart-store';
 import { useWishlistStore } from '@/stores/wishlist-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { QuickViewModal } from '@/components/product/quick-view-modal';
+import { AuthRequiredDialog } from '@/components/common/auth-required-dialog';
 import { toast } from 'sonner';
 
 interface ProductCardProps {
@@ -26,8 +28,10 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [showQuickView, setShowQuickView] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [authDialog, setAuthDialog] = useState<'cart' | 'wishlist' | null>(null);
   const { addToCart } = useCartStore();
   const { toggleWishlist } = useWishlistStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   // Subscribe to wishlist items changes
   const isWishlisted = useWishlistStore((state) => state.items.some((item) => item.product_id === product.id));
   const isToggling = useWishlistStore((state) => state.isToggling(product.id));
@@ -56,7 +60,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
+    if (!isAuthenticated) {
+      setAuthDialog('cart');
+      return;
+    }
+
     setIsAddingToCart(true);
     try {
       await addToCart(product.id, 1);
@@ -73,7 +82,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const handleToggleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
+    if (!isAuthenticated) {
+      setAuthDialog('wishlist');
+      return;
+    }
+
     try {
       await toggleWishlist(product.id);
     } catch {
@@ -90,7 +104,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
         transition={{ duration: 0.4, delay: index * 0.1 }}
       >
         <Link href={`/products/${product.slug}`}>
-          <Card 
+          <Card
             className="group overflow-hidden border-0 shadow-none bg-transparent"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
@@ -109,7 +123,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                   onLoad={() => setImageLoaded(true)}
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 />
-                
+
                 {/* Hover Image (if available) */}
                 {product.images?.[1] && (
                   <Image
@@ -143,7 +157,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                 </div>
 
                 {/* Quick Actions */}
-                <motion.div 
+                <motion.div
                   className="absolute top-2 right-2 flex flex-col gap-2"
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: isHovered ? 1 : 0, x: isHovered ? 0 : 10 }}
@@ -231,6 +245,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
           onClose={() => setShowQuickView(false)}
         />
       )}
+
+      <AuthRequiredDialog
+        open={authDialog !== null}
+        onClose={() => setAuthDialog(null)}
+        feature={authDialog ?? 'cart'}
+      />
     </>
   );
 }

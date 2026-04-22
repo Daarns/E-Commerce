@@ -1,4 +1,4 @@
-import api, { getOrCreateSessionId } from './api';
+import api from './api';
 import { ApiResponse, Cart, CartItem } from '@/types';
 
 interface AddToCartInput {
@@ -14,7 +14,6 @@ interface UpdateCartItemInput {
 export const cartService = {
   async getCart(): Promise<Cart | null> {
     try {
-      getOrCreateSessionId(); // Ensure session ID exists
       const response = await api.get<ApiResponse<Cart>>('/cart');
       return response.data.data || null;
     } catch {
@@ -23,7 +22,6 @@ export const cartService = {
   },
 
   async addToCart(input: AddToCartInput): Promise<CartItem> {
-    getOrCreateSessionId();
     const response = await api.post<ApiResponse<CartItem>>('/cart/items', input);
     return response.data.data!;
   },

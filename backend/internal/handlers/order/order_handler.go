@@ -3,6 +3,7 @@ package order
 import (
 	"ecommerce-backend/internal/repositories"
 	"ecommerce-backend/internal/services/order"
+	paymentSvc "ecommerce-backend/internal/services/payment"
 	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
 	"fmt"
@@ -16,12 +17,17 @@ import (
 
 // OrderHandler handles order HTTP requests
 type OrderHandler struct {
-	useCase *order.OrderService
+	useCase     *order.OrderService
+	syncService *paymentSvc.PaymentSyncService
 }
 
 // NewOrderHandler creates a new order handler
-func NewOrderHandler(useCase *order.OrderService) *OrderHandler {
-	return &OrderHandler{useCase: useCase}
+func NewOrderHandler(useCase *order.OrderService, syncSvc ...*paymentSvc.PaymentSyncService) *OrderHandler {
+	h := &OrderHandler{useCase: useCase}
+	if len(syncSvc) > 0 {
+		h.syncService = syncSvc[0]
+	}
+	return h
 }
 
 // ===== CUSTOMER ORDER ENDPOINTS =====
@@ -361,6 +367,102 @@ func (h *OrderHandler) GetOrderSummary(c *gin.Context) {
 
 // ===== HELPER METHODS =====
 
+// PayOrder returns a Snap token for an existing unpaid order.
+// Reuses the cached token if still within Midtrans' 24-hour validity window.
+// POST /api/v1/orders/:id/pay
+func (h *OrderHandler) PayOrder(c *gin.Context) {
+	userID, err := h.getUserID(c)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid order ID")
+		return
+	}
+
+	var body struct {
+		CustomerEmail string `json:"customer_email"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	snapToken, redirectURL, err := h.useCase.GetOrCreateSnapToken(orderID, userID, body.CustomerEmail)
+	if err != nil {
+		msg := err.Error()
+		statusCode := http.StatusInternalServerError
+		code := "PAY_FAILED"
+		if msg == "order not found" {
+			statusCode = http.StatusNotFound
+			code = "NOT_FOUND"
+		} else if msg == "forbidden" {
+			statusCode = http.StatusForbidden
+			code = "FORBIDDEN"
+		} else if msg == "order is already paid" {
+			statusCode = http.StatusConflict
+			code = "ALREADY_PAID"
+		}
+		response.Error(c, statusCode, code, msg)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"snap_token":   snapToken,
+		"redirect_url": redirectURL,
+	})
+}
+
+// SyncPaymentStatus queries Midtrans API to sync order payment status.
+// Fallback for when webhooks fail to deliver (e.g. ngrok URL changes in dev).
+// POST /api/v1/orders/:id/sync-payment
+func (h *OrderHandler) SyncPaymentStatus(c *gin.Context) {
+	userID, err := h.getUserID(c)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid order ID")
+		return
+	}
+
+	if h.syncService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "SYNC_UNAVAILABLE", "Payment sync not available")
+		return
+	}
+
+	// Optional: caller can provide the exact Midtrans order_id (for retry transactions)
+	var body struct {
+		MidtransOrderID string `json:"midtrans_order_id"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	var result interface{}
+	if body.MidtransOrderID != "" {
+		result, err = h.syncService.SyncOrderPaymentByMidtransID(orderID, userID, body.MidtransOrderID)
+	} else {
+		result, err = h.syncService.SyncOrderPayment(orderID, userID)
+	}
+
+	if err != nil {
+		msg := err.Error()
+		statusCode := http.StatusInternalServerError
+		code := "SYNC_FAILED"
+		if msg == "order not found" {
+			statusCode = http.StatusNotFound; code = "NOT_FOUND"
+		} else if msg == "forbidden" {
+			statusCode = http.StatusForbidden; code = "FORBIDDEN"
+		}
+		response.Error(c, statusCode, code, msg)
+		return
+	}
+
+	response.SuccessWithMessage(c, http.StatusOK, "Payment status synced", result)
+}
+
 // getUserID extracts authenticated user ID
 func (h *OrderHandler) getUserID(c *gin.Context) (uuid.UUID, error) {
 	if userIDVal, exists := c.Get("user_id"); exists {
@@ -370,5 +472,3 @@ func (h *OrderHandler) getUserID(c *gin.Context) (uuid.UUID, error) {
 	}
 	return uuid.Nil, fmt.Errorf("user not authenticated")
 }
-
-

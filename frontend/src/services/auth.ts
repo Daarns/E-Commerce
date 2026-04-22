@@ -31,13 +31,31 @@ export interface ResendVerificationEmailInput {
   email: string;
 }
 
+/** Shape of the register API response data */
+export interface RegisterResponse {
+  message: string;
+  email: string;
+  user_id: string;
+}
+
+/** Typed axios error shape — avoids using `any` */
+interface AxiosErrorShape {
+  response?: {
+    data?: {
+      error?: {
+        code?: string;
+        message?: string;
+      };
+    };
+  };
+}
+
 // Helper to extract error message from API response
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
-    // Check if it's axios error with response data
-    const axiosError = error as any;
+    // Cast to typed axios error shape instead of `any`
+    const axiosError = error as Error & AxiosErrorShape;
     if (axiosError.response?.data?.error) {
-      // Return error code to identify specific cases
       const errorCode = axiosError.response.data.error.code;
       if (errorCode === 'EMAIL_NOT_VERIFIED') {
         return 'EMAIL_NOT_VERIFIED';
@@ -59,9 +77,9 @@ export const authService = {
     }
   },
 
-  async register(input: RegisterInput): Promise<any> {
+  async register(input: RegisterInput): Promise<RegisterResponse> {
     try {
-      const response = await api.post<ApiResponse<any>>('/auth/register', input);
+      const response = await api.post<ApiResponse<RegisterResponse>>('/auth/register', input);
       return response.data.data!;
     } catch (error) {
       throw new Error(getErrorMessage(error));
@@ -88,6 +106,10 @@ export const authService = {
     await api.post('/auth/forgot-password', input);
   },
 
+  async resendPasswordReset(email: string): Promise<void> {
+    await api.post('/auth/forgot-password', { email });
+  },
+
   async resetPassword(input: ResetPasswordInput): Promise<void> {
     await api.post('/auth/reset-password', input);
   },
@@ -99,5 +121,16 @@ export const authService = {
 
   async resendVerificationEmail(input: ResendVerificationEmailInput): Promise<void> {
     await api.post('/auth/resend-verification-email', input);
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await api.put('/auth/me/password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+  },
+
+  async deleteAccount(password: string): Promise<void> {
+    await api.delete('/auth/me', { data: { password } });
   },
 };

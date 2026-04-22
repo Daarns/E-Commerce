@@ -37,18 +37,28 @@ type OrderRepositoryInterface interface {
 	UpdatePaymentStatus(orderID uuid.UUID, paymentStatus string, transactionID string) error
 	UpdateStatus(orderID uuid.UUID, newStatus string, notes string, changedBy *uuid.UUID) error
 	GetByID(id uuid.UUID) (*models.Order, error)
+	Update(order *models.Order) error
+}
+
+// PromoCodeRepositoryInterface defines promo repo methods needed by webhook service
+type PromoCodeRepositoryInterface interface {
+	GetByID(id uuid.UUID) (*models.PromoCode, error)
+	RecordUsage(usage *models.PromoCodeUsage) error
+	IncrementUsage(id uuid.UUID) error
 }
 
 // PaymentWebhookService handles payment webhook processing
 type PaymentWebhookService struct {
-	orderRepo OrderRepositoryInterface
-	serverKey string
+	orderRepo     OrderRepositoryInterface
+	promoRepo     PromoCodeRepositoryInterface
+	serverKey     string
 }
 
 // NewPaymentWebhookService creates new payment webhook service
-func NewPaymentWebhookService(orderRepo OrderRepositoryInterface, serverKey string) *PaymentWebhookService {
+func NewPaymentWebhookService(orderRepo OrderRepositoryInterface, promoRepo PromoCodeRepositoryInterface, serverKey string) *PaymentWebhookService {
 	return &PaymentWebhookService{
 		orderRepo: orderRepo,
+		promoRepo: promoRepo,
 		serverKey: serverKey,
 	}
 }
@@ -73,8 +83,13 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 		return nil, fmt.Errorf("invalid webhook signature")
 	}
 
-	// Find order by order number
-	order, err := s.orderRepo.GetByOrderNumber(webhook.OrderID)
+	// Find order by order number.
+	// Strip any retry suffix appended for Midtrans deduplication (e.g. ORD-001-r1745123456 → ORD-001).
+	orderNumber := webhook.OrderID
+	if idx := lastRetryIdx(orderNumber); idx != -1 {
+		orderNumber = orderNumber[:idx]
+	}
+	order, err := s.orderRepo.GetByOrderNumber(orderNumber)
 	if err != nil {
 		return nil, fmt.Errorf("order not found: %w", err)
 	}
@@ -113,6 +128,25 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 		notes := fmt.Sprintf("Payment %s via %s (Transaction: %s)", webhook.TransactionStatus, webhook.PaymentType, webhook.TransactionID)
 		if err := s.orderRepo.UpdateStatus(order.ID, newOrderStatus, notes, nil); err != nil {
 			return nil, fmt.Errorf("failed to update order status: %w", err)
+		}
+	}
+
+	// Record promo usage now that payment is confirmed (deferred from checkout)
+	if paymentStatus == models.PaymentStatusPaid && order.PromoCodeID != nil && s.promoRepo != nil {
+		promo, err := s.promoRepo.GetByID(*order.PromoCodeID)
+		if err == nil {
+			usage := &models.PromoCodeUsage{
+				PromoCodeID:    promo.ID,
+				UserID:         order.UserID,
+				OrderID:        &order.ID,
+				DiscountAmount: order.DiscountAmount,
+			}
+			if err := s.promoRepo.RecordUsage(usage); err != nil {
+				fmt.Printf("Warning: failed to record promo usage for order %s: %v\n", order.OrderNumber, err)
+			}
+			if err := s.promoRepo.IncrementUsage(promo.ID); err != nil {
+				fmt.Printf("Warning: failed to increment promo usage for order %s: %v\n", order.OrderNumber, err)
+			}
 		}
 	}
 
@@ -158,6 +192,24 @@ func constantTimeCompare(a, b string) bool {
 	}
 	return result == 0
 }
+
+// lastRetryIdx returns the index of the "-r" retry suffix in s (e.g. "ORD-001-r1745000000" → 7).
+// Returns -1 if no retry suffix is present.
+// Pattern: ends with "-r" followed by one or more digits.
+func lastRetryIdx(s string) int {
+	for i := len(s) - 1; i >= 2; i-- {
+		if s[i] >= '0' && s[i] <= '9' {
+			continue
+		}
+		// Must be the 'r' character
+		if s[i] == 'r' && i >= 1 && s[i-1] == '-' {
+			return i - 1 // index of the '-' before 'r'
+		}
+		break
+	}
+	return -1
+}
+
 
 // GetPaymentWebhookStatusInfo returns human-readable payment status info
 func GetPaymentWebhookStatusInfo(status string) string {

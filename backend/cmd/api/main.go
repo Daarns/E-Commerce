@@ -23,6 +23,7 @@ import (
 	emailService "ecommerce-backend/internal/services/email"
 	featuresService "ecommerce-backend/internal/services/features"
 	orderService "ecommerce-backend/internal/services/order"
+	paymentService "ecommerce-backend/internal/services/payment"
 	productService "ecommerce-backend/internal/services/product"
 	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/jwt"
@@ -114,6 +115,7 @@ func main() {
 	activityRepo := repositories.NewActivityRepository(db)
 	emailQueueRepo := repositories.NewEmailQueueRepository(db)
 	wishlistRepo := repositories.NewWishlistRepository(db)
+	shippingRepo := repositories.NewShippingRepository(db)
 
 	// Initialize Email Service
 	emailConfig := emailService.EmailConfig{
@@ -144,11 +146,31 @@ func main() {
 		emailSvc = nil
 	}
 
+	// Initialize Payment Services (Midtrans)
+	paymentConfig, err := paymentService.LoadPaymentGatewayConfig()
+	if err != nil {
+		log.Printf("Warning: payment gateway not configured: %v", err)
+	}
+
+	var snapSvc *paymentService.SnapService
+	var webhookSvc *paymentService.PaymentWebhookService
+	var syncSvc *paymentService.PaymentSyncService
+	if paymentConfig != nil {
+		if err := paymentConfig.Validate(); err != nil {
+			log.Printf("Warning: payment config invalid: %v", err)
+		} else {
+			snapSvc = paymentService.NewSnapService(paymentConfig)
+			webhookSvc = paymentService.NewPaymentWebhookService(orderRepo, promoCodeRepo, paymentConfig.ServerKey)
+			syncSvc = paymentService.NewPaymentSyncService(paymentConfig, orderRepo, promoCodeRepo)
+			log.Printf("✅ Midtrans payment gateway initialized (sandbox=%v)", paymentConfig.IsSandbox())
+		}
+	}
+
 	// Initialize Services
 	authSvc := authService.NewAuthService(userRepo, emailQueueRepo, jwtManager, emailSvc)
 	productSvc := productService.NewProductService(productRepo, categoryRepo)
 	cartSvc := cartService.NewCartService(cartRepo, addressRepo, productRepo)
-	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo)
+	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo, shippingRepo, snapSvc)
 	newsletterSvc := featuresService.NewNewsletterService(newsletterRepo)
 	searchSvc := featuresService.NewSearchService(searchRepo, productRepo, categoryRepo)
 	chatSvc := featuresService.NewChatService(chatRepo, userRepo)
@@ -161,7 +183,8 @@ func main() {
 	productH := productHandler.NewProductHandler(productSvc)
 	categoryH := productHandler.NewCategoryHandler(productSvc)
 	cartH := cartHandler.NewCartHandler(cartSvc)
-	orderH := orderHandler.NewOrderHandler(orderSvc)
+	orderH := orderHandler.NewOrderHandler(orderSvc, syncSvc)
+	shippingH := orderHandler.NewShippingHandler(shippingRepo)
 	searchH := featuresHandler.NewSearchHandler(searchSvc)
 	chatH := featuresHandler.NewChatHandler(chatSvc)
 	wishlistH := productHandler.NewWishlistHandler(wishlistSvc)
@@ -177,6 +200,11 @@ func main() {
 	// Global Middleware
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
+
+	// Register Midtrans webhook route (public — no auth, verified by Midtrans signature)
+	if webhookSvc != nil {
+		featuresHandler.RegisterWebhookRoutes(router, webhookSvc)
+	}
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
@@ -209,6 +237,8 @@ func main() {
 			authRoutes.POST("/refresh", authH.Refresh)
 			authRoutes.POST("/verify-email", authH.VerifyEmail)
 			authRoutes.POST("/resend-verification-email", authH.ResendVerificationEmail)
+			authRoutes.POST("/forgot-password", authH.ForgotPassword)
+			authRoutes.POST("/reset-password", authH.ResetPassword)
 		}
 
 		// Category routes (public - read only)
@@ -233,6 +263,9 @@ func main() {
 			productRoutes.GET("/:identifier", productH.GetProduct)
 			productRoutes.GET("/:identifier/related", productH.GetRelatedProducts)
 		}
+
+		// Shipping routes (public - read only)
+		v1.GET("/shipping/methods", shippingH.ListShippingMethods)
 
 		// Search routes (public - read only)
 		searchRoutes := v1.Group("/search")
@@ -280,6 +313,8 @@ func main() {
 			protected.POST("/auth/logout", authH.Logout)
 			protected.GET("/auth/me", authH.GetProfile)
 			protected.PUT("/auth/me", authH.UpdateProfile)
+			protected.PUT("/auth/me/password", authH.ChangePassword)
+			protected.DELETE("/auth/me", authH.DeleteAccount)
 
 			// Cart merge (after login)
 			protected.POST("/cart/merge", cartH.MergeGuestCart)
@@ -301,6 +336,8 @@ func main() {
 				orderRoutes.GET("", orderH.GetOrders)
 				orderRoutes.GET("/:id", orderH.GetOrder)
 				orderRoutes.POST("/:id/cancel", orderH.CancelOrder)
+				orderRoutes.POST("/:id/pay", orderH.PayOrder)            // Resume payment for pending orders
+				orderRoutes.POST("/:id/sync-payment", orderH.SyncPaymentStatus) // Sync status from Midtrans API
 			}
 
 			// Checkout

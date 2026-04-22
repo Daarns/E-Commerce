@@ -5,14 +5,18 @@ import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
-import { 
-  Package, 
-  Truck, 
-  CheckCircle, 
-  Clock, 
+import {
+  Package,
+  Truck,
+  CheckCircle,
+  Clock,
   XCircle,
   Search,
-  Eye
+  Eye,
+  ShoppingBag,
+  CreditCard,
+  RefreshCcw,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,189 +24,38 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/auth-store';
+import { orderService } from '@/services/order';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Order, OrderStatus } from '@/types';
+import { toast } from 'sonner';
+import api from '@/services/api';
 
-// Mock orders for demo
-const MOCK_ORDERS: Order[] = [
-  {
-    id: 'ORD-2025-001',
-    order_number: 'ORD-2025-001',
-    user_id: '1',
-    status: 'delivered',
-    total_amount: 1250000,
-    subtotal: 1200000,
-    shipping_cost: 50000,
-    discount_amount: 0,
-    tax_amount: 0,
-    shipping_address: {
-      id: '1',
-      recipient_name: 'John Doe',
-      phone: '+62 812 3456 7890',
-      street_address: 'Jl. Sudirman No. 123',
-      city: 'Jakarta Selatan',
-      province: 'DKI Jakarta',
-      postal_code: '12190',
-      country: 'Indonesia',
-      is_default: true,
-    },
-    payment_method: 'bank-transfer',
-    payment_status: 'paid',
-    items: [
-      {
-        id: '1',
-        product_id: '1',
-        product_name: 'Premium Leather Bag',
-        product_image: '/placeholder-product.jpg',
-        quantity: 1,
-        unit_price: 800000,
-        total_price: 800000,
-      },
-      {
-        id: '2',
-        product_id: '2',
-        product_name: 'Classic Watch',
-        product_image: '/placeholder-product.jpg',
-        quantity: 1,
-        unit_price: 400000,
-        total_price: 400000,
-      },
-    ],
-    tracking_number: 'JNE-12345678',
-    created_at: '2025-03-28T10:00:00Z',
-    updated_at: '2025-03-30T15:00:00Z',
-  },
-  {
-    id: 'ORD-2025-002',
-    order_number: 'ORD-2025-002',
-    user_id: '1',
-    status: 'shipped',
-    total_amount: 750000,
-    subtotal: 700000,
-    shipping_cost: 50000,
-    discount_amount: 0,
-    tax_amount: 0,
-    shipping_address: {
-      id: '1',
-      recipient_name: 'John Doe',
-      phone: '+62 812 3456 7890',
-      street_address: 'Jl. Sudirman No. 123',
-      city: 'Jakarta Selatan',
-      province: 'DKI Jakarta',
-      postal_code: '12190',
-      country: 'Indonesia',
-      is_default: true,
-    },
-    payment_method: 'e-wallet',
-    payment_status: 'paid',
-    items: [
-      {
-        id: '3',
-        product_id: '3',
-        product_name: 'Wireless Earbuds Pro',
-        product_image: '/placeholder-product.jpg',
-        quantity: 2,
-        unit_price: 350000,
-        total_price: 700000,
-      },
-    ],
-    tracking_number: 'JNT-87654321',
-    created_at: '2025-04-01T14:30:00Z',
-    updated_at: '2025-04-02T09:00:00Z',
-  },
-  {
-    id: 'ORD-2025-003',
-    order_number: 'ORD-2025-003',
-    user_id: '1',
-    status: 'processing',
-    total_amount: 2500000,
-    subtotal: 2450000,
-    shipping_cost: 50000,
-    discount_amount: 0,
-    tax_amount: 0,
-    shipping_address: {
-      id: '2',
-      recipient_name: 'John Doe',
-      phone: '+62 812 3456 7890',
-      street_address: 'Menara BCA, Lt. 25',
-      city: 'Jakarta Pusat',
-      province: 'DKI Jakarta',
-      postal_code: '10310',
-      country: 'Indonesia',
-      is_default: false,
-    },
-    payment_method: 'credit-card',
-    payment_status: 'paid',
-    items: [
-      {
-        id: '4',
-        product_id: '4',
-        product_name: 'Smart Watch Series 5',
-        product_image: '/placeholder-product.jpg',
-        quantity: 1,
-        unit_price: 2450000,
-        total_price: 2450000,
-      },
-    ],
-    created_at: '2025-04-03T08:00:00Z',
-    updated_at: '2025-04-03T08:00:00Z',
-  },
-  {
-    id: 'ORD-2025-004',
-    order_number: 'ORD-2025-004',
-    user_id: '1',
-    status: 'pending',
-    total_amount: 450000,
-    subtotal: 400000,
-    shipping_cost: 50000,
-    discount_amount: 0,
-    tax_amount: 0,
-    shipping_address: {
-      id: '1',
-      recipient_name: 'John Doe',
-      phone: '+62 812 3456 7890',
-      street_address: 'Jl. Sudirman No. 123',
-      city: 'Jakarta Selatan',
-      province: 'DKI Jakarta',
-      postal_code: '12190',
-      country: 'Indonesia',
-      is_default: true,
-    },
-    payment_method: 'bank-transfer',
-    payment_status: 'pending',
-    items: [
-      {
-        id: '5',
-        product_id: '5',
-        product_name: 'Cotton T-Shirt',
-        product_image: '/placeholder-product.jpg',
-        quantity: 2,
-        unit_price: 200000,
-        total_price: 400000,
-      },
-    ],
-    created_at: '2025-04-04T16:00:00Z',
-    updated_at: '2025-04-04T16:00:00Z',
-  },
-];
+// Helper: decimal strings from Go shopspring/decimal → number
+function toNum(val: string | number | undefined): number {
+  if (val === undefined || val === null) return 0;
+  return typeof val === 'number' ? val : parseFloat(val) || 0;
+}
 
-const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; icon: React.ReactNode }> = {
+const STATUS_CONFIG: Record<
+  OrderStatus,
+  { label: string; color: string; icon: React.ReactNode }
+> = {
   pending: {
     label: 'Pending Payment',
     color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
     icon: <Clock className="h-4 w-4" />,
   },
-  confirmed: {
-    label: 'Confirmed',
+  payment_confirmed: {
+    label: 'Payment Confirmed',
     color: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200',
-    icon: <CheckCircle className="h-4 w-4" />,
+    icon: <CreditCard className="h-4 w-4" />,
   },
   processing: {
     label: 'Processing',
@@ -227,23 +80,40 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; icon: R
   refunded: {
     label: 'Refunded',
     color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-    icon: <XCircle className="h-4 w-4" />,
+    icon: <RefreshCcw className="h-4 w-4" />,
   },
 };
 
+// Filter tabs
+const STATUS_TABS = [
+  'all',
+  'pending',
+  'processing',
+  'shipped',
+  'delivered',
+  'cancelled',
+] as const;
+
+type StatusTab = (typeof STATUS_TABS)[number];
+
 function OrdersPageContent() {
   const searchParams = useSearchParams();
-  const { isAuthenticated } = useAuthStore();
-  
+  const { isAuthenticated, user } = useAuthStore();
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCancelling, setIsCancelling] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusTab>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isPayingOrder, setIsPayingOrder] = useState<string | null>(null);
+  const [isSyncingOrder, setIsSyncingOrder] = useState<string | null>(null);
 
-  // Check for success param
+  // Check for success param (redirect from checkout)
   useEffect(() => {
     if (searchParams.get('success') === 'true') {
       setShowSuccessToast(true);
@@ -251,40 +121,136 @@ function OrdersPageContent() {
     }
   }, [searchParams]);
 
-  // Fetch orders
+  // Fetch orders from API
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     async function fetchOrders() {
       setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setOrders(MOCK_ORDERS);
-      setFilteredOrders(MOCK_ORDERS);
-      setIsLoading(false);
+      try {
+        const result = await orderService.getOrders(currentPage, 20);
+        setOrders(result.orders);
+        setTotalPages(result.meta?.total_pages ?? 1);
+      } catch (err) {
+        console.error('Failed to fetch orders:', err);
+        toast.error('Failed to load orders');
+      } finally {
+        setIsLoading(false);
+      }
     }
-    
-    if (isAuthenticated) {
-      fetchOrders();
-    }
-  }, [isAuthenticated]);
 
-  // Filter orders
+    fetchOrders();
+  }, [isAuthenticated, currentPage]);
+
+  // Client-side filter by search + status tab
   useEffect(() => {
     let result = [...orders];
-    
+
     if (searchQuery) {
-      result = result.filter(order => 
-        order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.items.some(item => 
-          item.product_name.toLowerCase().includes(searchQuery.toLowerCase())
-        )
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (order) =>
+          order.order_number.toLowerCase().includes(q) ||
+          order.items.some((item) =>
+            item.product_name.toLowerCase().includes(q)
+          )
       );
     }
-    
+
     if (statusFilter !== 'all') {
-      result = result.filter(order => order.status === statusFilter);
+      result = result.filter((order) => order.order_status === statusFilter);
     }
-    
+
     setFilteredOrders(result);
   }, [orders, searchQuery, statusFilter]);
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!confirm('Are you sure you want to cancel this order?')) return;
+    setIsCancelling(orderId);
+    try {
+      const updated = await orderService.cancelOrder(orderId);
+      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      if (selectedOrder?.id === orderId) setSelectedOrder(updated);
+      toast.success('Order cancelled successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to cancel order');
+    } finally {
+      setIsCancelling(null);
+    }
+  };
+
+  const handlePayOrder = async (order: Order) => {
+    setIsPayingOrder(order.id);
+    try {
+      const res = await api.post<{ data: { snap_token: string } }>(
+        `/orders/${order.id}/pay`,
+        { customer_email: user?.email ?? '' }
+      );
+      const snapToken = res.data.data?.snap_token;
+      if (!snapToken) throw new Error('Token tidak tersedia');
+
+      // Load Snap.js if not already loaded
+      const snapUrl = process.env.NEXT_PUBLIC_MIDTRANS_SNAP_URL ||
+        'https://app.sandbox.midtrans.com/snap/snap.js';
+      if (!document.querySelector(`script[src="${snapUrl}"]`)) {
+        await new Promise<void>((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = snapUrl;
+          s.setAttribute('data-client-key', process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY || '');
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error('Failed to load Midtrans Snap'));
+          document.body.appendChild(s);
+        });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).snap.pay(snapToken, {
+        onSuccess: () => {
+          toast.success('Pembayaran berhasil!');
+          setSelectedOrder(null);
+          // Refresh orders
+          setOrders([]);
+          setCurrentPage(1);
+        },
+        onPending: () => {
+          toast.info('Menunggu konfirmasi pembayaran...');
+          setSelectedOrder(null);
+        },
+        onError: () => toast.error('Pembayaran gagal. Silakan coba lagi.'),
+        onClose: () => setIsPayingOrder(null),
+      });
+    } catch (err) {
+      toast.error('Gagal memuat pembayaran. Silakan coba lagi.');
+      console.error(err);
+    } finally {
+      setIsPayingOrder(null);
+    }
+  };
+
+  const handleSyncPayment = async (order: Order) => {
+    setIsSyncingOrder(order.id);
+    try {
+      const result = await orderService.syncPayment(order.id);
+      if (result.updated) {
+        toast.success('Status pembayaran berhasil diperbarui!', {
+          description: `Status Midtrans: ${result.transaction_status}`,
+        });
+        const refreshed = await orderService.getOrders(currentPage, 20);
+        setOrders(refreshed.orders);
+        if (selectedOrder?.id === order.id) setSelectedOrder(null);
+      } else {
+        toast.info('Status pembayaran belum berubah.', {
+          description: `Status Midtrans: ${result.transaction_status || 'pending'}`,
+        });
+      }
+    } catch (err) {
+      toast.error('Gagal memeriksa status pembayaran.');
+      console.error(err);
+    } finally {
+      setIsSyncingOrder(null);
+    }
+  };
 
   if (!isAuthenticated) {
     return (
@@ -330,27 +296,29 @@ function OrdersPageContent() {
           <p className="text-muted-foreground">Track and manage your orders</p>
         </div>
 
-        {/* Filters */}
+        {/* Search + Status Filter */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search orders..."
+              placeholder="Search by order number or product..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
             />
           </div>
-          
+
           <div className="flex gap-2 flex-wrap">
-            {(['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const).map((status) => (
+            {STATUS_TABS.map((status) => (
               <Button
                 key={status}
                 variant={statusFilter === status ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setStatusFilter(status)}
               >
-                {status === 'all' ? 'All' : STATUS_CONFIG[status].label}
+                {status === 'all'
+                  ? 'All'
+                  : STATUS_CONFIG[status as OrderStatus].label}
               </Button>
             ))}
           </div>
@@ -391,21 +359,25 @@ function OrdersPageContent() {
                   : "You haven't placed any orders yet"}
               </p>
               <Button asChild>
-                <Link href="/products">Start Shopping</Link>
+                <Link href="/products">
+                  <ShoppingBag className="h-4 w-4 mr-2" />
+                  Start Shopping
+                </Link>
               </Button>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-4">
             {filteredOrders.map((order, index) => {
-              const statusConfig = STATUS_CONFIG[order.status];
-              
+              const statusConfig =
+                STATUS_CONFIG[order.order_status] ?? STATUS_CONFIG.pending;
+
               return (
                 <motion.div
                   key={order.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
+                  transition={{ delay: index * 0.05 }}
                 >
                   <Card className="overflow-hidden hover:shadow-lg transition-shadow">
                     <CardContent className="p-6">
@@ -413,7 +385,9 @@ function OrdersPageContent() {
                       <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold">{order.id}</h3>
+                            <h3 className="font-semibold">
+                              {order.order_number}
+                            </h3>
                             <Badge className={statusConfig.color}>
                               <span className="mr-1">{statusConfig.icon}</span>
                               {statusConfig.label}
@@ -425,23 +399,24 @@ function OrdersPageContent() {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold text-lg">
-                            {formatCurrency(order.total_amount)}
+                            {formatCurrency(toNum(order.total))}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {order.items.length} item{order.items.length > 1 ? 's' : ''}
+                            {order.items.length} item
+                            {order.items.length > 1 ? 's' : ''}
                           </p>
                         </div>
                       </div>
 
                       <Separator className="my-4" />
 
-                      {/* Order Items Preview */}
+                      {/* Items preview */}
                       <div className="flex flex-wrap gap-4 mb-4">
                         {order.items.slice(0, 3).map((item) => (
                           <div key={item.id} className="flex gap-3">
                             <div className="relative h-16 w-16 rounded-md overflow-hidden bg-muted flex-shrink-0">
                               <Image
-                                src={item.product_image || '/placeholder-product.jpg'}
+                                src="/placeholder-product.jpg"
                                 alt={item.product_name}
                                 fill
                                 className="object-cover"
@@ -451,6 +426,11 @@ function OrdersPageContent() {
                               <p className="font-medium text-sm line-clamp-1">
                                 {item.product_name}
                               </p>
+                              {(item.variant_type || item.variant_value) && (
+                                <p className="text-xs text-muted-foreground">
+                                  {item.variant_type}: {item.variant_value}
+                                </p>
+                              )}
                               <p className="text-sm text-muted-foreground">
                                 Qty: {item.quantity}
                               </p>
@@ -467,15 +447,18 @@ function OrdersPageContent() {
                       </div>
 
                       {/* Tracking Info */}
-                      {order.tracking_number && order.status === 'shipped' && (
-                        <div className="bg-muted/50 rounded-lg p-3 mb-4">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Truck className="h-4 w-4 text-primary" />
-                            <span className="font-medium">Tracking:</span>
-                            <span className="text-muted-foreground">{order.tracking_number}</span>
+                      {order.tracking_number &&
+                        order.order_status === 'shipped' && (
+                          <div className="bg-muted/50 rounded-lg p-3 mb-4">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Truck className="h-4 w-4 text-primary" />
+                              <span className="font-medium">Tracking:</span>
+                              <span className="text-muted-foreground">
+                                {order.tracking_number}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
                       {/* Actions */}
                       <div className="flex justify-between items-center">
@@ -487,37 +470,101 @@ function OrdersPageContent() {
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
                         </Button>
-                        
-                        {order.status === 'pending' && (
-                          <Button size="sm">Pay Now</Button>
-                        )}
-                        
-                        {order.status === 'delivered' && (
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={`/products/${order.items[0]?.product_id}`}>
-                              Buy Again
-                            </Link>
-                          </Button>
-                        )}
+
+                        <div className="flex gap-2 flex-wrap">
+                          {order.order_status === 'pending' &&
+                            order.payment_status === 'unpaid' && (
+                            <Button
+                              size="sm"
+                              onClick={() => handlePayOrder(order)}
+                              disabled={isPayingOrder === order.id}
+                              className="gap-1"
+                            >
+                              <CreditCard className="h-3 w-3" />
+                              {isPayingOrder === order.id ? 'Memuat...' : 'Lanjutkan Pembayaran'}
+                            </Button>
+                          )}
+                          {order.order_status === 'pending' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSyncPayment(order)}
+                              disabled={isSyncingOrder === order.id}
+                              className="gap-1"
+                            >
+                              <RefreshCw className={`h-3 w-3 ${isSyncingOrder === order.id ? 'animate-spin' : ''}`} />
+                              {isSyncingOrder === order.id ? 'Mengecek...' : 'Cek Status'}
+                            </Button>
+                          )}
+                          {order.order_status === 'pending' && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={isCancelling === order.id}
+                              onClick={() => handleCancelOrder(order.id)}
+                            >
+                              {isCancelling === order.id
+                                ? 'Cancelling...'
+                                : 'Cancel Order'}
+                            </Button>
+                          )}
+                          {order.order_status === 'delivered' && (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href="/products">Buy Again</Link>
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
                 </motion.div>
               );
             })}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-center gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="flex items-center text-sm text-muted-foreground px-2">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Order Detail Modal */}
-        <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
+        {/* Order Detail Dialog */}
+        <Dialog
+          open={!!selectedOrder}
+          onOpenChange={() => setSelectedOrder(null)}
+        >
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             {selectedOrder && (
               <>
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
-                    Order {selectedOrder.id}
-                    <Badge className={STATUS_CONFIG[selectedOrder.status].color}>
-                      {STATUS_CONFIG[selectedOrder.status].label}
+                    {selectedOrder.order_number}
+                    <Badge
+                      className={
+                        STATUS_CONFIG[selectedOrder.order_status]?.color
+                      }
+                    >
+                      {STATUS_CONFIG[selectedOrder.order_status]?.label}
                     </Badge>
                   </DialogTitle>
                 </DialogHeader>
@@ -526,26 +573,56 @@ function OrdersPageContent() {
                   {/* Order Timeline */}
                   <div>
                     <h4 className="font-medium mb-3">Order Status</h4>
-                    <div className="flex items-center justify-between">
-                      {(['pending', 'processing', 'shipped', 'delivered'] as const).map((status, index) => {
-                        const statusIndex = ['pending', 'processing', 'shipped', 'delivered'].indexOf(selectedOrder.status);
-                        const isActive = statusIndex >= index;
-                        const isCurrent = selectedOrder.status === status;
-                        
+                    <div className="flex items-center justify-between overflow-x-auto pb-2">
+                      {(
+                        [
+                          'pending',
+                          'processing',
+                          'shipped',
+                          'delivered',
+                        ] as const
+                      ).map((status, idx) => {
+                        const order = selectedOrder;
+                        const progression = [
+                          'pending',
+                          'payment_confirmed',
+                          'processing',
+                          'shipped',
+                          'delivered',
+                        ];
+                        const currentIdx = progression.indexOf(
+                          order.order_status
+                        );
+                        const stepIdx = progression.indexOf(
+                          status === 'pending' ? 'pending' : status
+                        );
+                        const isActive = currentIdx >= stepIdx;
+                        const isCurrent = order.order_status === status;
+
                         return (
                           <div key={status} className="flex items-center">
-                            <div className={`flex flex-col items-center ${index > 0 ? 'ml-4' : ''}`}>
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                                isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                              }`}>
+                            <div
+                              className={`flex flex-col items-center ${idx > 0 ? 'ml-2' : ''}`}
+                            >
+                              <div
+                                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                  isActive
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-muted text-muted-foreground'
+                                }`}
+                              >
                                 {STATUS_CONFIG[status].icon}
                               </div>
-                              <span className={`text-xs mt-1 ${isCurrent ? 'font-medium' : 'text-muted-foreground'}`}>
+                              <span
+                                className={`text-xs mt-1 text-center ${isCurrent ? 'font-medium' : 'text-muted-foreground'}`}
+                              >
                                 {STATUS_CONFIG[status].label}
                               </span>
                             </div>
-                            {index < 3 && (
-                              <div className={`w-16 h-0.5 mx-2 ${isActive ? 'bg-primary' : 'bg-muted'}`} />
+                            {idx < 3 && (
+                              <div
+                                className={`w-12 h-0.5 mx-1 ${isActive ? 'bg-primary' : 'bg-muted'}`}
+                              />
                             )}
                           </div>
                         );
@@ -563,7 +640,7 @@ function OrdersPageContent() {
                         <div key={item.id} className="flex gap-4">
                           <div className="relative h-20 w-20 rounded-md overflow-hidden bg-muted flex-shrink-0">
                             <Image
-                              src={item.product_image || '/placeholder-product.jpg'}
+                              src="/placeholder-product.jpg"
                               alt={item.product_name}
                               fill
                               className="object-cover"
@@ -571,11 +648,19 @@ function OrdersPageContent() {
                           </div>
                           <div className="flex-1">
                             <p className="font-medium">{item.product_name}</p>
+                            {(item.variant_type || item.variant_value) && (
+                              <p className="text-sm text-muted-foreground">
+                                {item.variant_type}: {item.variant_value}
+                              </p>
+                            )}
                             <p className="text-sm text-muted-foreground">
-                              {formatCurrency(item.unit_price)} x {item.quantity}
+                              {formatCurrency(toNum(item.unit_price))} ×{' '}
+                              {item.quantity}
                             </p>
                           </div>
-                          <p className="font-medium">{formatCurrency(item.total_price)}</p>
+                          <p className="font-medium">
+                            {formatCurrency(toNum(item.subtotal))}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -586,12 +671,19 @@ function OrdersPageContent() {
                   {/* Shipping Address */}
                   <div>
                     <h4 className="font-medium mb-3">Shipping Address</h4>
-                    <div className="text-sm text-muted-foreground">
-                      <p className="font-medium text-foreground">{selectedOrder.shipping_address.recipient_name}</p>
-                      <p>{selectedOrder.shipping_address.phone}</p>
-                      <p>{selectedOrder.shipping_address.street_address}</p>
+                    <div className="text-sm text-muted-foreground space-y-0.5">
+                      <p className="font-medium text-foreground">
+                        {selectedOrder.shipping_name}
+                      </p>
+                      <p>{selectedOrder.shipping_phone}</p>
+                      <p>{selectedOrder.shipping_address_line1}</p>
+                      {selectedOrder.shipping_address_line2 && (
+                        <p>{selectedOrder.shipping_address_line2}</p>
+                      )}
                       <p>
-                        {selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.province} {selectedOrder.shipping_address.postal_code}
+                        {selectedOrder.shipping_city},{' '}
+                        {selectedOrder.shipping_province}{' '}
+                        {selectedOrder.shipping_postal_code}
                       </p>
                     </div>
                   </div>
@@ -604,35 +696,97 @@ function OrdersPageContent() {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Subtotal</span>
-                        <span>{formatCurrency(selectedOrder.subtotal)}</span>
+                        <span>
+                          {formatCurrency(toNum(selectedOrder.subtotal))}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Shipping</span>
-                        <span>{formatCurrency(selectedOrder.shipping_cost)}</span>
+                        <span>
+                          {formatCurrency(toNum(selectedOrder.shipping_cost))}
+                        </span>
                       </div>
-                      {selectedOrder.discount_amount > 0 && (
+                      {toNum(selectedOrder.discount_amount) > 0 && (
                         <div className="flex justify-between text-green-600">
                           <span>Discount</span>
-                          <span>-{formatCurrency(selectedOrder.discount_amount)}</span>
+                          <span>
+                            -{formatCurrency(toNum(selectedOrder.discount_amount))}
+                          </span>
+                        </div>
+                      )}
+                      {toNum(selectedOrder.tax_amount) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Tax</span>
+                          <span>
+                            {formatCurrency(toNum(selectedOrder.tax_amount))}
+                          </span>
                         </div>
                       )}
                       <Separator />
                       <div className="flex justify-between font-medium text-base">
                         <span>Total</span>
-                        <span>{formatCurrency(selectedOrder.total_amount)}</span>
+                        <span>
+                          {formatCurrency(toNum(selectedOrder.total))}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-4">
-                    {selectedOrder.status === 'pending' && (
-                      <Button className="flex-1">Pay Now</Button>
+                  {/* Tracking */}
+                  {selectedOrder.tracking_number && (
+                    <div className="bg-muted/50 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Truck className="h-4 w-4 text-primary" />
+                        <span className="font-medium">Tracking Number:</span>
+                        <span className="text-muted-foreground">
+                          {selectedOrder.tracking_number}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dialog Actions */}
+                  <div className="flex gap-2 pt-2 flex-wrap">
+                    {selectedOrder.order_status === 'pending' &&
+                      selectedOrder.payment_status === 'unpaid' && (
+                      <Button
+                        className="flex-1 gap-1"
+                        onClick={() => handlePayOrder(selectedOrder)}
+                        disabled={isPayingOrder === selectedOrder.id}
+                      >
+                        <CreditCard className="h-4 w-4" />
+                        {isPayingOrder === selectedOrder.id ? 'Memuat...' : 'Lanjutkan Pembayaran'}
+                      </Button>
                     )}
-                    {selectedOrder.tracking_number && (
-                      <Button variant="outline" className="flex-1">Track Package</Button>
+                    {selectedOrder.order_status === 'pending' && (
+                      <Button
+                        variant="outline"
+                        className="gap-1"
+                        onClick={() => handleSyncPayment(selectedOrder)}
+                        disabled={isSyncingOrder === selectedOrder.id}
+                      >
+                        <RefreshCw className={`h-4 w-4 ${isSyncingOrder === selectedOrder.id ? 'animate-spin' : ''}`} />
+                        {isSyncingOrder === selectedOrder.id ? 'Mengecek...' : 'Cek Status Pembayaran'}
+                      </Button>
                     )}
-                    <Button variant="outline" onClick={() => setSelectedOrder(null)}>Close</Button>
+                    {selectedOrder.order_status === 'pending' && (
+                      <Button
+                        variant="destructive"
+                        className="flex-1"
+                        disabled={isCancelling === selectedOrder.id}
+                        onClick={() => handleCancelOrder(selectedOrder.id)}
+                      >
+                        {isCancelling === selectedOrder.id
+                          ? 'Cancelling...'
+                          : 'Cancel Order'}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedOrder(null)}
+                    >
+                      Close
+                    </Button>
                   </div>
                 </div>
               </>
@@ -646,7 +800,11 @@ function OrdersPageContent() {
 
 export default function OrdersPage() {
   return (
-    <Suspense fallback={<div className="container mx-auto px-4 py-8">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="container mx-auto px-4 py-8">Loading orders...</div>
+      }
+    >
       <OrdersPageContent />
     </Suspense>
   );
