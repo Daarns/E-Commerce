@@ -18,6 +18,7 @@ import (
 	productHandler "ecommerce-backend/internal/handlers/product"
 	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/repositories"
+	adminService "ecommerce-backend/internal/services/admin"
 	authService "ecommerce-backend/internal/services/auth"
 	cartService "ecommerce-backend/internal/services/cart"
 	emailService "ecommerce-backend/internal/services/email"
@@ -168,6 +169,14 @@ func main() {
 
 	// Initialize Services
 	authSvc := authService.NewAuthService(userRepo, emailQueueRepo, jwtManager, emailSvc)
+	
+	// Get underlying SQL DB from GORM DB for DashboardService
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("Failed to get SQL database from GORM: %v", err)
+	}
+	
+	dashboardSvc := adminService.NewDashboardService(nil, nil, nil, sqlDB)
 	productSvc := productService.NewProductService(productRepo, categoryRepo)
 	cartSvc := cartService.NewCartService(cartRepo, addressRepo, productRepo)
 	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo, shippingRepo, snapSvc)
@@ -180,6 +189,7 @@ func main() {
 
 	// Initialize Handlers
 	authH := authHandler.NewAuthHandler(authSvc)
+	dashboardH := adminHandler.NewDashboardHandler(dashboardSvc)
 	productH := productHandler.NewProductHandler(productSvc)
 	categoryH := productHandler.NewCategoryHandler(productSvc)
 	cartH := cartHandler.NewCartHandler(cartSvc)
@@ -188,7 +198,7 @@ func main() {
 	searchH := featuresHandler.NewSearchHandler(searchSvc)
 	chatH := featuresHandler.NewChatHandler(chatSvc)
 	wishlistH := productHandler.NewWishlistHandler(wishlistSvc)
-	adminUserH := adminHandler.NewAdminUserHandler(exportSvc)
+	adminUserH := adminHandler.NewAdminUserHandler(exportSvc, userRepo)
 	adminActivityH := adminHandler.NewAdminActivityHandler(activitySvc)
 
 	// Initialize Gin router
@@ -372,17 +382,27 @@ func main() {
 		admin.Use(middleware.AuthMiddleware(jwtManager))
 		admin.Use(middleware.AdminOnly())
 		{
-			admin.GET("/dashboard", func(c *gin.Context) {
-				userID, _ := middleware.GetUserID(c)
-				c.JSON(http.StatusOK, gin.H{
-					"message": "Admin dashboard",
-					"user_id": userID,
-				})
-			})
+			// Dashboard routes
+			dashboard := admin.Group("/dashboard")
+			{
+				dashboard.GET("/summary", dashboardH.GetDashboardSummary)
+			}
+
+			// Analytics routes
+			analytics := admin.Group("/analytics")
+			{
+				analytics.GET("/revenue", dashboardH.GetRevenueMetrics)
+				analytics.GET("/orders", dashboardH.GetOrderAnalytics)
+				analytics.GET("/customers", dashboardH.GetCustomerAnalytics)
+				analytics.GET("/revenue-trends", dashboardH.GetMonthlyRevenueTrend)
+				analytics.GET("/products", dashboardH.GetProductPerformance)
+			}
 
 			// Admin Product routes
 			adminProducts := admin.Group("/products")
 			{
+				adminProducts.GET("", productH.AdminListProducts)
+				adminProducts.GET("/:id", productH.AdminGetProduct)
 				adminProducts.POST("", productH.CreateProduct)
 				adminProducts.PUT("/:id", productH.UpdateProduct)
 				adminProducts.DELETE("/:id", productH.DeleteProduct)
@@ -418,6 +438,7 @@ func main() {
 			adminUsers := admin.Group("/users")
 			{
 				adminUsers.GET("", adminUserH.ListUsers)
+				adminUsers.GET("/metrics", adminUserH.GetUserMetrics)
 				adminUsers.GET("/export", adminUserH.ExportUsersToCSV)
 				adminUsers.GET("/:id", adminUserH.GetUser)
 			}

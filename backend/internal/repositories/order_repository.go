@@ -322,10 +322,15 @@ func (r *OrderRepository) GetOrderSummary(userID *uuid.UUID) (*OrderSummary, err
 		Count  int64
 	}{}
 	
-	if err := r.db.Model(&models.Order{}).
+	statusQuery := r.db.Model(&models.Order{})
+	if userID != nil {
+		statusQuery = statusQuery.Where("user_id = ?", *userID)
+	}
+	
+	if err := statusQuery.
 		Select("order_status as status, count(*) as count").
 		Group("order_status").
-		Find(&statusCounts).Error; err != nil {
+		Scan(&statusCounts).Error; err != nil {
 		return nil, err
 	}
 	
@@ -348,9 +353,14 @@ func (r *OrderRepository) GetOrderSummary(userID *uuid.UUID) (*OrderSummary, err
 	var revenue struct {
 		Total float64
 	}
-	if err := r.db.Model(&models.Order{}).
+	revenueQuery := r.db.Model(&models.Order{}).
+		Where("payment_status = ?", models.PaymentStatusPaid)
+	if userID != nil {
+		revenueQuery = revenueQuery.Where("user_id = ?", *userID)
+	}
+	
+	if err := revenueQuery.
 		Select("COALESCE(SUM(total), 0) as total").
-		Where("payment_status = ?", models.PaymentStatusPaid).
 		First(&revenue).Error; err != nil {
 		return nil, err
 	}

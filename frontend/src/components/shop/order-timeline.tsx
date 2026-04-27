@@ -11,16 +11,18 @@ interface OrderTimelineEvent {
 }
 
 function getOrderTimelineEvents(order: Order): OrderTimelineEvent[] {
-  const statusOrder: OrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+  const statusOrder: OrderStatus[] = ['pending', 'payment_confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+  
+  const currentStatus = order.status || order.order_status;
   
   return statusOrder.map(status => {
-    const isCompleted = statusOrder.indexOf(status) <= statusOrder.indexOf(order.status);
-    const isCurrent = status === order.status;
+    const isCompleted = statusOrder.indexOf(status) <= statusOrder.indexOf(currentStatus);
+    const isCurrent = status === currentStatus;
     
     return {
       status,
       label: formatStatusLabel(status),
-      date: status === order.status ? new Date(order.updated_at).toLocaleString('id-ID') : '',
+      date: status === currentStatus ? new Date(order.updated_at).toLocaleString('id-ID') : '',
       description: getStatusDescription(status),
     };
   });
@@ -29,7 +31,7 @@ function getOrderTimelineEvents(order: Order): OrderTimelineEvent[] {
 function formatStatusLabel(status: OrderStatus): string {
   const labels: Record<OrderStatus, string> = {
     pending: 'Pending',
-    confirmed: 'Order Confirmed',
+    payment_confirmed: 'Payment Confirmed',
     processing: 'Processing',
     shipped: 'Shipped',
     delivered: 'Delivered',
@@ -41,8 +43,8 @@ function formatStatusLabel(status: OrderStatus): string {
 
 function getStatusDescription(status: OrderStatus): string {
   const descriptions: Record<OrderStatus, string> = {
-    pending: 'Order placed and waiting for confirmation',
-    confirmed: 'Order confirmed and being prepared',
+    pending: 'Order placed and waiting for payment',
+    payment_confirmed: 'Payment confirmed and order being prepared',
     processing: 'Items are being packed',
     shipped: 'Package is on the way',
     delivered: 'Package delivered',
@@ -54,8 +56,9 @@ function getStatusDescription(status: OrderStatus): string {
 
 export function OrderTimeline({ order }: { order: Order }) {
   const events = getOrderTimelineEvents(order);
-  const statusOrder = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'] as OrderStatus[];
-  const currentIndex = statusOrder.indexOf(order.status);
+  const statusOrder = ['pending', 'payment_confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'] as OrderStatus[];
+  const currentStatus = order.status || order.order_status;
+  const currentIndex = statusOrder.indexOf(currentStatus);
 
   return (
     <div className="bg-white rounded-lg border p-6">

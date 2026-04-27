@@ -194,12 +194,17 @@ export function ProductTable({
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      {product.image_urls[0] && (
+                      {product.image_urls && product.image_urls.length > 0 && (
                         <img
                           src={product.image_urls[0]}
                           alt={product.name}
                           className="w-10 h-10 rounded object-cover"
                         />
+                      )}
+                      {(!product.image_urls || product.image_urls.length === 0) && (
+                        <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
+                          <span className="text-xs text-muted-foreground">No image</span>
+                        </div>
                       )}
                       <div>
                         <p className="font-medium line-clamp-1">{product.name}</p>

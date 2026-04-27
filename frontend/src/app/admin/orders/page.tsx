@@ -6,6 +6,7 @@ import { OrderTable } from '@/components/admin/order-table';
 import { OrderSearch } from '@/components/admin/order-search';
 import { Card } from '@/components/ui/card';
 import { TrendingUp, Package, CheckCircle, DollarSign } from 'lucide-react';
+import { AdminLayout } from '@/components/admin/layout';
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
@@ -55,6 +56,7 @@ export default function AdminOrdersPage() {
   };
 
   return (
+    <AdminLayout>
     <div className="space-y-6">
       {/* Header */}
       <div>
@@ -80,7 +82,7 @@ export default function AdminOrdersPage() {
               <div>
                 <p className="text-sm text-gray-600 mb-1">Pending Orders</p>
                 <p className="text-3xl font-bold text-yellow-600">
-                  {metrics.pending_count}
+                  {metrics.pending_orders}
                 </p>
               </div>
               <TrendingUp className="w-8 h-8 text-yellow-500" />
@@ -92,7 +94,7 @@ export default function AdminOrdersPage() {
               <div>
                 <p className="text-sm text-gray-600 mb-1">Delivered Orders</p>
                 <p className="text-3xl font-bold text-green-600">
-                  {metrics.delivered_count}
+                  {metrics.delivered_orders}
                 </p>
               </div>
               <CheckCircle className="w-8 h-8 text-green-500" />
@@ -104,7 +106,7 @@ export default function AdminOrdersPage() {
               <div>
                 <p className="text-sm text-gray-600 mb-1">Total Revenue</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  Rp {(metrics.total_revenue / 1000000).toFixed(1)}M
+                  Rp {(metrics.total_revenue / 1000).toFixed(1)}K
                 </p>
               </div>
               <DollarSign className="w-8 h-8 text-green-500" />
@@ -146,5 +148,6 @@ export default function AdminOrdersPage() {
         </div>
       )}
     </div>
+  </AdminLayout>
   );
 }

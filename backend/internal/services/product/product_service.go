@@ -401,6 +401,16 @@ func (uc *ProductService) RemoveVariant(variantID uuid.UUID) error {
 	return uc.productRepo.RemoveVariant(variantID)
 }
 
+// Set filter.IncludeDeleted = true untuk menyertakan produk soft-deleted.
+func (s *ProductService) AdminListProducts(filter repositories.AdminProductFilter) (*repositories.ProductListResult, error) {
+	return s.productRepo.AdminList(filter)
+}
+
+// serta field audit: Version, CreatedAt, UpdatedAt, DeletedAt.
+func (s *ProductService) AdminGetProduct(id uuid.UUID) (*models.Product, error) {
+	return s.productRepo.AdminGetByID(id)
+}
+
 // ===== CATEGORY OPERATIONS =====
 
 // CreateCategory creates a new category

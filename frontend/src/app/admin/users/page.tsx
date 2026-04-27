@@ -1,22 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { adminService, UserFilters } from '@/services/admin';
+import { useState, useEffect, useCallback } from 'react';
+import { adminService, AdminUser, UserMetrics, UserFilters } from '@/services/admin';
 import { UserSearch } from '@/components/admin/user-search';
 import { UserTable } from '@/components/admin/user-table';
+import { AdminLayout } from '@/components/admin/layout';
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState<any>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [metrics, setMetrics] = useState<UserMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<UserFilters>({});
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    loadData();
-  }, [filters, page]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
       const [usersData, metricsData] = await Promise.all([
@@ -30,7 +27,11 @@ export default function UsersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filters, page]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleFilterChange = (newFilters: UserFilters) => {
     setFilters(newFilters);
@@ -43,6 +44,7 @@ export default function UsersPage() {
   };
 
   return (
+    <AdminLayout>
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
@@ -89,5 +91,6 @@ export default function UsersPage() {
         <UserTable users={users} isLoading={isLoading} />
       </div>
     </div>
+    </AdminLayout>
   );
 }

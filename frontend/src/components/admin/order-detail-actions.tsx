@@ -17,10 +17,10 @@ export function OrderDetailActions({ order }: OrderDetailActionsProps) {
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const router = useRouter();
 
-  const canUpdateStatus = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'].includes(
-    order.status
+  const canUpdateStatus = ['pending', 'payment_confirmed', 'processing', 'shipped', 'delivered'].includes(
+    order.status || order.order_status
   );
-  const canRefund = order.status === 'delivered' && order.payment_status === 'paid';
+  const canRefund = (order.status || order.order_status) === 'delivered' && order.payment_status === 'paid';
 
   return (
     <>
@@ -46,7 +46,7 @@ export function OrderDetailActions({ order }: OrderDetailActionsProps) {
 
       <StatusUpdateDialog
         orderId={order.id}
-        currentStatus={order.status}
+        currentStatus={order.status || order.order_status}
         open={statusDialogOpen}
         onOpenChange={setStatusDialogOpen}
         onStatusUpdated={() => router.refresh()}

@@ -103,12 +103,15 @@ export interface Order {
   id: string;
   order_number: string;
   user_id: string;
-  // Status
+  // Status (both for compatibility)
   order_status: OrderStatus;
+  status?: OrderStatus; // alias for order_status
   payment_status: PaymentStatus;
   payment_method?: string;
   payment_provider?: string;
   payment_transaction_id?: string;
+  payment_url?: string; // Midtrans payment URL
+  snap_token?: string; // Midtrans snap token
   // Shipping address (snapshot — flat fields, not nested object)
   shipping_name: string;
   shipping_phone: string;
@@ -119,12 +122,23 @@ export interface Order {
   shipping_postal_code: string;
   shipping_method?: string;
   tracking_number?: string;
+  // Shipping address as nested object (for convenience)
+  shipping_address?: {
+    recipient_name: string;
+    phone: string;
+    street_address: string;
+    address_line2?: string;
+    city: string;
+    province: string;
+    postal_code: string;
+  };
   // Pricing (decimal comes as string from Go)
   subtotal: string | number;
   shipping_cost: string | number;
   discount_amount: string | number;
   tax_amount: string | number;
   total: string | number;
+  total_amount?: string | number; // alias for total
   // Notes
   customer_notes?: string;
   admin_notes?: string;
@@ -175,11 +189,13 @@ export interface OrderItem {
   // Snapshot data from backend
   product_name: string;
   product_sku?: string;
+  product_image?: string; // Product image for display
   variant_type?: string;
   variant_value?: string;
   quantity: number;
   unit_price: string | number;
   subtotal: string | number;
+  total_price?: string | number; // alias for subtotal
   created_at?: string;
 }
 

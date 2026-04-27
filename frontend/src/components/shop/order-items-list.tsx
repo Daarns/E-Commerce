@@ -4,6 +4,11 @@ import { Order } from '@/types';
 import Image from 'next/image';
 import Link from 'next/link';
 
+const formatPrice = (price: string | number | undefined): number => {
+  if (typeof price === 'number') return price;
+  return parseFloat(String(price || 0)) || 0;
+};
+
 export function OrderItemsList({ order }: { order: Order }) {
   return (
     <div className="bg-white rounded-lg border overflow-hidden">
@@ -38,17 +43,17 @@ export function OrderItemsList({ order }: { order: Order }) {
               </p>
               
               <p className="text-sm text-gray-500 mt-1">
-                Unit Price: <span className="font-medium">Rp {item.unit_price.toLocaleString('id-ID')}</span>
+                Unit Price: <span className="font-medium">Rp {formatPrice(item.unit_price).toLocaleString('id-ID')}</span>
               </p>
             </div>
 
             {/* Price */}
             <div className="text-right">
               <p className="font-medium text-gray-900">
-                Rp {item.total_price.toLocaleString('id-ID')}
+                Rp {formatPrice(item.total_price).toLocaleString('id-ID')}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                {item.quantity} × Rp {item.unit_price.toLocaleString('id-ID')}
+                {item.quantity} × Rp {formatPrice(item.unit_price).toLocaleString('id-ID')}
               </p>
             </div>
           </div>

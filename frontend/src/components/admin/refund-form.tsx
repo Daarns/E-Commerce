@@ -31,7 +31,11 @@ export function RefundForm({
   onOpenChange,
   onRefundProcessed,
 }: RefundFormProps) {
-  const [amount, setAmount] = useState(order.total_amount.toString());
+  const orderTotal: number = typeof (order.total_amount || order.total) === 'number' 
+    ? (order.total_amount || order.total) as number
+    : parseFloat(String(order.total_amount || order.total || 0));
+  
+  const [amount, setAmount] = useState(orderTotal.toString());
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -49,8 +53,8 @@ export function RefundForm({
       return;
     }
 
-    if (refundAmount > order.total_amount) {
-      setError(`Refund amount cannot exceed order total (Rp ${order.total_amount.toLocaleString('id-ID')})`);
+    if (refundAmount > orderTotal) {
+      setError(`Refund amount cannot exceed order total (Rp ${orderTotal.toLocaleString('id-ID')})`);
       return;
     }
 
@@ -64,7 +68,7 @@ export function RefundForm({
       });
       onRefundProcessed?.();
       onOpenChange(false);
-      setAmount(order.total_amount.toString());
+      setAmount(orderTotal.toString());
       setReason('');
       setNotes('');
     } catch (err) {
@@ -88,7 +92,7 @@ export function RefundForm({
             </label>
             <div className="p-3 bg-gray-50 rounded border">
               <p className="font-semibold">
-                Rp {order.total_amount.toLocaleString('id-ID')}
+                Rp {orderTotal.toLocaleString('id-ID')}
               </p>
             </div>
           </div>

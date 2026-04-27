@@ -27,7 +27,214 @@ func NewProductHandler(useCase *product.ProductService) *ProductHandler {
 	return &ProductHandler{useCase: useCase}
 }
 
-// ===== PRODUCT ENDPOINTS =====
+// parseProductFilter extracts shared ProductFilter fields from query params.
+// Digunakan bersama oleh ListProducts dan AdminListProducts.
+func parseProductFilter(c *gin.Context) repositories.ProductFilter {
+	filter := repositories.ProductFilter{
+		Page:  1,
+		Limit: 20,
+	}
+
+	if page, err := strconv.Atoi(c.Query("page")); err == nil && page > 0 {
+		filter.Page = page
+	}
+	if limit, err := strconv.Atoi(c.Query("limit")); err == nil && limit > 0 {
+		filter.Limit = limit
+	}
+	if categoryID := c.Query("category_id"); categoryID != "" {
+		if id, err := uuid.Parse(categoryID); err == nil {
+			filter.CategoryID = &id
+		}
+	}
+	if minPrice := c.Query("min_price"); minPrice != "" {
+		if price, err := strconv.ParseFloat(minPrice, 64); err == nil {
+			filter.MinPrice = &price
+		}
+	}
+	if maxPrice := c.Query("max_price"); maxPrice != "" {
+		if price, err := strconv.ParseFloat(maxPrice, 64); err == nil {
+			filter.MaxPrice = &price
+		}
+	}
+	if search := c.Query("search"); search != "" {
+		filter.Search = search
+	}
+	if status := c.Query("status"); status != "" {
+		filter.Status = status
+	}
+	if inStock := c.Query("in_stock"); inStock != "" {
+		stock := inStock == "true"
+		filter.InStock = &stock
+	}
+	if brand := c.Query("brand"); brand != "" {
+		filter.Brand = brand
+	}
+	filter.SortBy = c.DefaultQuery("sort_by", "created_at")
+	filter.SortOrder = c.DefaultQuery("sort_order", "desc")
+
+	return filter
+}
+
+// ============================================================
+// PRODUCT — GLOBAL ENDPOINTS
+// ============================================================
+
+// GetProduct retrieves a product by ID or slug
+// GET /api/v1/products/:identifier
+func (h *ProductHandler) GetProduct(c *gin.Context) {
+	identifier := c.Param("identifier")
+
+	if id, err := uuid.Parse(identifier); err == nil {
+		result, err := h.useCase.GetProduct(id)
+		if err != nil {
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", err.Error())
+			return
+		}
+		response.Success(c, result)
+		return
+	}
+
+	result, err := h.useCase.GetProductBySlug(identifier)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", err.Error())
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// ListProducts retrieves active products with filtering
+// GET /api/v1/products
+func (h *ProductHandler) ListProducts(c *gin.Context) {
+	filter := parseProductFilter(c)
+
+	result, err := h.useCase.ListProducts(filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "LIST_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// SearchProducts searches products by keyword
+// GET /api/v1/products/search?q=...
+func (h *ProductHandler) SearchProducts(c *gin.Context) {
+	query := c.Query("q")
+	if query == "" {
+		response.Error(c, http.StatusBadRequest, "INVALID_QUERY", "Search query is required")
+		return
+	}
+
+	limit := 20
+	if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 {
+		limit = l
+	}
+
+	results, err := h.useCase.SearchProducts(query, limit)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "SEARCH_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetFeaturedProducts retrieves featured products
+// GET /api/v1/products/featured
+func (h *ProductHandler) GetFeaturedProducts(c *gin.Context) {
+	limit := 10
+	if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 {
+		limit = l
+	}
+
+	results, err := h.useCase.GetFeaturedProducts(limit)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "FETCH_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"products": results})
+}
+
+// GetRelatedProducts retrieves related products by product ID or slug
+// GET /api/v1/products/:identifier/related
+func (h *ProductHandler) GetRelatedProducts(c *gin.Context) {
+	identifier := c.Param("identifier")
+
+	id, err := uuid.Parse(identifier)
+	if err != nil {
+		p, err := h.useCase.GetProductBySlug(identifier)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid product ID or slug")
+			return
+		}
+		id = p.ID
+	}
+
+	limit := 4
+	if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 {
+		limit = l
+	}
+
+	results, err := h.useCase.GetRelatedProducts(id, limit)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "FETCH_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// ============================================================
+// PRODUCT — ADMIN ENDPOINTS
+// ============================================================
+
+// GET /api/v1/admin/products
+func (h *ProductHandler) AdminListProducts(c *gin.Context) {
+	filter := repositories.AdminProductFilter{
+		ProductFilter: parseProductFilter(c),
+		// Admin: status tidak dibatasi, kosong = tampilkan semua
+		// Jika status diisi (e.g. ?status=draft), tetap digunakan
+		IncludeDeleted: c.Query("include_deleted") == "true",
+	}
+
+	result, err := h.useCase.AdminListProducts(filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "LIST_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// AdminGetProduct retrieves full product detail for admin.
+// GET /api/v1/admin/products/:id/detail
+func (h *ProductHandler) AdminGetProduct(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid product ID")
+		return
+	}
+
+	result, err := h.useCase.AdminGetProduct(id)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", err.Error())
+		return
+	}
+
+	audit := gin.H{
+		"version":    result.Version,
+		"created_at": result.CreatedAt,
+		"updated_at": result.UpdatedAt,
+		"deleted_at": result.DeletedAt,
+	}
+
+	response.Success(c, gin.H{
+		"product": result,
+		"audit":   audit,
+	})
+}
 
 // CreateProduct handles product creation
 // POST /api/v1/admin/products
@@ -45,96 +252,6 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	}
 
 	response.Created(c, result)
-}
-
-// GetProduct retrieves a product by ID or slug
-// GET /api/v1/products/:identifier
-func (h *ProductHandler) GetProduct(c *gin.Context) {
-	identifier := c.Param("identifier")
-
-	// Try parsing as UUID first
-	if id, err := uuid.Parse(identifier); err == nil {
-		result, err := h.useCase.GetProduct(id)
-		if err != nil {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", err.Error())
-			return
-		}
-		response.Success(c, result)
-		return
-	}
-
-	// Otherwise treat as slug
-	result, err := h.useCase.GetProductBySlug(identifier)
-	if err != nil {
-		response.Error(c, http.StatusNotFound, "NOT_FOUND", err.Error())
-		return
-	}
-
-	response.Success(c, result)
-}
-
-// ListProducts retrieves products with filtering
-// GET /api/v1/products
-func (h *ProductHandler) ListProducts(c *gin.Context) {
-	filter := repositories.ProductFilter{
-		Page:  1,
-		Limit: 20,
-	}
-
-	// Parse query parameters
-	if page, err := strconv.Atoi(c.Query("page")); err == nil && page > 0 {
-		filter.Page = page
-	}
-	
-	if limit, err := strconv.Atoi(c.Query("limit")); err == nil && limit > 0 {
-		filter.Limit = limit
-	}
-	
-	if categoryID := c.Query("category_id"); categoryID != "" {
-		if id, err := uuid.Parse(categoryID); err == nil {
-			filter.CategoryID = &id
-		}
-	}
-	
-	if minPrice := c.Query("min_price"); minPrice != "" {
-		if price, err := strconv.ParseFloat(minPrice, 64); err == nil {
-			filter.MinPrice = &price
-		}
-	}
-	
-	if maxPrice := c.Query("max_price"); maxPrice != "" {
-		if price, err := strconv.ParseFloat(maxPrice, 64); err == nil {
-			filter.MaxPrice = &price
-		}
-	}
-	
-	if search := c.Query("search"); search != "" {
-		filter.Search = search
-	}
-	
-	if status := c.Query("status"); status != "" {
-		filter.Status = status
-	}
-	
-	if inStock := c.Query("in_stock"); inStock != "" {
-		stock := inStock == "true"
-		filter.InStock = &stock
-	}
-
-	if brand := c.Query("brand"); brand != "" {
-		filter.Brand = brand
-	}
-	
-	filter.SortBy = c.DefaultQuery("sort_by", "created_at")
-	filter.SortOrder = c.DefaultQuery("sort_order", "desc")
-
-	result, err := h.useCase.ListProducts(filter)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "LIST_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, result)
 }
 
 // UpdateProduct updates a product
@@ -186,82 +303,12 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Product deleted successfully"})
 }
 
-// SearchProducts searches products
-// GET /api/v1/products/search
-func (h *ProductHandler) SearchProducts(c *gin.Context) {
-	query := c.Query("q")
-	if query == "" {
-		response.Error(c, http.StatusBadRequest, "INVALID_QUERY", "Search query is required")
-		return
-	}
-
-	limit := 20
-	if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 {
-		limit = l
-	}
-
-	results, err := h.useCase.SearchProducts(query, limit)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "SEARCH_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, results)
-}
-
-// GetFeaturedProducts retrieves featured products
-// GET /api/v1/products/featured
-func (h *ProductHandler) GetFeaturedProducts(c *gin.Context) {
-	limit := 10
-	if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 {
-		limit = l
-	}
-
-	results, err := h.useCase.GetFeaturedProducts(limit)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "FETCH_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, gin.H{"products": results})
-}
-
-// GetRelatedProducts retrieves related products
-// GET /api/v1/products/:identifier/related
-func (h *ProductHandler) GetRelatedProducts(c *gin.Context) {
-	identifier := c.Param("identifier")
-	
-	// Try parsing as UUID first
-	id, err := uuid.Parse(identifier)
-	if err != nil {
-		// If not UUID, try to get product by slug first
-		product, err := h.useCase.GetProductBySlug(identifier)
-		if err != nil {
-			response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid product ID or slug")
-			return
-		}
-		id = product.ID
-	}
-
-	limit := 4
-	if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 {
-		limit = l
-	}
-
-	results, err := h.useCase.GetRelatedProducts(id, limit)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "FETCH_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, results)
-}
-
-// ===== IMAGE ENDPOINTS =====
+// ============================================================
+// IMAGE — ADMIN ENDPOINTS
+// ============================================================
 
 // UploadProductImage handles single or multiple image uploads
 // POST /api/v1/admin/products/:id/images
-// Supports multipart form with "images" field for multiple files
 func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 	productID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -269,14 +316,12 @@ func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 		return
 	}
 
-	// Verify product exists
 	_, err = h.useCase.GetProduct(productID)
 	if err != nil {
 		response.Error(c, http.StatusNotFound, "PRODUCT_NOT_FOUND", "Product not found")
 		return
 	}
 
-	// Get form with multiple files
 	form, err := c.MultipartForm()
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, "NO_FILES", "No image files provided")
@@ -285,7 +330,6 @@ func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 
 	files := form.File["images"]
 	if len(files) == 0 {
-		// Fallback to single file "image" for backward compatibility
 		file, err := c.FormFile("image")
 		if err != nil {
 			response.Error(c, http.StatusBadRequest, "NO_FILES", "At least one image file is required")
@@ -294,7 +338,6 @@ func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 		files = []*multipart.FileHeader{file}
 	}
 
-	// Validate all files using image service
 	imageService := features.NewImageService("")
 	if validationErrs := imageService.ValidateImageFiles(files); len(validationErrs) > 0 {
 		errMsg := ""
@@ -305,12 +348,10 @@ func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 		return
 	}
 
-	// Process all files
 	var uploadedImages []*models.ProductImage
 	var uploadedFilePaths []string
 
 	for i, file := range files {
-		// Get optional metadata for this image
 		altTexts := form.Value["alt_text"]
 		altText := ""
 		if i < len(altTexts) {
@@ -318,47 +359,41 @@ func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 		}
 
 		positions := form.Value["position"]
-		position := i // Default to order they were uploaded
+		position := i
 		if i < len(positions) {
 			if pos, err := strconv.Atoi(positions[i]); err == nil {
 				position = pos
 			}
 		}
 
-		// Optimize image
 		optimizedData, _, err := imageService.OptimizeImage(file, 2000, 2000)
 		if err != nil {
-			// Cleanup previous uploads
 			for _, path := range uploadedFilePaths {
 				os.Remove(path)
 			}
-			response.Error(c, http.StatusInternalServerError, "OPTIMIZATION_FAILED", 
+			response.Error(c, http.StatusInternalServerError, "OPTIMIZATION_FAILED",
 				fmt.Sprintf("Failed to optimize image %d: %v", i+1, err))
 			return
 		}
 
-		// Save optimized image
 		imageURL, err := imageService.SaveImageToStorage(optimizedData, file.Filename)
 		if err != nil {
-			// Cleanup previous uploads
 			for _, path := range uploadedFilePaths {
 				os.Remove(path)
 			}
-			response.Error(c, http.StatusInternalServerError, "SAVE_FAILED", 
+			response.Error(c, http.StatusInternalServerError, "SAVE_FAILED",
 				fmt.Sprintf("Failed to save image %d: %v", i+1, err))
 			return
 		}
 
 		uploadedFilePaths = append(uploadedFilePaths, imageURL)
 
-		// Create image record using service layer
 		image, err := h.useCase.AddProductImage(productID, imageURL, altText, position)
 		if err != nil {
-			// Cleanup on database error
 			for _, path := range uploadedFilePaths {
 				os.Remove(path)
 			}
-			response.Error(c, http.StatusInternalServerError, "DATABASE_FAILED", 
+			response.Error(c, http.StatusInternalServerError, "DATABASE_FAILED",
 				fmt.Sprintf("Failed to save image record %d: %v", i+1, err))
 			return
 		}
@@ -366,14 +401,13 @@ func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 		uploadedImages = append(uploadedImages, image)
 	}
 
-	// Return response with all uploaded images
 	response.Created(c, gin.H{
 		"message": fmt.Sprintf("Successfully uploaded %d image(s)", len(uploadedImages)),
 		"images":  uploadedImages,
 	})
 }
 
-// DeleteProductImage removes an image
+// DeleteProductImage removes a product image
 // DELETE /api/v1/admin/products/images/:imageId
 func (h *ProductHandler) DeleteProductImage(c *gin.Context) {
 	imageID, err := uuid.Parse(c.Param("imageId"))
@@ -390,7 +424,7 @@ func (h *ProductHandler) DeleteProductImage(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Image deleted successfully"})
 }
 
-// ReorderProductImages reorders images
+// ReorderProductImages reorders product images
 // PUT /api/v1/admin/products/:id/images/reorder
 func (h *ProductHandler) ReorderProductImages(c *gin.Context) {
 	productID, err := uuid.Parse(c.Param("id"))
@@ -407,7 +441,6 @@ func (h *ProductHandler) ReorderProductImages(c *gin.Context) {
 		return
 	}
 
-	// Convert string UUIDs to uuid.UUID
 	positions := make(map[uuid.UUID]int)
 	for idStr, pos := range input.Positions {
 		id, err := uuid.Parse(idStr)
@@ -426,7 +459,9 @@ func (h *ProductHandler) ReorderProductImages(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Images reordered successfully"})
 }
 
-// ===== VARIANT ENDPOINTS =====
+// ============================================================
+// VARIANT — ADMIN ENDPOINTS
+// ============================================================
 
 // AddVariant adds a variant to a product
 // POST /api/v1/admin/products/:id/variants
@@ -483,7 +518,7 @@ func (h *ProductHandler) UpdateVariant(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// DeleteVariant removes a variant
+// DeleteVariant removes a product variant
 // DELETE /api/v1/admin/products/variants/:variantId
 func (h *ProductHandler) DeleteVariant(c *gin.Context) {
 	variantID, err := uuid.Parse(c.Param("variantId"))
@@ -499,4 +534,3 @@ func (h *ProductHandler) DeleteVariant(c *gin.Context) {
 
 	response.Success(c, gin.H{"message": "Variant deleted successfully"})
 }
-

@@ -471,3 +471,132 @@ func (r *ProductRepository) GetCandidatesForFeatured() ([]models.Product, error)
 	
 	return products, err
 }
+
+
+type AdminProductFilter struct {
+	ProductFilter
+ 
+	IncludeDeleted bool
+}
+
+func (r *ProductRepository) AdminList(filter AdminProductFilter) (*ProductListResult, error) {
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+	if filter.Limit <= 0 {
+		filter.Limit = 20
+	}
+	if filter.Limit > 100 {
+		filter.Limit = 100
+	}
+ 
+	query := r.db.Model(&models.Product{})
+ 
+	if filter.IncludeDeleted {
+		query = query.Unscoped()
+	}
+ 
+	if filter.CategoryID != nil {
+		query = query.Where("category_id = ?", *filter.CategoryID)
+	}
+	if filter.MinPrice != nil {
+		query = query.Where("regular_price >= ?", *filter.MinPrice)
+	}
+	if filter.MaxPrice != nil {
+		query = query.Where("regular_price <= ?", *filter.MaxPrice)
+	}
+	// Tidak ada default filter status — admin melihat semua.
+	// Status hanya difilter jika eksplisit diisi (e.g. ?status=draft)
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.InStock != nil && *filter.InStock {
+		query = query.Where("stock_quantity > 0")
+	}
+	if filter.Brand != "" {
+		query = query.Where("brand = ?", filter.Brand)
+	}
+	if filter.Search != "" {
+		searchTerm := "%" + strings.ToLower(filter.Search) + "%"
+		query = query.Where(
+			"LOWER(name) LIKE ? OR LOWER(description) LIKE ?",
+			searchTerm, searchTerm,
+		)
+	}
+ 
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+ 
+	sortColumn := "created_at"
+	sortOrder := "DESC"
+	if filter.SortBy != "" {
+		switch filter.SortBy {
+		case "name":
+			sortColumn = "name"
+		case "regular_price":
+			sortColumn = "regular_price"
+		case "stock_quantity":
+			sortColumn = "stock_quantity"
+		case "sold_count":
+			sortColumn = "sold_count"
+		case "updated_at":
+			sortColumn = "updated_at"
+		case "created_at":
+			sortColumn = "created_at"
+		}
+	}
+	if strings.ToUpper(filter.SortOrder) == "ASC" {
+		sortOrder = "ASC"
+	}
+	query = query.Order(fmt.Sprintf("%s %s", sortColumn, sortOrder))
+ 
+	offset := (filter.Page - 1) * filter.Limit
+	query = query.Offset(offset).Limit(filter.Limit)
+ 
+	var products []models.Product
+	err := query.
+		Preload("Category").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC").Limit(1)
+		}).
+		Find(&products).Error
+	if err != nil {
+		return nil, err
+	}
+ 
+	totalPages := int(total) / filter.Limit
+	if int(total)%filter.Limit > 0 {
+		totalPages++
+	}
+ 
+	return &ProductListResult{
+		Products:   products,
+		Total:      total,
+		Page:       filter.Page,
+		Limit:      filter.Limit,
+		TotalPages: totalPages,
+	}, nil
+}
+ 
+func (r *ProductRepository) AdminGetByID(id uuid.UUID) (*models.Product, error) {
+	var product models.Product
+	err := r.db.Unscoped().
+		Preload("Category").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Unscoped().Order("display_order ASC")
+		}).
+		Preload("Variants", func(db *gorm.DB) *gorm.DB {
+			return db.Unscoped()
+		}).
+		First(&product, "id = ?", id).Error
+ 
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("product not found")
+		}
+		return nil, err
+	}
+	return &product, nil
+}

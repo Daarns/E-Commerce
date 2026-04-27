@@ -101,8 +101,6 @@ func (h *DashboardHandler) GetCustomerAnalytics(c *gin.Context) {
 }
 
 // ===== REVENUE TRENDS =====
-
-// GetMonthlyRevenueTrend retrieves monthly revenue trends
 // GET /api/v1/admin/analytics/revenue-trends
 // Query params: months (default: 12)
 func (h *DashboardHandler) GetMonthlyRevenueTrend(c *gin.Context) {

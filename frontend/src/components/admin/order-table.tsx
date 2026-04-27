@@ -19,7 +19,7 @@ function getStatusBadgeColor(status: OrderStatus) {
   switch (status) {
     case 'pending':
       return 'bg-yellow-100 text-yellow-800';
-    case 'confirmed':
+    case 'payment_confirmed':
       return 'bg-blue-100 text-blue-800';
     case 'processing':
       return 'bg-purple-100 text-purple-800';
@@ -40,7 +40,7 @@ function getPaymentBadgeColor(status: PaymentStatus) {
   switch (status) {
     case 'paid':
       return 'bg-green-100 text-green-800';
-    case 'pending':
+    case 'unpaid':
       return 'bg-yellow-100 text-yellow-800';
     case 'failed':
       return 'bg-red-100 text-red-800';
@@ -56,7 +56,7 @@ function getPaymentBadgeColor(status: PaymentStatus) {
 function formatStatusLabel(status: OrderStatus): string {
   const labels: Record<OrderStatus, string> = {
     pending: 'Pending',
-    confirmed: 'Confirmed',
+    payment_confirmed: 'Confirmed',
     processing: 'Processing',
     shipped: 'Shipped',
     delivered: 'Delivered',
@@ -69,7 +69,7 @@ function formatStatusLabel(status: OrderStatus): string {
 function formatPaymentLabel(status: PaymentStatus): string {
   const labels: Record<PaymentStatus, string> = {
     paid: 'Paid',
-    pending: 'Pending',
+    unpaid: 'Unpaid',
     failed: 'Failed',
     refunded: 'Refunded',
     expired: 'Expired',
@@ -123,19 +123,19 @@ export function OrderTable({ orders, isLoading, onView, onEdit, onDelete }: Orde
                 <td className="px-6 py-4">
                   <div className="text-sm">
                     <p className="font-medium text-gray-900">
-                      {order.customer_name || 'N/A'}
+                      {order.shipping_name || 'N/A'}
                     </p>
-                    <p className="text-gray-500 text-xs">{order.customer_email || 'N/A'}</p>
+                    <p className="text-gray-500 text-xs">{order.shipping_phone || 'N/A'}</p>
                   </div>
                 </td>
                 <td className="px-6 py-4">
                   <p className="font-semibold text-gray-900">
-                    Rp {order.total_amount.toLocaleString('id-ID')}
+                    Rp {Number(order.total_amount || order.total || 0).toLocaleString('id-ID')}
                   </p>
                 </td>
                 <td className="px-6 py-4">
-                  <Badge className={getStatusBadgeColor(order.status)}>
-                    {formatStatusLabel(order.status)}
+                  <Badge className={getStatusBadgeColor(order.status || order.order_status)}>
+                    {formatStatusLabel(order.status || order.order_status)}
                   </Badge>
                 </td>
                 <td className="px-6 py-4">

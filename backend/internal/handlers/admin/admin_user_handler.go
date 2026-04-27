@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"ecommerce-backend/internal/repositories"
 	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
 	"fmt"
@@ -13,13 +14,15 @@ import (
 
 // AdminUserHandler handles admin user management HTTP requests
 type AdminUserHandler struct {
-	exportService *utils.ExportService
+	exportService   *utils.ExportService
+	userRepository  *repositories.UserRepository
 }
 
 // NewAdminUserHandler creates a new admin user handler
-func NewAdminUserHandler(exportService *utils.ExportService) *AdminUserHandler {
+func NewAdminUserHandler(exportService *utils.ExportService, userRepository *repositories.UserRepository) *AdminUserHandler {
 	return &AdminUserHandler{
-		exportService: exportService,
+		exportService:   exportService,
+		userRepository:  userRepository,
 	}
 }
 
@@ -76,19 +79,19 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 		}
 	}
 
-	pageSize := 20
-	if ps := c.Query("page_size"); ps != "" {
-		if parsed, err := strconv.Atoi(ps); err == nil && parsed > 0 && parsed <= 100 {
-			pageSize = parsed
+	limit := 20
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
 		}
 	}
 
 	// Parse filters
-	role := c.Query("role")    // admin, customer
-	status := c.Query("status") // active, inactive, unverified
-	search := c.Query("search") // search by name or email
-	sortBy := c.Query("sort_by")
-	sortOrder := c.Query("sort_order")
+	search := c.Query("search")      // search by name or email
+	role := c.Query("role")          // admin, customer
+	status := c.Query("status")      // active, inactive, unverified
+	sortBy := c.Query("sort_by")     // created_at, name, email, last_login_at
+	sortOrder := c.Query("sort_order") // asc, desc
 
 	if sortBy == "" {
 		sortBy = "created_at"
@@ -97,20 +100,69 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 		sortOrder = "desc"
 	}
 
-	// TODO: Implement actual filtering and pagination
-	// For now, return empty response structure
+	// Get users from repository
+	users, total, err := h.userRepository.GetUsersWithFilters(page, limit, search, role, status, sortBy, sortOrder)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "FETCH_USERS_FAILED", err.Error())
+		return
+	}
+
+	// Count total pages
+	totalPages := (int(total) + limit - 1) / limit
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	// Build response with AdminUser format (add extra fields)
+	adminUsers := make([]map[string]interface{}, len(users))
+	for i, user := range users {
+		// Count total orders for this user
+		var orderCount int64
+		h.userRepository.GetDB().Model(&struct{}{}).
+			Table("orders").
+			Where("user_id = ? AND deleted_at IS NULL", user.ID).
+			Count(&orderCount)
+
+		// Determine user status based on is_active and is_verified
+		userStatus := "active"
+		if !user.IsActive {
+			userStatus = "suspended"
+		} else if !user.IsVerified {
+			userStatus = "inactive"
+		}
+
+		adminUsers[i] = map[string]interface{}{
+			"id":              user.ID,
+			"email":           user.Email,
+			"name":            user.Name,
+			"phone":           user.Phone,
+			"avatar_url":      user.AvatarURL,
+			"role":            user.Role,
+			"is_verified":     user.IsVerified,
+			"is_active":       user.IsActive,
+			"status":          userStatus,
+			"last_login":      user.LastLoginAt,
+			"total_orders":    orderCount,
+			"total_spent":     0, // TODO: Calculate from orders
+			"created_at":      user.CreatedAt,
+			"updated_at":      user.UpdatedAt,
+		}
+	}
+
 	response.Success(c, gin.H{
-		"users":      []interface{}{},
-		"total":      0,
-		"page":       page,
-		"page_size":  pageSize,
-		"total_pages": 0,
+		"data": adminUsers,
+		"pagination": gin.H{
+			"total":       total,
+			"page":        page,
+			"limit":       limit,
+			"total_pages": totalPages,
+		},
 		"filters": gin.H{
-			"role":        role,
-			"status":      status,
-			"search":      search,
-			"sort_by":     sortBy,
-			"sort_order":  sortOrder,
+			"search":     search,
+			"role":       role,
+			"status":     status,
+			"sort_by":    sortBy,
+			"sort_order": sortOrder,
 		},
 	})
 }
@@ -127,3 +179,14 @@ func (h *AdminUserHandler) GetUser(c *gin.Context) {
 	})
 }
 
+// GetUserMetrics retrieves user statistics and metrics
+// GET /api/v1/admin/users/metrics
+func (h *AdminUserHandler) GetUserMetrics(c *gin.Context) {
+	metrics, err := h.userRepository.GetUserMetrics()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "METRICS_ERROR", err.Error())
+		return
+	}
+
+	response.Success(c, metrics)
+}

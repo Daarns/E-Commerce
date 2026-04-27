@@ -9,70 +9,79 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { OrderMetrics } from '@/services/admin';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 interface OrderStatusChartProps {
   orders: OrderMetrics;
 }
 
-const COLORS = {
-  pending: '#EAB308',
-  processing: '#3B82F6',
-  shipped: '#A855F7',
-  delivered: '#22C55E',
-  cancelled: '#EF4444',
-};
+const STATUS_CONFIG = [
+  { key: 'pending_orders',    label: 'Pending',    color: '#EAB308' },
+  { key: 'processing_orders', label: 'Diproses',   color: '#3B82F6' },
+  { key: 'shipped_orders',    label: 'Dikirim',    color: '#A855F7' },
+  { key: 'delivered_orders',  label: 'Terkirim',   color: '#22C55E' },
+  { key: 'cancelled_orders',  label: 'Dibatalkan', color: '#EF4444' },
+] as const;
+
+function CustomTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const { name, value } = payload[0];
+  return (
+    <div className="rounded-lg border border-border bg-background/95 backdrop-blur-sm shadow-lg p-3 text-sm">
+      <p className="font-medium">{name}</p>
+      <p className="text-muted-foreground">{Number(value).toLocaleString('id-ID')} pesanan</p>
+    </div>
+  );
+}
 
 export function OrderStatusChart({ orders }: OrderStatusChartProps) {
-  const data = [
-    { name: 'Pending', value: orders.pending_orders },
-    { name: 'Processing', value: orders.processing_orders },
-    { name: 'Shipped', value: orders.shipped_orders },
-    { name: 'Delivered', value: orders.delivered_orders },
-    { name: 'Cancelled', value: orders.cancelled_orders },
-  ].filter(item => item.value > 0);
+  const data = STATUS_CONFIG
+    .map(({ key, label, color }) => ({
+      name: label,
+      value: Number(orders[key as keyof OrderMetrics] ?? 0),
+      color,
+    }))
+    .filter((item) => item.value > 0);
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
-        <CardTitle>Order Status Distribution</CardTitle>
+        <CardTitle className="text-base">Distribusi Status Pesanan</CardTitle>
+        <CardDescription>Breakdown status semua pesanan</CardDescription>
       </CardHeader>
       <CardContent>
         {data.length > 0 ? (
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie
                 data={data}
                 cx="50%"
-                cy="50%"
-                innerRadius={60}
+                cy="46%"
+                innerRadius={58}
                 outerRadius={90}
-                paddingAngle={2}
+                paddingAngle={3}
                 dataKey="value"
+                strokeWidth={0}
               >
                 {data.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={
-                      COLORS[entry.name.toLowerCase() as keyof typeof COLORS] ||
-                      '#8884d8'
-                    }
-                  />
+                  <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--background)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                }}
+              <Tooltip content={<CustomTooltip />} />
+              <Legend
+                iconType="circle"
+                iconSize={8}
+                wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }}
+                formatter={(value) => (
+                  <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
+                )}
               />
-              <Legend />
             </PieChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex items-center justify-center h-64 text-muted-foreground">
-            No order data
+          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
+            <span className="text-4xl">🛒</span>
+            <p className="text-sm">Belum ada data pesanan</p>
           </div>
         )}
       </CardContent>

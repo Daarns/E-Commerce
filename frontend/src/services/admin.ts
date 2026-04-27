@@ -6,9 +6,11 @@ import { ApiResponse } from '@/types';
 export interface RevenueMetrics {
   total_revenue: number;
   average_order_value: number;
-  min_revenue: number;
-  max_revenue: number;
-  period_label: string;
+  highest_order: number;
+  lowest_order: number;
+  period: string;
+  currency: string;
+  timestamp: string;
 }
 
 export interface OrderMetrics {
@@ -18,34 +20,62 @@ export interface OrderMetrics {
   shipped_orders: number;
   delivered_orders: number;
   cancelled_orders: number;
+  average_order_value: number;
+  status_breakdown: Record<string, number>;
+  payment_methods: Record<string, number>;
   top_products: Array<{
     product_id: string;
     product_name: string;
-    quantity_sold: number;
-    revenue: number;
+    product_slug: string;
+    sales_count: number;
+    total_revenue: number;
+    average_price: number;
+    rank: number;
   }>;
+  timestamp: string;
 }
 
 export interface CustomerMetrics {
   total_customers: number;
+  active_customers: number;
   new_customers: number;
-  regular_customers: number;
-  vip_customers: number;
-  average_lifetime_value: number;
-  total_customer_lifetime_value: number;
+  return_customers: number;
+  average_order_count: number;
+  customer_lifetime_value: number;
+  customer_segments: Record<string, number>;
+  timestamp: string;
 }
 
 export interface DashboardSummary {
-  revenue: RevenueMetrics;
-  orders: OrderMetrics;
-  customers: CustomerMetrics;
+  overview: {
+    total_revenue: number;
+    total_orders: number;
+    total_customers: number;
+    pending_orders: number;
+    unfulfilled_orders: number;
+    avg_order_value: number;
+    active_customers: number;
+    low_stock_products: number;
+  };
+  revenue_metrics: RevenueMetrics;
+  order_analytics: OrderMetrics;
+  customer_analytics: CustomerMetrics;
+  recent_orders: AdminOrder[];  // Use full AdminOrder type for consistency
+  low_stock_products: Array<{
+    id: string;
+    name: string;
+    stock_quantity: number;
+  }>;
+  pending_orders: number;
+  unfulfilled_orders: number;
   timestamp: string;
 }
 
 export interface RevenueTrend {
-  date: string;
+  month: string;       // e.g. "2025-01" — matches backend MonthlyRevenueTrend
   revenue: number;
-  orders_count: number;
+  orders: number;
+  growth: number;      // % change from previous month
 }
 
 export interface ProductPerformance {
@@ -113,7 +143,7 @@ export interface AdminProduct {
   sku?: string;
   slug: string;
   is_active: boolean;
-  image_urls: string[];
+  image_urls?: string[];
   rating: number;
   review_count: number;
   meta_title?: string;
@@ -172,25 +202,22 @@ export interface OrderFilters {
 
 export interface AdminOrderMetrics {
   total_orders: number;
-  pending_count: number;
-  confirmed_count: number;
-  processing_count: number;
-  shipped_count: number;
-  delivered_count: number;
-  cancelled_count: number;
-  refunded_count: number;
+  pending_orders: number;
+  processing_orders: number;
+  shipped_orders: number;
+  delivered_orders: number;
+  cancelled_orders: number;
   total_revenue: number;
-  average_order_value: number;
 }
 
 // Admin API Service
 export const adminService = {
   // Dashboard
   getDashboardSummary: async () => {
-    const response = await api.get<AnalyticsResponse<DashboardSummary>>(
+    const response = await api.get<ApiResponse<DashboardSummary>>(
       '/admin/dashboard/summary'
     );
-    return response.data;
+    return response.data.data!;
   },
 
   // Analytics - Revenue
@@ -223,10 +250,10 @@ export const adminService = {
 
   // Analytics - Revenue Trends
   getRevenueTrends: async (months: number = 12) => {
-    const response = await api.get<AnalyticsResponse<RevenueTrend[]>>(
+    const response = await api.get<ApiResponse<{ trends: RevenueTrend[]; count: number }>>(
       `/admin/analytics/revenue-trends?months=${months}`
     );
-    return response.data;
+    return response.data.data?.trends ?? [];
   },
 
   // Analytics - Product Performance
@@ -396,7 +423,7 @@ export const adminService = {
   },
 
   getOrderMetrics: async () => {
-    const response = await api.get<ApiResponse<AdminOrderMetrics>>('/admin/orders/metrics');
+    const response = await api.get<ApiResponse<AdminOrderMetrics>>('/admin/orders/summary');
     return response.data.data!;
   },
 

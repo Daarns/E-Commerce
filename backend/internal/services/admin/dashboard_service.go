@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // DashboardService handles analytics and dashboard operations
@@ -167,8 +168,8 @@ func (s *DashboardService) getTopProducts(limit int) ([]models.TopProductMetric,
 			p.name,
 			p.slug,
 			COUNT(oi.id) as sales_count,
-			COALESCE(SUM(oi.price * oi.quantity), 0) as total_revenue,
-			COALESCE(AVG(oi.price), 0) as avg_price
+			COALESCE(SUM(oi.unit_price * oi.quantity), 0) as total_revenue,
+			COALESCE(AVG(oi.unit_price), 0) as avg_price
 		FROM products p
 		INNER JOIN order_items oi ON p.id = oi.product_id
 		INNER JOIN orders o ON oi.order_id = o.id
@@ -365,7 +366,7 @@ func (s *DashboardService) GetDashboardSummary() (*models.DashboardSummary, erro
 	// Get recent orders
 	query := `
 		SELECT 
-			o.id, o.order_number, o.user_id, o.total,
+			o.id, o.order_number, o.user_id, COALESCE(o.total, 0) as total,
 			o.order_status, o.payment_status, o.created_at,
 			COALESCE(u.name, 'Guest') as user_name
 		FROM orders o
@@ -389,6 +390,13 @@ func (s *DashboardService) GetDashboardSummary() (*models.DashboardSummary, erro
 			&order.OrderStatus, &order.PaymentStatus, &order.CreatedAt, &userName,
 		); err != nil {
 			return nil, err
+		}
+
+		// Convert total to decimal.Decimal
+		if total != nil {
+			if totalFloat, ok := total.(float64); ok {
+				order.Total = decimal.NewFromFloat(totalFloat)
+			}
 		}
 
 		summary.RecentOrders = append(summary.RecentOrders, order)
@@ -497,7 +505,7 @@ func (s *DashboardService) GetProductPerformance(limit int, offset int) ([]model
 			p.slug,
 			c.name as category_name,
 			COUNT(DISTINCT oi.order_id) as sales_count,
-			COALESCE(SUM(oi.price * oi.quantity), 0) as total_revenue,
+			COALESCE(SUM(oi.unit_price * oi.quantity), 0) as total_revenue,
 			COALESCE(AVG(pr.rating), 0) as avg_rating,
 			p.stock_quantity,
 			CASE 

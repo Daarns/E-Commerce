@@ -40,7 +40,7 @@ async function OrderDetailContent({ orderId }: { orderId: string }) {
               </div>
               <div className="text-right">
                 <Badge className="bg-blue-100 text-blue-800 mb-2">
-                  {order.status.toUpperCase()}
+                  {order.status ? order.status.toUpperCase() : order.order_status?.toUpperCase()}
                 </Badge>
                 <p className="text-sm text-gray-600">Status</p>
               </div>
@@ -72,12 +72,12 @@ async function OrderDetailContent({ orderId }: { orderId: string }) {
                           Qty: <span className="font-medium">{item.quantity}</span>
                         </p>
                         <p className="text-sm text-gray-500">
-                          Unit Price: Rp {item.unit_price.toLocaleString('id-ID')}
+                          Unit Price: Rp {(typeof item.unit_price === 'number' ? item.unit_price : parseFloat(String(item.unit_price))).toLocaleString('id-ID')}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-gray-900">
-                          Rp {item.total_price.toLocaleString('id-ID')}
+                          Rp {(typeof (item.total_price || item.subtotal) === 'number' ? (item.total_price || item.subtotal) : parseFloat(String(item.total_price || item.subtotal))).toLocaleString('id-ID')}
                         </p>
                       </div>
                     </div>
@@ -91,24 +91,24 @@ async function OrderDetailContent({ orderId }: { orderId: string }) {
                 <div className="space-y-3 text-sm">
                   <div>
                     <p className="text-gray-600">Recipient</p>
-                    <p className="font-medium">{order.shipping_address.recipient_name}</p>
+                    <p className="font-medium">{order.shipping_address?.recipient_name || order.shipping_name}</p>
                   </div>
                   <div>
                     <p className="text-gray-600">Phone</p>
-                    <p className="font-medium">{order.shipping_address.phone}</p>
+                    <p className="font-medium">{order.shipping_address?.phone || order.shipping_phone}</p>
                   </div>
                   <div>
                     <p className="text-gray-600">Address</p>
-                    <p className="font-medium">{order.shipping_address.street_address}</p>
+                    <p className="font-medium">{order.shipping_address?.street_address || order.shipping_address_line1}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-gray-600">City</p>
-                      <p className="font-medium">{order.shipping_address.city}</p>
+                      <p className="font-medium">{order.shipping_address?.city || order.shipping_city}</p>
                     </div>
                     <div>
                       <p className="text-gray-600">Province</p>
-                      <p className="font-medium">{order.shipping_address.province}</p>
+                      <p className="font-medium">{order.shipping_address?.province || order.shipping_province}</p>
                     </div>
                   </div>
                   {order.tracking_number && (
@@ -152,27 +152,27 @@ async function OrderDetailContent({ orderId }: { orderId: string }) {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal</span>
-                    <span>Rp {order.subtotal.toLocaleString('id-ID')}</span>
+                    <span>Rp {(typeof order.subtotal === 'number' ? order.subtotal : parseFloat(String(order.subtotal))).toLocaleString('id-ID')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Shipping</span>
-                    <span>Rp {order.shipping_cost.toLocaleString('id-ID')}</span>
+                    <span>Rp {(typeof order.shipping_cost === 'number' ? order.shipping_cost : parseFloat(String(order.shipping_cost))).toLocaleString('id-ID')}</span>
                   </div>
-                  {order.discount_amount > 0 && (
+                  {(typeof order.discount_amount === 'number' ? order.discount_amount : parseFloat(String(order.discount_amount)) || 0) > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Discount</span>
-                      <span>-Rp {order.discount_amount.toLocaleString('id-ID')}</span>
+                      <span>-Rp {(typeof order.discount_amount === 'number' ? order.discount_amount : parseFloat(String(order.discount_amount))).toLocaleString('id-ID')}</span>
                     </div>
                   )}
-                  {order.tax_amount > 0 && (
+                  {(typeof order.tax_amount === 'number' ? order.tax_amount : parseFloat(String(order.tax_amount)) || 0) > 0 && (
                     <div className="flex justify-between">
                       <span className="text-gray-600">Tax</span>
-                      <span>Rp {order.tax_amount.toLocaleString('id-ID')}</span>
+                      <span>Rp {(typeof order.tax_amount === 'number' ? order.tax_amount : parseFloat(String(order.tax_amount))).toLocaleString('id-ID')}</span>
                     </div>
                   )}
                   <div className="border-t pt-2 flex justify-between font-semibold">
                     <span>Total</span>
-                    <span>Rp {order.total_amount.toLocaleString('id-ID')}</span>
+                    <span>Rp {(typeof order.total_amount === 'number' ? order.total_amount : parseFloat(String(order.total_amount || order.total))).toLocaleString('id-ID')}</span>
                   </div>
                 </div>
               </Card>
