@@ -1,8 +1,8 @@
-package features
+package handlers
 
 import (
 	"ecommerce-backend/internal/models"
-	"ecommerce-backend/internal/services/features"
+	"ecommerce-backend/internal/services/chat"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 	"strconv"
@@ -13,11 +13,11 @@ import (
 
 // ChatHandler handles chat HTTP requests
 type ChatHandler struct {
-	chatService *features.ChatService
+	chatService *chat.ChatService
 }
 
 // NewChatHandler creates a new chat handler
-func NewChatHandler(chatService *features.ChatService) *ChatHandler {
+func NewChatHandler(chatService *chat.ChatService) *ChatHandler {
 	return &ChatHandler{
 		chatService: chatService,
 	}

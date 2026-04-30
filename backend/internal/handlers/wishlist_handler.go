@@ -1,7 +1,7 @@
-package product
+package handlers
 
 import (
-	"ecommerce-backend/internal/services/features"
+	"ecommerce-backend/internal/services/wishlist"
 	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
 	"net/http"
@@ -13,11 +13,11 @@ import (
 
 // WishlistHandler handles wishlist HTTP requests
 type WishlistHandler struct {
-	wishlistService *features.WishlistService
+	wishlistService *wishlist.WishlistService
 }
 
 // NewWishlistHandler creates a new wishlist handler
-func NewWishlistHandler(wishlistService *features.WishlistService) *WishlistHandler {
+func NewWishlistHandler(wishlistService *wishlist.WishlistService) *WishlistHandler {
 	return &WishlistHandler{
 		wishlistService: wishlistService,
 	}

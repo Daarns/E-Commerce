@@ -1,4 +1,4 @@
-package features
+package wishlist
 
 import (
 	"context"

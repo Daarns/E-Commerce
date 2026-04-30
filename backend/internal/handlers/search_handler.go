@@ -1,7 +1,7 @@
-package features
+package handlers
 
 import (
-	"ecommerce-backend/internal/services/features"
+	"ecommerce-backend/internal/services/search"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 	"strconv"
@@ -13,11 +13,11 @@ import (
 
 // SearchHandler handles search HTTP requests
 type SearchHandler struct {
-	searchService *features.SearchService
+	searchService *search.SearchService
 }
 
 // NewSearchHandler creates a new search handler
-func NewSearchHandler(searchService *features.SearchService) *SearchHandler {
+func NewSearchHandler(searchService *search.SearchService) *SearchHandler {
 	return &SearchHandler{
 		searchService: searchService,
 	}
@@ -218,31 +218,7 @@ func (h *SearchHandler) RecordProductClick(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Click recorded successfully"})
 }
 
-// GetSearchMetrics returns search analytics metrics (admin only)
-// GET /api/v1/admin/search/metrics
-func (h *SearchHandler) GetSearchMetrics(c *gin.Context) {
-	// Verify admin role
-	role := c.GetString("user_role")
-	if role != "admin" {
-		response.Error(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
-		return
-	}
 
-	period := c.DefaultQuery("period", "week")
-	switch period {
-	case "today", "week", "month":
-	default:
-		period = "week"
-	}
-
-	metrics, err := h.searchService.GetSearchMetrics(period)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "METRICS_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, metrics)
-}
 
 // GetUserSearchHistory returns user's previous searches
 // GET /api/v1/account/search-history

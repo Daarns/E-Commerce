@@ -1,4 +1,4 @@
-package admin
+package user
 
 import (
 	"ecommerce-backend/internal/repositories"

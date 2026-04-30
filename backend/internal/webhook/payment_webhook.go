@@ -1,4 +1,4 @@
-package features
+package webhook
 
 import (
 	"ecommerce-backend/internal/services/payment"

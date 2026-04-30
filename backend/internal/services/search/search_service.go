@@ -1,4 +1,4 @@
-package features
+package search
 
 import (
 	"ecommerce-backend/internal/models"

@@ -1,4 +1,4 @@
-package features
+package newsletter
 
 import (
 	"ecommerce-backend/internal/models"

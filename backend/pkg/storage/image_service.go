@@ -1,4 +1,4 @@
-package features
+package storage
 
 import (
 	"bytes"

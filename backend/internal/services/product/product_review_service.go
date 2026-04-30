@@ -1,4 +1,4 @@
-package features
+package product
 
 import (
 	"ecommerce-backend/internal/models"

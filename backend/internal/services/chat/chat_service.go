@@ -1,4 +1,4 @@
-package features
+package chat
 
 import (
 	"ecommerce-backend/internal/models"
