@@ -212,6 +212,9 @@ func main() {
 	adminCategoryH := adminProductHandler.NewAdminCategoryHandler(categorySvc)
 	adminOrderH := adminHandler.NewAdminOrderHandler(orderSvc)
 	adminSearchH := adminHandler.NewAdminSearchHandler(searchSvc)
+	adminPromoRepo := repositories.NewPromoRepository(db)
+	promoSvc := utils.NewPromoService(adminPromoRepo)
+	adminPromoH := adminHandler.NewAdminPromoHandler(promoSvc)
 
 	// Initialize Gin router
 	if os.Getenv("APP_ENV") == "production" {
@@ -248,6 +251,7 @@ func main() {
 		AdminUserH:     adminUserH,
 		AdminActivityH: adminActivityH,
 		AddressH:       addressH,
+		AdminPromoH:    adminPromoH,
 	})
 
 	// Start server

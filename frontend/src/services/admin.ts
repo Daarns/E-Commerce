@@ -79,15 +79,17 @@ export interface RevenueTrend {
 }
 
 export interface ProductPerformance {
-  id: string;
-  name: string;
-  sku: string;
-  quantity_sold: number;
-  revenue: number;
+  product_id: string;
+  product_name: string;
+  product_slug: string;
+  category_name: string;
+  total_sales: number;
+  total_revenue: number;
   average_rating: number;
-  review_count: number;
-  stock_quantity: number;
-  status: 'in_stock' | 'low_stock' | 'out_of_stock';
+  current_stock: number;
+  stock_status: 'in_stock' | 'low_stock' | 'out_of_stock';
+  rank: number;
+  last_sold_date?: string;
 }
 
 export interface UserActivity {
@@ -107,27 +109,54 @@ export interface AnalyticsResponse<T> {
   timestamp: string;
 }
 
-// Product Management Types
+// Mirrors backend CreateProductInput (services/product/product_service.go)
 export interface CreateProductRequest {
-  name: string;
-  description: string;
-  category_id: string;
-  subcategory_id?: string;
-  price: number;
+  name: string;                  // required, min=2
+  description?: string;
+  short_description?: string;
+  regular_price: number;         // required (maps to regular_price in backend)
   sale_price?: number;
-  discount_percentage?: number;
-  stock_quantity: number;
+  stock_quantity: number;        // required, min=0
+  category_id?: string;          // *string in backend — optional
+  brand?: string;
   sku?: string;
-  slug?: string;
-  is_active?: boolean;
+  status?: 'active' | 'draft' | 'archived';
+  meta_title?: string;
+  meta_description?: string;
+  canonical_url?: string;
+  og_image?: string;
+  // image_urls: sent AFTER create via /admin/products/:id/images
+  image_urls?: string[];
+}
+
+// Mirrors backend UpdateProductInput (all fields are pointers = optional)
+export interface UpdateProductRequest {
+  id: string;
+  version: number;               // required for optimistic locking
+  name?: string;
+  description?: string;
+  short_description?: string;
+  regular_price?: number;
+  sale_price?: number;
+  stock_quantity?: number;
+  category_id?: string;
+  brand?: string;
+  status?: 'active' | 'draft' | 'archived';
   meta_title?: string;
   meta_description?: string;
   canonical_url?: string;
   og_image?: string;
 }
 
-export interface UpdateProductRequest extends Partial<CreateProductRequest> {
-  id: string;
+// Input for creating a variant (after product is created)
+export interface CreateVariantInput {
+  variant_type: string;          // e.g. "size", "color"
+  variant_value: string;         // e.g. "M", "Red"
+  price_adjustment?: number;     // added to regular_price
+  stock_quantity: number;
+  sku_suffix?: string;
+  image_url?: string;
+  is_active?: boolean;
 }
 
 // AdminProduct mirrors the backend models.Product JSON shape returned by
@@ -136,8 +165,10 @@ export interface AdminProduct {
   id: string;
   name: string;
   description: string;
+  short_description?: string;
   slug: string;
   sku?: string;
+  brand?: string;
   // Go decimal.Decimal is serialized to JSON as string (e.g. "150000.00")
   regular_price: string | number;
   sale_price?: string | number;
@@ -145,17 +176,17 @@ export interface AdminProduct {
   stock_quantity: number;
   status: string;   // "active" | "draft" | "archived"
   is_featured: boolean;
-  brand?: string;
+  version?: number;  // optimistic locking version
   // Nested category relation from GORM Preload
   category_id?: string;
   category?: { id: string; name: string; slug: string };
   // Alias helpers for backward-compat with product-table
-  category_name?: string;   // populated manually in getProducts mapper
+  category_name?: string;
   subcategory_id?: string;
   subcategory_name?: string;
   // Images from images relation
   images?: Array<{ id: string; url: string; is_primary: boolean; display_order: number }>;
-  image_urls?: string[];    // derived in getProducts mapper
+  image_urls?: string[];
   // Pricing alias used by product-table (mapped from regular_price)
   price: string | number;
   // Ratings
@@ -166,7 +197,7 @@ export interface AdminProduct {
   meta_description?: string;
   canonical_url?: string;
   og_image?: string;
-  is_active: boolean;       // derived from status === 'active'
+  is_active: boolean;
   created_at: string;
   updated_at?: string;
 }
@@ -374,26 +405,37 @@ export const adminService = {
   },
 
   createProduct: async (data: CreateProductRequest) => {
-    const response = await api.post<AnalyticsResponse<AdminProduct>>(
+    // Strip image_urls from payload — images are attached separately after creation
+    const { image_urls, ...payload } = data;
+    void image_urls; // intentionally unused in this call
+    const response = await api.post<ApiResponse<AdminProduct>>(
       '/admin/products',
-      data
+      payload
     );
-    return response.data;
+    return response.data.data!;
   },
 
   updateProduct: async (id: string, data: UpdateProductRequest) => {
-    const response = await api.put<AnalyticsResponse<AdminProduct>>(
+    const { id: _id, ...payload } = data;
+    void _id;
+    const response = await api.put<ApiResponse<AdminProduct>>(
       `/admin/products/${id}`,
-      data
+      payload
     );
-    return response.data;
+    return response.data.data!;
   },
 
   deleteProduct: async (id: string) => {
-    const response = await api.delete<{ success: boolean }>(
-      `/admin/products/${id}`
+    await api.delete(`/admin/products/${id}`);
+  },
+
+  /** POST /api/v1/admin/products/:id/variants — add a variant after product is created */
+  addProductVariant: async (productId: string, data: CreateVariantInput) => {
+    const response = await api.post<ApiResponse<unknown>>(
+      `/admin/products/${productId}/variants`,
+      data
     );
-    return response.data;
+    return response.data.data;
   },
 
   uploadProductImage: async (file: File) => {
@@ -549,6 +591,125 @@ export const adminService = {
     return response.data.data!;
   },
 };
+
+// ─── Promo Code Types ─────────────────────────────────────────────────────────
+
+export interface PromoCode {
+  id: string;
+  code: string;
+  description?: string;
+  discount_type: 'percentage' | 'fixed';
+  /** decimal.Decimal serialized as string by Go */
+  discount_value: string | number;
+  min_order_amount: string | number;
+  max_discount_amount?: string | number;
+  usage_limit?: number;
+  usage_count: number;
+  usage_limit_per_user: number;
+  valid_from: string;
+  valid_to: string;
+  is_active: boolean;
+  applicable_products?: string[];
+  applicable_categories?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PromoListResult {
+  promo_codes: PromoCode[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface PromoListFilters {
+  code?: string;
+  is_active?: string; // "true" | "false" | ""
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+  page?: number;
+  page_size?: number;
+}
+
+export interface CreatePromoInput {
+  code: string;
+  description?: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  min_order_amount?: number;
+  max_discount_amount?: number;
+  usage_limit?: number;
+  usage_limit_per_user?: number;
+  valid_from: string; // ISO 8601 e.g. "2025-01-01T00:00:00Z"
+  valid_to: string;
+  is_active?: boolean;
+  applicable_products?: string[];
+  applicable_categories?: string[];
+}
+
+export interface UpdatePromoInput {
+  description?: string;
+  discount_value?: number;
+  max_discount_amount?: number;
+  min_order_amount?: number;
+  usage_limit?: number;
+  usage_limit_per_user?: number;
+  valid_to?: string;
+  is_active?: boolean;
+  applicable_products?: string[];
+  applicable_categories?: string[];
+}
+
+// ─── Promo Service ────────────────────────────────────────────────────────────
+
+export const promoAdminService = {
+  /** GET /api/v1/admin/promos — list with filters & pagination */
+  list: async (filters: PromoListFilters = {}): Promise<PromoListResult> => {
+    const q = new URLSearchParams();
+    if (filters.code)       q.set('code', filters.code);
+    if (filters.is_active !== undefined && filters.is_active !== '')
+                            q.set('is_active', filters.is_active);
+    if (filters.sort_by)    q.set('sort_by', filters.sort_by);
+    if (filters.sort_order) q.set('sort_order', filters.sort_order);
+    q.set('page',      String(filters.page      ?? 1));
+    q.set('page_size', String(filters.page_size ?? 20));
+
+    const res = await api.get<ApiResponse<PromoListResult>>(
+      `/admin/promos?${q.toString()}`
+    );
+    return res.data.data!;
+  },
+
+  /** GET /api/v1/admin/promos/:id — single promo */
+  get: async (id: string): Promise<PromoCode> => {
+    const res = await api.get<ApiResponse<PromoCode>>(`/admin/promos/${id}`);
+    return res.data.data!;
+  },
+
+  /** POST /api/v1/admin/promos — create promo */
+  create: async (data: CreatePromoInput): Promise<PromoCode> => {
+    const res = await api.post<ApiResponse<PromoCode>>('/admin/promos', data);
+    return res.data.data!;
+  },
+
+  /** PUT /api/v1/admin/promos/:id — full or partial update */
+  update: async (id: string, data: UpdatePromoInput): Promise<PromoCode> => {
+    const res = await api.put<ApiResponse<PromoCode>>(`/admin/promos/${id}`, data);
+    return res.data.data!;
+  },
+
+  /** DELETE /api/v1/admin/promos/:id — delete promo */
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/admin/promos/${id}`);
+  },
+
+  /** Convenience: toggle is_active */
+  toggleActive: async (id: string, currentState: boolean): Promise<PromoCode> => {
+    return promoAdminService.update(id, { is_active: !currentState });
+  },
+};
+
 
 // User Management Types
 export interface AdminUser extends User {

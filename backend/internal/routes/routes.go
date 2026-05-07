@@ -46,6 +46,7 @@ type Config struct {
 	AdminUserH     *adminUserHandler.AdminUserHandler
 	AdminActivityH *adminUserHandler.AdminActivityHandler
 	AddressH       *cartHandler.AddressHandler
+	AdminPromoH    *adminHandler.AdminPromoHandler
 }
 
 func Setup(c Config) {
@@ -300,6 +301,18 @@ func Setup(c Config) {
 			adminSearchRoutes := admin.Group("/search")
 			{
 				adminSearchRoutes.GET("/metrics", c.AdminSearchH.GetSearchMetrics)
+			}
+
+			// Admin Promo Code routes
+			if c.AdminPromoH != nil {
+				adminPromos := admin.Group("/promos")
+				{
+					adminPromos.GET("", c.AdminPromoH.ListPromoCodes)
+					adminPromos.POST("", c.AdminPromoH.CreatePromoCode)
+					adminPromos.GET("/:id", c.AdminPromoH.GetPromoCode)
+					adminPromos.PUT("/:id", c.AdminPromoH.UpdatePromoCode)
+					adminPromos.DELETE("/:id", c.AdminPromoH.DeletePromoCode)
+				}
 			}
 		}
 	}

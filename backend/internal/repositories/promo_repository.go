@@ -30,11 +30,11 @@ type PromoFilter struct {
 
 // PromoListResult represents paginated promo code results
 type PromoListResult struct {
-	Promos    []models.PromoCode `json:"promos"`
-	Total     int64              `json:"total"`
-	Page      int                `json:"page"`
-	PageSize  int                `json:"page_size"`
-	TotalPage int                `json:"total_page"`
+	Promos      []models.PromoCode `json:"promo_codes"`
+	Total       int64              `json:"total"`
+	Page        int                `json:"page"`
+	PageSize    int                `json:"page_size"`
+	TotalPage   int                `json:"total_pages"`
 }
 
 // Create creates a new promo code

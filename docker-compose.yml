@@ -60,12 +60,50 @@ services:
     networks:
       - ecommerce-network
 
+  # ─────────────────────────────────────────────────
+  # SeaweedFS — S3-compatible object storage
+  # UI  : http://localhost:9333
+  # S3  : http://localhost:8333
+  # ─────────────────────────────────────────────────
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: ecommerce-seaweedfs
+    restart: unless-stopped
+    # "server" mode runs master + volume + filer + S3 gateway in one container
+    # -s3.config mounts the credential file defined below
+    command: >
+      server
+      -dir=/data
+      -s3
+      -s3.port=8333
+      -s3.config=/etc/seaweedfs/s3.json
+      -filer
+      -filer.allowOtherDomains=true
+      -master.volumeSizeLimitMB=256
+      -ip.bind=0.0.0.0
+    ports:
+      - "9333:9333"   # Master / Web UI
+      - "8333:8333"   # S3-compatible API  ← Go backend talks here
+      - "8888:8888"   # Filer
+    volumes:
+      - seaweedfs_data:/data
+      - ./docker/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9333/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
     driver: local
   pgadmin_data:
+    driver: local
+  seaweedfs_data:   # gambar tersimpan di sini — tidak akan hilang saat container restart
     driver: local
 
 networks:

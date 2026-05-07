@@ -9,24 +9,28 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"log"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"cloud.google.com/go/storage"
 	webpEncoder "github.com/chai2010/webp"
 	"github.com/google/uuid"
-	"google.golang.org/api/option"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // ImageService handles image operations including optimization and uploads.
 type ImageService struct {
-	bucketName     string
-	projectID      string
-	credentialFile string   // path to service-account JSON key
-	useGCS         bool
+	endpoint        string // SeaweedFS S3 endpoint, e.g. "seaweedfs:8333"
+	accessKeyID     string
+	secretAccessKey string
+	bucketName      string
+	publicBaseURL   string // public-facing URL base, e.g. "http://localhost:8333"
+	useSeaweedFS    bool
 }
 
 // ImageUploadResult represents the result of an image upload.
@@ -38,22 +42,30 @@ type ImageUploadResult struct {
 	DisplayOrder int       `json:"display_order"`
 }
 
-// NewImageService creates an ImageService.
-// bucketName and projectID come from environment variables.
-// credentialFile is the path to a GCS service-account JSON key.
-// If credentialFile is empty or missing, falls back to local storage.
-func NewImageService(bucketName, projectID, credentialFile string) *ImageService {
-	useGCS := bucketName != "" && projectID != "" && credentialFile != ""
-	if useGCS {
-		if _, err := os.Stat(credentialFile); os.IsNotExist(err) {
-			useGCS = false
-		}
-	}
+// NewImageService creates an ImageService backed by SeaweedFS (S3-compatible).
+//
+// Reads from env vars:
+//
+//	SEAWEEDFS_ENDPOINT      — internal Docker endpoint, e.g. "seaweedfs:8333"
+//	SEAWEEDFS_ACCESS_KEY    — access key defined in s3.json
+//	SEAWEEDFS_SECRET_KEY    — secret key defined in s3.json
+//	SEAWEEDFS_BUCKET        — bucket name, e.g. "product-images"
+//	SEAWEEDFS_PUBLIC_URL    — public base URL, e.g. "http://localhost:8333"
+//
+// Falls back to local disk storage if any required var is missing.
+func NewImageService(endpoint, accessKey, secretKey string) *ImageService {
+	bucket := os.Getenv("SEAWEEDFS_BUCKET")
+	publicURL := os.Getenv("SEAWEEDFS_PUBLIC_URL")
+
+	useSeaweedFS := endpoint != "" && accessKey != "" && secretKey != "" && bucket != ""
+
 	return &ImageService{
-		bucketName:     bucketName,
-		projectID:      projectID,
-		credentialFile: credentialFile,
-		useGCS:         useGCS,
+		endpoint:        endpoint,
+		accessKeyID:     accessKey,
+		secretAccessKey: secretKey,
+		bucketName:      bucket,
+		publicBaseURL:   publicURL,
+		useSeaweedFS:    useSeaweedFS,
 	}
 }
 
@@ -102,7 +114,6 @@ func (s *ImageService) validateSingleFile(file *multipart.FileHeader, index int)
 	defer f.Close()
 
 	// Do not limit to 512 bytes because JPEGs from iPhones have huge EXIF headers (> 64KB)
-	// which will cause DecodeConfig to fail if truncated.
 	_, format, err := image.DecodeConfig(f)
 	if err != nil {
 		return fmt.Errorf("image[%d]: invalid image data", index)
@@ -154,7 +165,6 @@ func (s *ImageService) ConvertToWebP(file *multipart.FileHeader, quality float32
 // SaveImageToStorage converts the image to WebP and saves it.
 // Returns the public URL of the saved image.
 func (s *ImageService) SaveImageToStorage(file *multipart.FileHeader) (string, error) {
-	// Convert to WebP first (quality 85 is a good balance)
 	webpData, err := s.ConvertToWebP(file, 85)
 	if err != nil {
 		return "", fmt.Errorf("image conversion failed: %w", err)
@@ -164,45 +174,99 @@ func (s *ImageService) SaveImageToStorage(file *multipart.FileHeader) (string, e
 	timestamp := time.Now().Unix()
 	base := s.SanitizeFilename(strings.TrimSuffix(file.Filename, filepath.Ext(file.Filename)))
 	uniqueName := fmt.Sprintf("%d_%s_%s.webp", timestamp, uuid.New().String()[:8], base)
+	objectPath := "products/" + uniqueName
 
-	if s.useGCS {
-		return s.uploadToGCS(webpData, "products/"+uniqueName)
+	if s.useSeaweedFS {
+		return s.uploadToSeaweedFS(webpData, objectPath)
 	}
 	return s.saveLocally(webpData, uniqueName)
 }
 
-// uploadToGCS uploads data to Google Cloud Storage and returns the public URL.
-func (s *ImageService) uploadToGCS(data []byte, objectPath string) (string, error) {
-	ctx := context.Background()
+// uploadToSeaweedFS uploads data to SeaweedFS via S3-compatible API.
+// Returns the public URL of the uploaded object.
+func (s *ImageService) uploadToSeaweedFS(data []byte, objectPath string) (string, error) {
+    client, err := minio.New(s.endpoint, &minio.Options{
+        Creds:  credentials.NewStaticV4(s.accessKeyID, s.secretAccessKey, ""),
+        Secure: false,
+    })
+    if err != nil {
+        return "", fmt.Errorf("SeaweedFS client error: %w", err)
+    }
 
-	client, err := storage.NewClient(ctx, option.WithCredentialsFile(s.credentialFile))
+    ctx := context.Background()
+
+    // Buat bucket jika belum ada
+    exists, err := client.BucketExists(ctx, s.bucketName)
+    if err != nil {
+        return "", fmt.Errorf("bucket check error: %w", err)
+    }
+    if !exists {
+        if err := client.MakeBucket(ctx, s.bucketName, minio.MakeBucketOptions{}); err != nil {
+            return "", fmt.Errorf("failed to create bucket: %w", err)
+        }
+    }
+
+    // Selalu set public policy setiap kali — idempotent, aman dipanggil berulang
+    policy := fmt.Sprintf(`{
+    "Version":"2012-10-17",
+    "Statement":[{
+        "Effect":"Allow",
+        "Principal":"*",
+        "Action":"s3:GetObject",
+        "Resource":"arn:aws:s3:::%s/*"
+    }]
+}`, s.bucketName)
+
+    if err := client.SetBucketPolicy(ctx, s.bucketName, policy); err != nil {
+        log.Printf("warning: failed to set bucket policy: %v\n", err)
+    }
+
+    // Upload file
+    _, err = client.PutObject(ctx, s.bucketName, objectPath, bytes.NewReader(data), int64(len(data)),
+        minio.PutObjectOptions{
+            ContentType:  "image/webp",
+            CacheControl: "public, max-age=31536000",
+        },
+    )
+    if err != nil {
+        return "", fmt.Errorf("SeaweedFS upload error: %w", err)
+    }
+
+    return fmt.Sprintf("%s/%s/%s", strings.TrimRight(s.publicBaseURL, "/"), s.bucketName, objectPath), nil
+}
+// DeleteFromSeaweedFS removes an object from SeaweedFS given its full public URL.
+// Safe to call even if the URL points to local storage (no-op in that case).
+func (s *ImageService) DeleteFromSeaweedFS(publicURL string) error {
+	if !s.useSeaweedFS {
+		return nil
+	}
+
+	// Strip base URL prefix to get "<bucket>/<objectPath>"
+	prefix := strings.TrimRight(s.publicBaseURL, "/") + "/"
+	if !strings.HasPrefix(publicURL, prefix) {
+		return nil // not a SeaweedFS URL — skip
+	}
+
+	rest := strings.TrimPrefix(publicURL, prefix)
+	// rest = "<bucket>/<objectPath>"
+	parts := strings.SplitN(rest, "/", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("unexpected URL format: %s", publicURL)
+	}
+	bucket, objectPath := parts[0], parts[1]
+
+	client, err := minio.New(s.endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(s.accessKeyID, s.secretAccessKey, ""),
+		Secure: false,
+	})
 	if err != nil {
-		return "", fmt.Errorf("GCS client error: %w", err)
-	}
-	defer client.Close()
-
-	obj := client.Bucket(s.bucketName).Object(objectPath)
-	wc := obj.NewWriter(ctx)
-	wc.ContentType = "image/webp"
-	wc.CacheControl = "public, max-age=31536000" // 1 year CDN cache
-
-	if _, err := wc.Write(data); err != nil {
-		return "", fmt.Errorf("GCS write error: %w", err)
-	}
-	if err := wc.Close(); err != nil {
-		return "", fmt.Errorf("GCS close error: %w", err)
+		return fmt.Errorf("SeaweedFS client error: %w", err)
 	}
 
-	// Make object publicly readable
-	if err := obj.ACL().Set(ctx, storage.AllUsers, storage.RoleReader); err != nil {
-		// Non-fatal: object is uploaded, ACL may already be set at bucket level
-		fmt.Printf("warning: failed to set GCS public ACL: %v\n", err)
-	}
-
-	return fmt.Sprintf("https://storage.googleapis.com/%s/%s", s.bucketName, objectPath), nil
+	return client.RemoveObject(context.Background(), bucket, objectPath, minio.RemoveObjectOptions{})
 }
 
-// saveLocally saves data to disk and returns a URL path.
+// saveLocally saves data to disk and returns a URL path (fallback).
 func (s *ImageService) saveLocally(data []byte, filename string) (string, error) {
 	uploadDir := filepath.Join("uploads", "products")
 	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
@@ -213,6 +277,24 @@ func (s *ImageService) saveLocally(data []byte, filename string) (string, error)
 		return "", fmt.Errorf("failed to write file: %w", err)
 	}
 	return "/" + strings.ReplaceAll(fullPath, "\\", "/"), nil
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Health Check
+// ─────────────────────────────────────────────────────────────────────────────
+
+// HealthCheck verifies connectivity to SeaweedFS S3 endpoint.
+func (s *ImageService) HealthCheck() error {
+	if !s.useSeaweedFS {
+		return nil
+	}
+	url := fmt.Sprintf("http://%s/", s.endpoint)
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("SeaweedFS unreachable at %s: %w", s.endpoint, err)
+	}
+	defer resp.Body.Close()
+	return nil
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

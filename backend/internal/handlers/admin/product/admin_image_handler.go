@@ -15,7 +15,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// UploadProductImage handles single or multiple image uploads attached to a product
+// newImageSvc is a helper that builds an ImageService from environment variables.
+// Replaces the old 3-param GCS constructor with the new SeaweedFS one.
+func newImageSvc() *storage.ImageService {
+	return storage.NewImageService(
+		os.Getenv("SEAWEEDFS_ENDPOINT"),    // e.g. "seaweedfs:8333"
+		os.Getenv("SEAWEEDFS_ACCESS_KEY"),  // e.g. "your-access-key"
+		os.Getenv("SEAWEEDFS_SECRET_KEY"),  // e.g. "your-secret-key"
+	)
+}
+
+// UploadProductImage handles single or multiple image uploads attached to a product.
 // POST /api/v1/admin/products/:id/images
 func (h *AdminProductHandler) UploadProductImage(c *gin.Context) {
 	productID, err := uuid.Parse(c.Param("id"))
@@ -46,12 +56,7 @@ func (h *AdminProductHandler) UploadProductImage(c *gin.Context) {
 		files = []*multipart.FileHeader{file}
 	}
 
-	// Build ImageService — reads GCS config from env, falls back to local storage
-	imageSvc := storage.NewImageService(
-		os.Getenv("GCS_BUCKET_NAME"),
-		os.Getenv("GCS_PROJECT_ID"),
-		os.Getenv("GCS_CREDENTIAL_FILE"),
-	)
+	imageSvc := newImageSvc()
 
 	if validationErrs := imageSvc.ValidateImageFiles(files); len(validationErrs) > 0 {
 		var parts []string
@@ -79,7 +84,7 @@ func (h *AdminProductHandler) UploadProductImage(c *gin.Context) {
 			}
 		}
 
-		// ConvertToWebP + upload (GCS or local)
+		// ConvertToWebP + upload to SeaweedFS (or local fallback)
 		imageURL, err := imageSvc.SaveImageToStorage(file)
 		if err != nil {
 			response.Error(c, http.StatusInternalServerError, "SAVE_FAILED",
@@ -104,12 +109,10 @@ func (h *AdminProductHandler) UploadProductImage(c *gin.Context) {
 }
 
 // UploadImageOnly handles a single image upload without attaching it to a product.
-// This is useful for WYSIWYG editors or standalone image uploads (like product creation before saving).
 // POST /api/v1/admin/products/upload-image
 func (h *AdminProductHandler) UploadImageOnly(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
-		// Fallback check for "image" field
 		file, err = c.FormFile("image")
 		if err != nil {
 			response.Error(c, http.StatusBadRequest, "NO_FILES", "Image file is required")
@@ -117,11 +120,7 @@ func (h *AdminProductHandler) UploadImageOnly(c *gin.Context) {
 		}
 	}
 
-	imageSvc := storage.NewImageService(
-		os.Getenv("GCS_BUCKET_NAME"),
-		os.Getenv("GCS_PROJECT_ID"),
-		os.Getenv("GCS_CREDENTIAL_FILE"),
-	)
+	imageSvc := newImageSvc()
 
 	files := []*multipart.FileHeader{file}
 	if validationErrs := imageSvc.ValidateImageFiles(files); len(validationErrs) > 0 {
@@ -144,7 +143,7 @@ func (h *AdminProductHandler) UploadImageOnly(c *gin.Context) {
 	})
 }
 
-// DeleteProductImage removes a product image
+// DeleteProductImage removes a product image.
 // DELETE /api/v1/admin/products/images/:imageId
 func (h *AdminProductHandler) DeleteProductImage(c *gin.Context) {
 	imageID, err := uuid.Parse(c.Param("imageId"))
@@ -161,7 +160,7 @@ func (h *AdminProductHandler) DeleteProductImage(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Image deleted successfully"})
 }
 
-// ReorderProductImages reorders product images
+// ReorderProductImages reorders product images.
 // PUT /api/v1/admin/products/:id/images/reorder
 func (h *AdminProductHandler) ReorderProductImages(c *gin.Context) {
 	productID, err := uuid.Parse(c.Param("id"))

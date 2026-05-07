@@ -21,8 +21,9 @@ type PromoRepository interface {
 	Delete(id uuid.UUID) error
 	IncrementUsage(id uuid.UUID) error
 	RecordUsage(usage *models.PromoCodeUsage) error
-	GetUsageCount(promoID uuid.UUID) (int64, error)
-	GetCustomerUsageCount(promoID, customerID uuid.UUID) (int64, error)
+	GetUsageCount(promoID uuid.UUID) (int, error)
+	GetCustomerUsageCount(promoID, customerID uuid.UUID) (int, error)
+
 }
 
 // PromoService handles promo code business logic
@@ -258,7 +259,7 @@ func (s *PromoService) ValidatePromoCode(code string, orderAmount decimal.Decima
 		return nil, fmt.Errorf("error checking customer usage: %w", err)
 	}
 
-	if customerUsageCount >= int64(promo.UsageLimitPerUser) {
+	if customerUsageCount >= promo.UsageLimitPerUser {
 		return nil, fmt.Errorf("you have already used this promo code the maximum number of times")
 	}
 

@@ -365,10 +365,10 @@ func (s *DashboardService) GetProductPerformance(limit int, offset int) ([]model
 			p.id,
 			p.name,
 			p.slug,
-			c.name as category_name,
+			COALESCE(c.name, '') as category_name,
 			COUNT(DISTINCT oi.order_id) as sales_count,
 			COALESCE(SUM(oi.unit_price * oi.quantity), 0) as total_revenue,
-			COALESCE(AVG(pr.rating), 0) as avg_rating,
+			0::float as avg_rating,
 			p.stock_quantity,
 			CASE 
 				WHEN p.stock_quantity = 0 THEN 'out_of_stock'
@@ -380,7 +380,6 @@ func (s *DashboardService) GetProductPerformance(limit int, offset int) ([]model
 		LEFT JOIN categories c ON p.category_id = c.id
 		LEFT JOIN order_items oi ON p.id = oi.product_id
 		LEFT JOIN orders o ON oi.order_id = o.id AND o.order_status IN ('payment_confirmed', 'processing', 'shipped', 'delivered')
-		LEFT JOIN product_reviews pr ON p.id = pr.product_id
 		WHERE p.status = 'active'
 		GROUP BY p.id, p.name, p.slug, c.name, p.stock_quantity
 		ORDER BY sales_count DESC
