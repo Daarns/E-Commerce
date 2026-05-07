@@ -5,13 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number, currency: string = 'IDR'): string {
+// Accepts number OR decimal string from Go backend (e.g. "150000.00").
+// Returns formatted IDR currency. Returns "Rp 0" on NaN instead of crashing.
+export function formatCurrency(amount: number | string, currency: string = 'IDR'): string {
+  const parsed = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(parsed)) return 'Rp 0';
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(parsed);
 }
 
 export function formatDate(date: string | Date): string {

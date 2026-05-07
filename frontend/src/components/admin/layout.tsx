@@ -3,7 +3,7 @@
 import { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
-import { AdminSidebar } from '@/components/admin/sidebar';
+import { AdminSidebar, SidebarProvider } from '@/components/admin/sidebar';
 import { AdminHeader } from '@/components/admin/header';
 
 export function AdminLayout({ children }: { children: ReactNode }) {
@@ -11,12 +11,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    // Redirect if not authenticated or not admin
     if (!isAuthenticated || !user) {
       router.push('/login');
       return;
     }
-
     if (user.role !== 'admin') {
       router.push('/');
       return;
@@ -28,22 +26,24 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <AdminSidebar />
+    <SidebarProvider>
+      <div className="flex h-screen bg-background overflow-hidden">
+        {/* Sidebar */}
+        <AdminSidebar />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <AdminHeader />
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          {/* Header */}
+          <AdminHeader />
 
-        {/* Content */}
-        <main className="flex-1 overflow-auto">
-          <div className="p-8">
-            {children}
-          </div>
-        </main>
+          {/* Page Content */}
+          <main className="flex-1 overflow-auto">
+            <div className="p-6 lg:p-8">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }

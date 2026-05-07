@@ -182,5 +182,3 @@ func (h *ProductHandler) GetRelatedProducts(c *gin.Context) {
 
 	response.Success(c, results)
 }
-
-// The admin endpoints have been moved to admin_product_handler.go

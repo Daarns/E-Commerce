@@ -183,7 +183,9 @@ func main() {
 	
 	dashboardSvc := adminService.NewDashboardService(nil, nil, nil, sqlDB)
 	productSvc := productService.NewProductService(productRepo, categoryRepo)
+	categorySvc := productService.NewCategoryService(categoryRepo, productRepo)
 	cartSvc := cartService.NewCartService(cartRepo, addressRepo, productRepo)
+	addressSvc := cartService.NewAddressService(addressRepo)
 	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo, shippingRepo, snapSvc)
 	newsletterSvc := newsletterService.NewNewsletterService(newsletterRepo)
 	searchSvc := searchService.NewSearchService(searchRepo, productRepo, categoryRepo)
@@ -196,8 +198,9 @@ func main() {
 	authH := authHandler.NewAuthHandler(authSvc)
 	dashboardH := adminHandler.NewDashboardHandler(dashboardSvc)
 	productH := productHandler.NewProductHandler(productSvc)
-	categoryH := productHandler.NewCategoryHandler(productSvc)
+	categoryH := productHandler.NewCategoryHandler(categorySvc, productSvc)
 	cartH := cartHandler.NewCartHandler(cartSvc)
+	addressH := cartHandler.NewAddressHandler(addressSvc)
 	orderH := orderHandler.NewOrderHandler(orderSvc, syncSvc)
 	shippingH := orderHandler.NewShippingHandler(shippingRepo)
 	searchH := handlers.NewSearchHandler(searchSvc)
@@ -206,7 +209,7 @@ func main() {
 	adminUserH := adminUserHandler.NewAdminUserHandler(exportSvc, userRepo)
 	adminActivityH := adminUserHandler.NewAdminActivityHandler(activitySvc)
 	adminProductH := adminProductHandler.NewAdminProductHandler(productSvc)
-	adminCategoryH := adminProductHandler.NewAdminCategoryHandler(productSvc)
+	adminCategoryH := adminProductHandler.NewAdminCategoryHandler(categorySvc)
 	adminOrderH := adminHandler.NewAdminOrderHandler(orderSvc)
 	adminSearchH := adminHandler.NewAdminSearchHandler(searchSvc)
 
@@ -244,6 +247,7 @@ func main() {
 		WishlistH:      wishlistH,
 		AdminUserH:     adminUserH,
 		AdminActivityH: adminActivityH,
+		AddressH:       addressH,
 	})
 
 	// Start server

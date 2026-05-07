@@ -2,17 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import {
-  Plus,
-  X,
-  Loader2,
-  AlertCircle,
-} from 'lucide-react';
+import { Plus, X, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -22,6 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { CreateProductRequest, UpdateProductRequest, AdminProduct } from '@/services/admin';
 import { categoryService } from '@/services/product';
@@ -31,23 +26,22 @@ import { ImageUploadZone } from './image-upload-zone';
 interface ProductFormProps {
   mode: 'create' | 'edit';
   product?: AdminProduct;
-  onSubmit: (data: any) => Promise<void>;
+  // In create mode data is always CreateProductRequest.
+  // In edit mode it is UpdateProductRequest (which extends CreateProductRequest).
+  // Accepting CreateProductRequest covers both — callers narrow as needed.
+  onSubmit: (data: CreateProductRequest & { id?: string }) => Promise<void>;
   isLoading?: boolean;
 }
 
-export function ProductForm({
-  mode,
-  product,
-  onSubmit,
-  isLoading = false,
-}: ProductFormProps) {
+export function ProductForm({ mode, product, onSubmit, isLoading = false }: ProductFormProps) {
   const [formData, setFormData] = useState<CreateProductRequest>({
     name: product?.name || '',
     description: product?.description || '',
-    category_id: product?.category_id || '',
+    // category_id may come directly OR from the nested category object
+    category_id: product?.category_id || product?.category?.id || '',
     subcategory_id: product?.subcategory_id || '',
-    price: product?.price || 0,
-    cost_price: product?.cost_price || 0,
+    price: parseFloat(String(product?.price ?? product?.regular_price ?? 0)) || 0,
+    sale_price: parseFloat(String(product?.sale_price ?? 0)) || undefined,
     discount_percentage: product?.discount_percentage || 0,
     stock_quantity: product?.stock_quantity || 0,
     sku: product?.sku || '',
@@ -63,459 +57,340 @@ export function ProductForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
+  useEffect(() => { loadCategories(); }, []);
 
   useEffect(() => {
     if (formData.category_id && categories.length > 0) {
       const selected = categories.find(c => c.id === formData.category_id);
-      if (selected?.children) {
-        setSubcategories(selected.children);
-      } else {
-        setSubcategories([]);
-      }
+      setSubcategories(selected?.children || []);
     }
   }, [formData.category_id, categories]);
 
   const loadCategories = async () => {
     try {
       setCategoriesLoading(true);
-      const cats = await categoryService.getCategoryTree();
-      setCategories(cats);
-    } catch (error) {
-      console.error('Failed to load categories:', error);
+      // Use flat list — more reliable than tree for dropdowns
+      const cats = await categoryService.getCategories();
+      if (cats.length > 0) {
+        setCategories(cats);
+      } else {
+        // Fallback to tree endpoint
+        const tree = await categoryService.getCategoryTree();
+        setCategories(tree);
+      }
+    } catch {
       toast.error('Failed to load categories');
     } finally {
       setCategoriesLoading(false);
     }
   };
 
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.name.trim()) newErrors.name = 'Product name is required';
-    else if (formData.name.length < 2) newErrors.name = 'Name must be at least 2 characters';
-    else if (formData.name.length > 200) newErrors.name = 'Name must not exceed 200 characters';
-
-    if (!formData.description.trim()) newErrors.description = 'Description is required';
-    else if (formData.description.length < 10) newErrors.description = 'Description must be at least 10 characters';
-    else if (formData.description.length > 5000) newErrors.description = 'Description must not exceed 5000 characters';
-
-    if (!formData.category_id) newErrors.category_id = 'Category is required';
-
-    if (formData.price <= 0) newErrors.price = 'Price must be greater than 0';
-    if (formData.cost_price && formData.cost_price < 0) newErrors.cost_price = 'Cost price cannot be negative';
-    if ((formData.discount_percentage ?? 0) < 0 || (formData.discount_percentage ?? 0) > 100) {
-      newErrors.discount_percentage = 'Discount must be between 0 and 100';
-    }
-
-    if (formData.stock_quantity < 0) newErrors.stock_quantity = 'Stock quantity cannot be negative';
-
-    if (formData.sku && formData.sku.length > 50) newErrors.sku = 'SKU must not exceed 50 characters';
-
-    if (uploadedImages.length === 0) newErrors.images = 'At least one image is required';
-    if (uploadedImages.length > 10) newErrors.images = 'Maximum 10 images allowed';
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const validate = (): boolean => {
+    const e: Record<string, string> = {};
+    if (!formData.name.trim()) e.name = 'Required';
+    else if (formData.name.length < 2) e.name = 'Min 2 characters';
+    if (!formData.description.trim()) e.description = 'Required';
+    if (!formData.category_id) e.category_id = 'Required';
+    if (formData.price <= 0) e.price = 'Must be > 0';
+    if (formData.stock_quantity < 0) e.stock_quantity = 'Cannot be negative';
+    if (uploadedImages.length === 0) e.images = 'At least one image required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) {
-      toast.error('Please fix the errors in the form');
-      return;
-    }
-
+  const handleSubmit = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!validate()) { toast.error('Please fix form errors'); return; }
     try {
-      await onSubmit(mode === 'edit' 
-        ? { ...formData, id: product!.id }
-        : formData
-      );
-    } catch (error) {
-      console.error('Form submission error:', error);
-    }
+      await onSubmit(mode === 'edit' ? { ...formData, id: product!.id } : formData);
+    } catch { /* parent handles toast */ }
   };
 
-  const handleInputChange = (
-    field: keyof CreateProductRequest,
-    value: any
-  ) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value,
-    }));
-
-    // Auto-generate slug from name
+  const set = (field: keyof CreateProductRequest, value: unknown) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Auto-generate slug from name in create mode
     if (field === 'name' && !product) {
-      const slug = value
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-      setFormData(prev => ({
-        ...prev,
-        slug,
-      }));
+      const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      setFormData(prev => ({ ...prev, slug }));
     }
-
-    // Clear error for this field
-    if (errors[field]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setUploadedImages(prev => prev.filter((_, i) => i !== index));
-    if (errors.images) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors.images;
-        return newErrors;
-      });
-    }
+    if (errors[field]) setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
   };
 
   return (
-    <div className="space-y-6">
-      <motion.form
-        onSubmit={handleSubmit}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="space-y-6"
-      >
-        {/* Basic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="name">Product Name *</Label>
-              <Input
-                id="name"
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                className={errors.name ? 'border-red-500' : ''}
-                placeholder="Enter product name"
-                disabled={isLoading}
-              />
-              {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name}</p>}
-            </div>
+    <motion.form
+      onSubmit={handleSubmit}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
+    >
+      {/* ── 2-column layout: left = main info, right = sidebar fields ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-            <div>
-              <Label htmlFor="description">Description *</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                className={errors.description ? 'border-red-500' : ''}
-                placeholder="Enter detailed product description"
-                rows={6}
-                disabled={isLoading}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                {formData.description.length}/5000 characters
-              </p>
-              {errors.description && <p className="text-sm text-red-500 mt-1">{errors.description}</p>}
-            </div>
+        {/* ── LEFT COLUMN (2/3 width) ── */}
+        <div className="lg:col-span-2 space-y-5">
 
-            <div className="grid grid-cols-2 gap-4">
+          {/* Basic Info */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Name */}
               <div>
-                <Label htmlFor="category">Category *</Label>
-                <Select
-                  value={formData.category_id}
-                  onValueChange={(value) => handleInputChange('category_id', value)}
-                  disabled={isLoading || categoriesLoading}
-                >
-                  <SelectTrigger className={errors.category_id ? 'border-red-500' : ''}>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.category_id && <p className="text-sm text-red-500 mt-1">{errors.category_id}</p>}
-              </div>
-
-              {subcategories.length > 0 && (
-                <div>
-                  <Label htmlFor="subcategory">Subcategory</Label>
-                  <Select
-                    value={formData.subcategory_id || ''}
-                    onValueChange={(value) => handleInputChange('subcategory_id', value)}
-                    disabled={isLoading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select subcategory" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {subcategories.map(subcat => (
-                        <SelectItem key={subcat.id} value={subcat.id}>
-                          {subcat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pricing & Inventory */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Pricing & Inventory</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="price">Price (Rp) *</Label>
+                <Label htmlFor="name" className="text-sm">Product Name <span className="text-red-500">*</span></Label>
                 <Input
-                  id="price"
-                  type="number"
-                  value={formData.price}
-                  onChange={(e) => handleInputChange('price', parseFloat(e.target.value))}
-                  className={errors.price ? 'border-red-500' : ''}
-                  placeholder="0"
-                  min="0"
-                  step="100"
+                  id="name"
+                  value={formData.name}
+                  onChange={e => set('name', e.target.value)}
+                  className={`mt-1 ${errors.name ? 'border-red-500' : ''}`}
+                  placeholder="Enter product name"
                   disabled={isLoading}
                 />
-                {errors.price && <p className="text-sm text-red-500 mt-1">{errors.price}</p>}
+                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
               </div>
 
+              {/* Description */}
               <div>
-                <Label htmlFor="cost_price">Cost Price (Rp)</Label>
-                <Input
-                  id="cost_price"
-                  type="number"
-                  value={formData.cost_price || 0}
-                  onChange={(e) => handleInputChange('cost_price', parseFloat(e.target.value))}
-                  className={errors.cost_price ? 'border-red-500' : ''}
-                  placeholder="0"
-                  min="0"
-                  step="100"
-                  disabled={isLoading}
-                />
-                {errors.cost_price && <p className="text-sm text-red-500 mt-1">{errors.cost_price}</p>}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="discount">Discount (%)</Label>
-                <Input
-                  id="discount"
-                  type="number"
-                  value={formData.discount_percentage || 0}
-                  onChange={(e) => handleInputChange('discount_percentage', parseFloat(e.target.value))}
-                  className={errors.discount_percentage ? 'border-red-500' : ''}
-                  placeholder="0"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  disabled={isLoading}
-                />
-                {errors.discount_percentage && <p className="text-sm text-red-500 mt-1">{errors.discount_percentage}</p>}
-              </div>
-
-              <div>
-                <Label htmlFor="stock">Stock Quantity *</Label>
-                <Input
-                  id="stock"
-                  type="number"
-                  value={formData.stock_quantity}
-                  onChange={(e) => handleInputChange('stock_quantity', parseInt(e.target.value))}
-                  className={errors.stock_quantity ? 'border-red-500' : ''}
-                  placeholder="0"
-                  min="0"
-                  disabled={isLoading}
-                />
-                {errors.stock_quantity && <p className="text-sm text-red-500 mt-1">{errors.stock_quantity}</p>}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Product Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Product Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="sku">SKU</Label>
-                <Input
-                  id="sku"
-                  type="text"
-                  value={formData.sku || ''}
-                  onChange={(e) => handleInputChange('sku', e.target.value)}
-                  className={errors.sku ? 'border-red-500' : ''}
-                  placeholder="e.g., PROD-001"
-                  disabled={isLoading}
-                />
-                {errors.sku && <p className="text-sm text-red-500 mt-1">{errors.sku}</p>}
-              </div>
-
-              <div>
-                <Label htmlFor="slug">Slug</Label>
-                <Input
-                  id="slug"
-                  type="text"
-                  value={formData.slug}
-                  onChange={(e) => handleInputChange('slug', e.target.value)}
-                  placeholder="auto-generated"
-                  disabled={isLoading}
-                  readOnly={mode === 'edit'}
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            <div>
-              <Label>Status</Label>
-              <div className="flex items-center gap-2 mt-2">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={formData.is_active}
-                  onChange={(e) => handleInputChange('is_active', e.target.checked)}
-                  disabled={isLoading}
-                  className="w-4 h-4"
-                />
-                <Label htmlFor="is_active" className="cursor-pointer mb-0">
-                  Product is active
+                <Label htmlFor="description" className="text-sm">
+                  Description <span className="text-red-500">*</span>
+                  <span className="text-muted-foreground font-normal ml-2">
+                    ({formData.description.length}/5000)
+                  </span>
                 </Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={e => set('description', e.target.value)}
+                  className={`mt-1 ${errors.description ? 'border-red-500' : ''}`}
+                  placeholder="Detailed product description"
+                  rows={4}
+                  disabled={isLoading}
+                />
+                {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description}</p>}
               </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* SEO */}
-        <Card>
-          <CardHeader>
-            <CardTitle>SEO Settings</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="meta_title">Meta Title</Label>
-              <Input
-                id="meta_title"
-                type="text"
-                value={formData.meta_title || ''}
-                onChange={(e) => handleInputChange('meta_title', e.target.value)}
-                placeholder="e.g., Premium Laptop - Best Price"
-                disabled={isLoading}
-                maxLength={60}
+              {/* Category row — using native <select> to avoid Radix async render mismatch */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="category_id" className="text-sm">
+                    Category <span className="text-red-500">*</span>
+                  </Label>
+                  <select
+                    id="category_id"
+                    value={formData.category_id}
+                    onChange={e => set('category_id', e.target.value)}
+                    disabled={isLoading || categoriesLoading}
+                    className={`mt-1 flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm
+                      ring-offset-background focus-visible:outline-none focus-visible:ring-2
+                      focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed
+                      disabled:opacity-50 ${
+                        errors.category_id ? 'border-red-500' : 'border-input'
+                      }`}
+                  >
+                    <option value="" disabled>
+                      {categoriesLoading ? 'Loading...' : 'Select category'}
+                    </option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  {errors.category_id && <p className="text-xs text-red-500 mt-1">{errors.category_id}</p>}
+                </div>
+
+                {subcategories.length > 0 && (
+                  <div>
+                    <Label htmlFor="subcategory_id" className="text-sm">Subcategory</Label>
+                    <select
+                      id="subcategory_id"
+                      value={formData.subcategory_id || ''}
+                      onChange={e => set('subcategory_id', e.target.value)}
+                      disabled={isLoading}
+                      className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2
+                        text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2
+                        focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">None</option>
+                      {subcategories.map(sub => (
+                        <option key={sub.id} value={sub.id}>{sub.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Images */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">
+                Product Images <span className="text-red-500">*</span>
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  ({uploadedImages.length}/10)
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <ImageUploadZone
+                onImagesUpload={newImages => {
+                  setUploadedImages(prev => [...prev, ...newImages]);
+                  setErrors(prev => { const n = { ...prev }; delete n.images; return n; });
+                }}
+                disabled={isLoading || uploadedImages.length >= 10}
+                maxFiles={10 - uploadedImages.length}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                {(formData.meta_title || '').length}/60 characters
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="meta_description">Meta Description</Label>
-              <Textarea
-                id="meta_description"
-                value={formData.meta_description || ''}
-                onChange={(e) => handleInputChange('meta_description', e.target.value)}
-                placeholder="e.g., Discover our premium laptop collection..."
-                rows={2}
-                disabled={isLoading}
-                maxLength={160}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                {(formData.meta_description || '').length}/160 characters
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Images */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Product Images *</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ImageUploadZone
-              onImagesUpload={(newImages) => {
-                setUploadedImages(prev => [...prev, ...newImages]);
-                if (errors.images) {
-                  setErrors(prev => {
-                    const newErrors = { ...prev };
-                    delete newErrors.images;
-                    return newErrors;
-                  });
-                }
-              }}
-              disabled={isLoading || uploadedImages.length >= 10}
-              maxFiles={10 - uploadedImages.length}
-            />
-
-            {errors.images && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{errors.images}</AlertDescription>
-              </Alert>
-            )}
-
-            {uploadedImages.length > 0 && (
-              <div>
-                <p className="text-sm font-medium mb-3">
-                  Uploaded Images ({uploadedImages.length}/10)
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {uploadedImages.map((url, index) => (
+              {errors.images && (
+                <Alert variant="destructive" className="py-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">{errors.images}</AlertDescription>
+                </Alert>
+              )}
+              {uploadedImages.length > 0 && (
+                <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                  {uploadedImages.map((url, idx) => (
                     <motion.div
-                      key={index}
+                      key={idx}
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      className="relative aspect-square rounded-lg overflow-hidden bg-muted"
+                      className="relative aspect-square rounded-lg overflow-hidden bg-muted group"
                     >
-                      <img
-                        src={url}
-                        alt={`Product ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={url} alt={`Product ${idx + 1}`} className="w-full h-full object-cover" />
                       <button
                         type="button"
-                        onClick={() => removeImage(index)}
+                        onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== idx))}
                         disabled={isLoading}
-                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded opacity-0 hover:opacity-100 transition-opacity"
+                        className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-5 h-5 text-white" />
                       </button>
                     </motion.div>
                   ))}
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Form Actions */}
-        <div className="flex gap-4">
+        </div>
+
+        {/* ── RIGHT COLUMN (1/3 width) ── */}
+        <div className="space-y-5">
+
+          {/* Pricing */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Pricing</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label className="text-sm">Price (Rp) <span className="text-red-500">*</span></Label>
+                <Input
+                  type="number"
+                  value={formData.price || ''}
+                  onChange={e => set('price', parseFloat(e.target.value) || 0)}
+                  className={`mt-1 ${errors.price ? 'border-red-500' : ''}`}
+                  placeholder="150000"
+                  min={0}
+                  step={1000}
+                  disabled={isLoading}
+                />
+                {errors.price && <p className="text-xs text-red-500 mt-1">{errors.price}</p>}
+              </div>
+              <div>
+                <Label className="text-sm">Sale Price (Rp)</Label>
+                <Input
+                  type="number"
+                  value={formData.sale_price !== undefined ? formData.sale_price : ''}
+                  onChange={e => set('sale_price', e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                  className="mt-1"
+                  placeholder="100000"
+                  min={0}
+                  step={1000}
+                  disabled={isLoading}
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Discount (%)</Label>
+                <Input
+                  type="number"
+                  value={formData.discount_percentage || ''}
+                  onChange={e => set('discount_percentage', parseFloat(e.target.value) || 0)}
+                  className="mt-1"
+                  placeholder="0"
+                  min={0}
+                  max={100}
+                  step={1}
+                  disabled={isLoading}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Inventory */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Inventory</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label className="text-sm">Stock Quantity <span className="text-red-500">*</span></Label>
+                <Input
+                  type="number"
+                  value={formData.stock_quantity === 0 ? '' : formData.stock_quantity}
+                  onChange={e => {
+                    const val = e.target.value;
+                    set('stock_quantity', val === '' ? 0 : parseInt(val, 10));
+                  }}
+                  className={`mt-1 ${errors.stock_quantity ? 'border-red-500' : ''}`}
+                  placeholder="0"
+                  min={0}
+                  disabled={isLoading}
+                />
+                {errors.stock_quantity && <p className="text-xs text-red-500 mt-1">{errors.stock_quantity}</p>}
+              </div>
+              <div>
+                <Label className="text-sm">SKU
+                  <span className="text-muted-foreground font-normal ml-1">(auto if empty)</span>
+                </Label>
+                <Input
+                  value={formData.sku || ''}
+                  onChange={e => set('sku', e.target.value)}
+                  className="mt-1"
+                  placeholder="PROD-001"
+                  disabled={isLoading}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Status */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  id="is_active"
+                  checked={formData.is_active}
+                  onCheckedChange={(checked) => set('is_active', checked === true)}
+                  disabled={isLoading}
+                />
+                <div>
+                  <Label htmlFor="is_active" className="text-sm font-medium cursor-pointer">
+                    Active
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Visible in the store</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Submit */}
           <Button
             type="submit"
             disabled={isLoading}
             size="lg"
-            className="flex-1"
+            className="w-full"
           >
             {isLoading ? (
               <>
@@ -530,7 +405,7 @@ export function ProductForm({
             )}
           </Button>
         </div>
-      </motion.form>
-    </div>
+      </div>
+    </motion.form>
   );
 }

@@ -2,9 +2,12 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
-	"image/jpeg"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"mime/multipart"
 	"os"
@@ -12,16 +15,21 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/storage"
+	webpEncoder "github.com/chai2010/webp"
 	"github.com/google/uuid"
+	"google.golang.org/api/option"
 )
 
-// ImageService handles image operations including optimization and uploads
+// ImageService handles image operations including optimization and uploads.
 type ImageService struct {
-	bucketName string
-	useGCS     bool
+	bucketName     string
+	projectID      string
+	credentialFile string   // path to service-account JSON key
+	useGCS         bool
 }
 
-// ImageUploadResult represents the result of an image upload
+// ImageUploadResult represents the result of an image upload.
 type ImageUploadResult struct {
 	ID           uuid.UUID `json:"id"`
 	URL          string    `json:"url"`
@@ -30,212 +38,200 @@ type ImageUploadResult struct {
 	DisplayOrder int       `json:"display_order"`
 }
 
-// NewImageService creates a new image service
-func NewImageService(bucketName string) *ImageService {
+// NewImageService creates an ImageService.
+// bucketName and projectID come from environment variables.
+// credentialFile is the path to a GCS service-account JSON key.
+// If credentialFile is empty or missing, falls back to local storage.
+func NewImageService(bucketName, projectID, credentialFile string) *ImageService {
+	useGCS := bucketName != "" && projectID != "" && credentialFile != ""
+	if useGCS {
+		if _, err := os.Stat(credentialFile); os.IsNotExist(err) {
+			useGCS = false
+		}
+	}
 	return &ImageService{
-		bucketName: bucketName,
-		useGCS:     false, // Will be enabled when GCS is properly configured
+		bucketName:     bucketName,
+		projectID:      projectID,
+		credentialFile: credentialFile,
+		useGCS:         useGCS,
 	}
 }
 
-// ValidateImageFiles validates multiple image files
+// ─────────────────────────────────────────────────────────────────────────────
+// Validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ValidateImageFiles validates a slice of uploaded files.
 func (s *ImageService) ValidateImageFiles(files []*multipart.FileHeader) []error {
 	var errs []error
-
 	if len(files) == 0 {
 		errs = append(errs, fmt.Errorf("at least one image file is required"))
 		return errs
 	}
-
 	if len(files) > 10 {
 		errs = append(errs, fmt.Errorf("maximum 10 images allowed per product"))
 		return errs
 	}
-
 	for i, file := range files {
 		if err := s.validateSingleFile(file, i); err != nil {
 			errs = append(errs, err)
 		}
 	}
-
 	return errs
 }
 
-// validateSingleFile validates a single image file
 func (s *ImageService) validateSingleFile(file *multipart.FileHeader, index int) error {
-	// Validate file size (max 10MB)
 	const maxSize = 10 * 1024 * 1024
 	if file.Size > maxSize {
-		return fmt.Errorf("image[%d]: file size exceeds maximum allowed (10MB)", index)
+		return fmt.Errorf("image[%d]: file size exceeds maximum (10MB)", index)
+	}
+	if file.Size < 1024 {
+		return fmt.Errorf("image[%d]: file is too small (min 1KB)", index)
 	}
 
-	if file.Size < 1024 { // At least 1KB
-		return fmt.Errorf("image[%d]: file is too small (minimum 1KB)", index)
-	}
-
-	// Validate file extension
 	ext := strings.ToLower(filepath.Ext(file.Filename))
-	allowedExts := map[string]bool{
-		".jpg":  true,
-		".jpeg": true,
-		".png":  true,
-		".webp": true,
-		".gif":  true,
+	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true}
+	if !allowed[ext] {
+		return fmt.Errorf("image[%d]: unsupported file type %q", index, ext)
 	}
 
-	if !allowedExts[ext] {
-		return fmt.Errorf("image[%d]: file type not allowed. Allowed types: jpg, jpeg, png, webp, gif", index)
+	f, err := file.Open()
+	if err != nil {
+		return fmt.Errorf("image[%d]: cannot open file", index)
 	}
+	defer f.Close()
 
-	// Validate MIME type by opening file
-	if opened, err := file.Open(); err == nil {
-		defer opened.Close()
-		if err := s.validateMimeType(opened); err != nil {
-			return fmt.Errorf("image[%d]: %v", index, err)
-		}
+	// Do not limit to 512 bytes because JPEGs from iPhones have huge EXIF headers (> 64KB)
+	// which will cause DecodeConfig to fail if truncated.
+	_, format, err := image.DecodeConfig(f)
+	if err != nil {
+		return fmt.Errorf("image[%d]: invalid image data", index)
 	}
-
+	okFormats := map[string]bool{"jpeg": true, "png": true, "gif": true, "webp": true}
+	if !okFormats[format] {
+		return fmt.Errorf("image[%d]: unsupported image format %q", index, format)
+	}
 	return nil
 }
 
-// validateMimeType validates the MIME type of an image
-func (s *ImageService) validateMimeType(file io.Reader) error {
-	// Read first 512 bytes for type detection
-	header := make([]byte, 512)
-	n, err := file.Read(header)
-	if err != nil && err != io.EOF {
-		return fmt.Errorf("failed to read file header: %w", err)
-	}
+// ─────────────────────────────────────────────────────────────────────────────
+// Conversion: any image → WebP
+// ─────────────────────────────────────────────────────────────────────────────
 
-	// Try to decode as image to verify it's actually an image
-	_, format, err := image.DecodeConfig(bytes.NewReader(header[:n]))
+// ConvertToWebP reads any supported image and re-encodes it as WebP.
+// quality: 0–100 (85 is a good default).
+func (s *ImageService) ConvertToWebP(file *multipart.FileHeader, quality float32) ([]byte, error) {
+	f, err := file.Open()
 	if err != nil {
-		return fmt.Errorf("invalid image format: %w", err)
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
+	defer f.Close()
 
-	// Whitelist allowed formats
-	allowedFormats := map[string]bool{
-		"jpeg": true,
-		"png":  true,
-		"gif":  true,
-		"webp": true,
-	}
-
-	if !allowedFormats[format] {
-		return fmt.Errorf("unsupported image format: %s", format)
-	}
-
-	return nil
-}
-
-// OptimizeImage optimizes an image by resizing and compressing
-func (s *ImageService) OptimizeImage(file *multipart.FileHeader, maxWidth, maxHeight int) ([]byte, string, error) {
-	opened, err := file.Open()
+	data, err := io.ReadAll(f)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to open file: %w", err)
-	}
-	defer opened.Close()
-
-	// Read file data
-	data, err := io.ReadAll(opened)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to read file: %w", err)
+		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Decode image to get format
-	_, format, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to decode image: %w", err)
-	}
-
-	// For JPEG, apply compression
-	if strings.ToLower(format) == "jpeg" {
-		optimized, err := s.compressJPEG(data)
-		if err != nil {
-			return nil, format, fmt.Errorf("failed to compress JPEG: %w", err)
-		}
-		return optimized, format, nil
-	}
-
-	// For other formats, return as-is for now
-	return data, format, nil
-}
-
-// compressJPEG re-encodes JPEG with lower quality for compression
-func (s *ImageService) compressJPEG(data []byte) ([]byte, error) {
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode JPEG: %w", err)
+		return nil, fmt.Errorf("failed to decode image: %w", err)
 	}
 
 	var buf bytes.Buffer
-	err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 85})
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode JPEG: %w", err)
+	if err := webpEncoder.Encode(&buf, img, &webpEncoder.Options{
+		Lossless: false,
+		Quality:  quality,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to encode WebP: %w", err)
 	}
-
 	return buf.Bytes(), nil
 }
 
-// SaveImageToStorage saves optimized image to local storage
-// In production, this would upload to GCS
-func (s *ImageService) SaveImageToStorage(imageData []byte, filename string) (string, error) {
-	// Generate unique filename
+// ─────────────────────────────────────────────────────────────────────────────
+// Storage
+// ─────────────────────────────────────────────────────────────────────────────
+
+// SaveImageToStorage converts the image to WebP and saves it.
+// Returns the public URL of the saved image.
+func (s *ImageService) SaveImageToStorage(file *multipart.FileHeader) (string, error) {
+	// Convert to WebP first (quality 85 is a good balance)
+	webpData, err := s.ConvertToWebP(file, 85)
+	if err != nil {
+		return "", fmt.Errorf("image conversion failed: %w", err)
+	}
+
+	// Build unique filename
 	timestamp := time.Now().Unix()
-	sanitized := s.SanitizeFilename(filename)
-	uniqueFilename := fmt.Sprintf("%d_%s", timestamp, sanitized)
-	
-	// Create directory structure
-	uploadDir := filepath.Join("uploads", "products")
-	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
-		return "", fmt.Errorf("failed to create upload directory: %w", err)
+	base := s.SanitizeFilename(strings.TrimSuffix(file.Filename, filepath.Ext(file.Filename)))
+	uniqueName := fmt.Sprintf("%d_%s_%s.webp", timestamp, uuid.New().String()[:8], base)
+
+	if s.useGCS {
+		return s.uploadToGCS(webpData, "products/"+uniqueName)
 	}
-
-	// Full file path
-	fullPath := filepath.Join(uploadDir, uniqueFilename)
-
-	// Write file to disk
-	if err := os.WriteFile(fullPath, imageData, 0644); err != nil {
-		return "", fmt.Errorf("failed to save image file: %w", err)
-	}
-
-	// Return URL path (would be served by web server)
-	return "/" + fullPath, nil
+	return s.saveLocally(webpData, uniqueName)
 }
 
-// SanitizeFilename removes potentially dangerous characters from filename
+// uploadToGCS uploads data to Google Cloud Storage and returns the public URL.
+func (s *ImageService) uploadToGCS(data []byte, objectPath string) (string, error) {
+	ctx := context.Background()
+
+	client, err := storage.NewClient(ctx, option.WithCredentialsFile(s.credentialFile))
+	if err != nil {
+		return "", fmt.Errorf("GCS client error: %w", err)
+	}
+	defer client.Close()
+
+	obj := client.Bucket(s.bucketName).Object(objectPath)
+	wc := obj.NewWriter(ctx)
+	wc.ContentType = "image/webp"
+	wc.CacheControl = "public, max-age=31536000" // 1 year CDN cache
+
+	if _, err := wc.Write(data); err != nil {
+		return "", fmt.Errorf("GCS write error: %w", err)
+	}
+	if err := wc.Close(); err != nil {
+		return "", fmt.Errorf("GCS close error: %w", err)
+	}
+
+	// Make object publicly readable
+	if err := obj.ACL().Set(ctx, storage.AllUsers, storage.RoleReader); err != nil {
+		// Non-fatal: object is uploaded, ACL may already be set at bucket level
+		fmt.Printf("warning: failed to set GCS public ACL: %v\n", err)
+	}
+
+	return fmt.Sprintf("https://storage.googleapis.com/%s/%s", s.bucketName, objectPath), nil
+}
+
+// saveLocally saves data to disk and returns a URL path.
+func (s *ImageService) saveLocally(data []byte, filename string) (string, error) {
+	uploadDir := filepath.Join("uploads", "products")
+	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+		return "", fmt.Errorf("failed to create upload dir: %w", err)
+	}
+	fullPath := filepath.Join(uploadDir, filename)
+	if err := os.WriteFile(fullPath, data, 0644); err != nil {
+		return "", fmt.Errorf("failed to write file: %w", err)
+	}
+	return "/" + strings.ReplaceAll(fullPath, "\\", "/"), nil
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+// SanitizeFilename removes dangerous characters from a filename.
 func (s *ImageService) SanitizeFilename(filename string) string {
-	// Remove path separators
 	filename = filepath.Base(filename)
-
-	// Remove special characters
-	replacer := strings.NewReplacer(
-		"\\", "-",
-		"/", "-",
-		":", "-",
-		"*", "-",
-		"?", "-",
-		"\"", "-",
-		"<", "-",
-		">", "-",
-		"|", "-",
-		" ", "-",
-	)
-	filename = replacer.Replace(filename)
-
-	// Remove multiple consecutive dashes
+	r := strings.NewReplacer("\\", "-", "/", "-", ":", "-", "*", "-",
+		"?", "-", "\"", "-", "<", "-", ">", "-", "|", "-", " ", "-")
+	filename = r.Replace(filename)
 	for strings.Contains(filename, "--") {
 		filename = strings.ReplaceAll(filename, "--", "-")
 	}
-
-	// Trim dashes from edges
-	filename = strings.Trim(filename, "-")
-
-	return filename
+	return strings.Trim(filename, "-")
 }
 
-// CleanupFile removes a file from storage (for error rollback)
+// CleanupFile removes a local file (used for rollback on error).
 func (s *ImageService) CleanupFile(filePath string) error {
 	return os.Remove(filePath)
 }
-

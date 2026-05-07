@@ -38,6 +38,10 @@ type CreateProductInput struct {
 	Brand            string  `json:"brand"`
 	SKU              string  `json:"sku"`
 	Status           string  `json:"status"`
+	MetaTitle        string  `json:"meta_title"`
+	MetaDescription  string  `json:"meta_description"`
+	CanonicalURL     string  `json:"canonical_url"`
+	OGImage          string  `json:"og_image"`
 }
 
 // UpdateProductInput represents product update input
@@ -51,6 +55,10 @@ type UpdateProductInput struct {
 	CategoryID       *string  `json:"category_id,omitempty"`
 	Brand            *string  `json:"brand,omitempty"`
 	Status           *string  `json:"status,omitempty"`
+	MetaTitle        *string  `json:"meta_title,omitempty"`
+	MetaDescription  *string  `json:"meta_description,omitempty"`
+	CanonicalURL     *string  `json:"canonical_url,omitempty"`
+	OGImage          *string  `json:"og_image,omitempty"`
 	Version          int      `json:"version" binding:"required"`
 }
 
@@ -66,23 +74,7 @@ type CreateVariantInput struct {
 	IsActive        bool      `json:"is_active"`
 }
 
-// CreateCategoryInput represents category creation input
-type CreateCategoryInput struct {
-	Name        string     `json:"name" binding:"required,min=2,max=100"`
-	Description string     `json:"description"`
-	ParentID    *uuid.UUID `json:"parent_id"`
-	ImageURL    string     `json:"image_url"`
-	IsActive    bool       `json:"is_active"`
-}
 
-// UpdateCategoryInput represents category update input
-type UpdateCategoryInput struct {
-	Name        *string    `json:"name,omitempty"`
-	Description *string    `json:"description,omitempty"`
-	ParentID    *uuid.UUID `json:"parent_id,omitempty"`
-	ImageURL    *string    `json:"image_url,omitempty"`
-	IsActive    *bool      `json:"is_active,omitempty"`
-}
 
 // ===== PRODUCT OPERATIONS =====
 
@@ -119,6 +111,10 @@ func (uc *ProductService) CreateProduct(input CreateProductInput) (*models.Produ
 		SKU:              input.SKU,
 		Status:           status,
 		Version:          1,
+		MetaTitle:        strings.TrimSpace(input.MetaTitle),
+		MetaDescription:  strings.TrimSpace(input.MetaDescription),
+		CanonicalURL:     strings.TrimSpace(input.CanonicalURL),
+		OGImage:          strings.TrimSpace(input.OGImage),
 	}
 
 	if input.SalePrice != nil {
@@ -214,6 +210,22 @@ func (uc *ProductService) UpdateProduct(id uuid.UUID, input UpdateProductInput) 
 	
 	if input.Status != nil {
 		product.Status = *input.Status
+	}
+
+	if input.MetaTitle != nil {
+		product.MetaTitle = strings.TrimSpace(*input.MetaTitle)
+	}
+
+	if input.MetaDescription != nil {
+		product.MetaDescription = strings.TrimSpace(*input.MetaDescription)
+	}
+
+	if input.CanonicalURL != nil {
+		product.CanonicalURL = strings.TrimSpace(*input.CanonicalURL)
+	}
+
+	if input.OGImage != nil {
+		product.OGImage = strings.TrimSpace(*input.OGImage)
 	}
 
 	// Update with optimistic locking
@@ -409,131 +421,5 @@ func (s *ProductService) AdminListProducts(filter repositories.AdminProductFilte
 // serta field audit: Version, CreatedAt, UpdatedAt, DeletedAt.
 func (s *ProductService) AdminGetProduct(id uuid.UUID) (*models.Product, error) {
 	return s.productRepo.AdminGetByID(id)
-}
-
-// ===== CATEGORY OPERATIONS =====
-
-// CreateCategory creates a new category
-func (uc *ProductService) CreateCategory(input CreateCategoryInput) (*models.Category, error) {
-	// Validate parent exists if provided
-	if input.ParentID != nil {
-		_, err := uc.categoryRepo.GetByID(*input.ParentID)
-		if err != nil {
-			return nil, fmt.Errorf("invalid parent category: %w", err)
-		}
-	}
-
-	category := &models.Category{
-		Name:        strings.TrimSpace(input.Name),
-		Description: strings.TrimSpace(input.Description),
-		ParentID:    input.ParentID,
-		ImageURL:    input.ImageURL,
-		IsActive:    input.IsActive,
-	}
-
-	if err := uc.categoryRepo.Create(category); err != nil {
-		return nil, fmt.Errorf("failed to create category: %w", err)
-	}
-
-	return category, nil
-}
-
-// GetCategory retrieves a category by ID
-func (uc *ProductService) GetCategory(id uuid.UUID) (*models.Category, error) {
-	return uc.categoryRepo.GetByID(id)
-}
-
-// GetCategoryBySlug retrieves a category by slug
-func (uc *ProductService) GetCategoryBySlug(slug string) (*models.Category, error) {
-	return uc.categoryRepo.GetBySlug(slug)
-}
-
-// ListCategories retrieves all categories
-func (uc *ProductService) ListCategories() ([]models.Category, error) {
-	return uc.categoryRepo.GetAll()
-}
-
-// GetRootCategories retrieves root categories
-func (uc *ProductService) GetRootCategories() ([]models.Category, error) {
-	return uc.categoryRepo.GetRootCategories()
-}
-
-// GetCategoryTree retrieves hierarchical category tree
-func (uc *ProductService) GetCategoryTree() ([]repositories.CategoryTreeNode, error) {
-	return uc.categoryRepo.GetCategoryTree()
-}
-
-// GetCategoryWithChildren retrieves a category with its children
-func (uc *ProductService) GetCategoryWithChildren(id uuid.UUID) (*models.Category, []models.Category, error) {
-	return uc.categoryRepo.GetWithChildren(id)
-}
-
-// UpdateCategory updates a category
-func (uc *ProductService) UpdateCategory(id uuid.UUID, input UpdateCategoryInput) (*models.Category, error) {
-	category, err := uc.categoryRepo.GetByID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	if input.Name != nil {
-		category.Name = strings.TrimSpace(*input.Name)
-		// Regenerate slug
-		category.Slug = models.GenerateSlug(category.Name)
-		existingSlugs, _ := uc.categoryRepo.GetAllSlugs()
-		var filteredSlugs []string
-		for _, s := range existingSlugs {
-			if s != category.Slug {
-				filteredSlugs = append(filteredSlugs, s)
-			}
-		}
-		category.Slug = models.GenerateUniqueSlug(category.Slug, filteredSlugs)
-	}
-	
-	if input.Description != nil {
-		category.Description = strings.TrimSpace(*input.Description)
-	}
-	
-	if input.ParentID != nil {
-		// Validate parent
-		if *input.ParentID != uuid.Nil {
-			_, err := uc.categoryRepo.GetByID(*input.ParentID)
-			if err != nil {
-				return nil, fmt.Errorf("invalid parent category: %w", err)
-			}
-		}
-		category.ParentID = input.ParentID
-	}
-	
-	if input.ImageURL != nil {
-		category.ImageURL = *input.ImageURL
-	}
-	
-	if input.IsActive != nil {
-		category.IsActive = *input.IsActive
-	}
-
-	if err := uc.categoryRepo.Update(category); err != nil {
-		return nil, fmt.Errorf("failed to update category: %w", err)
-	}
-
-	return category, nil
-}
-
-// DeleteCategory soft deletes a category
-func (uc *ProductService) DeleteCategory(id uuid.UUID) error {
-	// Check if category has products
-	filter := repositories.ProductFilter{
-		CategoryID: &id,
-	}
-	result, err := uc.productRepo.List(filter)
-	if err != nil {
-		return err
-	}
-	
-	if result.Total > 0 {
-		return fmt.Errorf("cannot delete category with %d products", result.Total)
-	}
-	
-	return uc.categoryRepo.Delete(id)
 }
 

@@ -114,7 +114,7 @@ export interface CreateProductRequest {
   category_id: string;
   subcategory_id?: string;
   price: number;
-  cost_price?: number;
+  sale_price?: number;
   discount_percentage?: number;
   stock_quantity: number;
   sku?: string;
@@ -122,38 +122,66 @@ export interface CreateProductRequest {
   is_active?: boolean;
   meta_title?: string;
   meta_description?: string;
+  canonical_url?: string;
+  og_image?: string;
 }
 
 export interface UpdateProductRequest extends Partial<CreateProductRequest> {
   id: string;
 }
 
+// AdminProduct mirrors the backend models.Product JSON shape returned by
+// AdminListProducts / AdminGetProduct endpoints.
 export interface AdminProduct {
   id: string;
   name: string;
   description: string;
-  category_id: string;
-  category_name: string;
-  subcategory_id?: string;
-  subcategory_name?: string;
-  price: number;
-  cost_price?: number;
+  slug: string;
+  sku?: string;
+  // Go decimal.Decimal is serialized to JSON as string (e.g. "150000.00")
+  regular_price: string | number;
+  sale_price?: string | number;
   discount_percentage?: number;
   stock_quantity: number;
-  sku?: string;
-  slug: string;
-  is_active: boolean;
-  image_urls?: string[];
-  rating: number;
-  review_count: number;
+  status: string;   // "active" | "draft" | "archived"
+  is_featured: boolean;
+  brand?: string;
+  // Nested category relation from GORM Preload
+  category_id?: string;
+  category?: { id: string; name: string; slug: string };
+  // Alias helpers for backward-compat with product-table
+  category_name?: string;   // populated manually in getProducts mapper
+  subcategory_id?: string;
+  subcategory_name?: string;
+  // Images from images relation
+  images?: Array<{ id: string; url: string; is_primary: boolean; display_order: number }>;
+  image_urls?: string[];    // derived in getProducts mapper
+  // Pricing alias used by product-table (mapped from regular_price)
+  price: string | number;
+  // Ratings
+  rating?: number;
+  review_count?: number;
+  // SEO
   meta_title?: string;
   meta_description?: string;
+  canonical_url?: string;
+  og_image?: string;
+  is_active: boolean;       // derived from status === 'active'
   created_at: string;
   updated_at?: string;
 }
 
 export interface ProductsResponse {
   products: AdminProduct[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+// Raw shape that backend /admin/products returns inside response.data
+interface BackendProductListResult {
+  products: AdminProduct[]; // actually models.Product but we decode into AdminProduct
   total: number;
   page: number;
   limit: number;
@@ -297,7 +325,7 @@ export const adminService = {
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('limit', limit.toString());
-    
+
     if (filters?.search) params.append('search', filters.search);
     if (filters?.category_id) params.append('category_id', filters.category_id);
     if (filters?.stock_status) params.append('stock_status', filters.stock_status);
@@ -307,10 +335,35 @@ export const adminService = {
     if (filters?.sort_by) params.append('sort_by', filters.sort_by);
     if (filters?.sort_order) params.append('sort_order', filters.sort_order);
 
-    const response = await api.get<AnalyticsResponse<ProductsResponse>>(
+    // Backend returns: { success: true, data: { products: models.Product[], total, page, limit, total_pages } }
+    const response = await api.get<ApiResponse<BackendProductListResult>>(
       `/admin/products?${params.toString()}`
     );
-    return response.data;
+
+    const raw = response.data.data;
+
+    // Map backend models.Product → frontend AdminProduct
+    const products: AdminProduct[] = (raw?.products ?? []).map((p) => ({
+      ...p,
+      // price alias → regular_price (decimal string or number)
+      price: p.regular_price ?? p.price ?? 0,
+      // Flatten category relation to category_name for the table
+      category_name: p.category?.name ?? p.category_name ?? '',
+      // is_active derived from status field
+      is_active: p.is_active ?? (p.status === 'active'),
+      // Flatten images array → image_urls string array
+      image_urls: (p.images ?? []).map((img) => img.url),
+    }));
+
+    return {
+      data: {
+        products,
+        total: raw?.total ?? 0,
+        page: raw?.page ?? page,
+        limit: raw?.limit ?? limit,
+        total_pages: raw?.total_pages ?? 0,
+      },
+    };
   },
 
   getProduct: async (id: string) => {
@@ -422,12 +475,15 @@ export const adminService = {
     return response.data.data!;
   },
 
-  getOrderMetrics: async () => {
+  getOrderMetrics: async (): Promise<AdminOrderMetrics> => {
     const response = await api.get<ApiResponse<AdminOrderMetrics>>('/admin/orders/summary');
     return response.data.data!;
   },
 
+
   // User Management Methods
+
+  // Shape of the /admin/users response data object
   getUsers: async (filters?: UserFilters, page: number = 1, limit: number = 20) => {
     const params = new URLSearchParams();
     params.append('page', page.toString());
@@ -443,12 +499,21 @@ export const adminService = {
       if (filters.lastLoginBefore) params.append('last_login_before', filters.lastLoginBefore);
     }
 
-    const response = await api.get<ApiResponse<{ data: AdminUser[] }>>(
+    interface UsersResponseData {
+      data: AdminUser[];
+      pagination?: {
+        page: number;
+        limit: number;
+        total: number;
+        total_pages: number;
+      };
+    }
+    const response = await api.get<ApiResponse<UsersResponseData>>(
       `/admin/users?${params.toString()}`
     );
     return {
       data: response.data.data?.data || [],
-      pagination: (response.data.data as any)?.pagination,
+      pagination: response.data.data?.pagination,
     };
   },
 

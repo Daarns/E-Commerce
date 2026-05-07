@@ -3,7 +3,6 @@ package cart
 import (
 	"ecommerce-backend/internal/services/cart"
 	"ecommerce-backend/pkg/response"
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -186,149 +185,7 @@ func (h *CartHandler) RefreshCartPrices(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// ===== ADDRESS ENDPOINTS =====
 
-// GetAddresses retrieves user's addresses
-// GET /api/v1/addresses
-func (h *CartHandler) GetAddresses(c *gin.Context) {
-	userID, err := h.getUserID(c)
-	if err != nil {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
-		return
-	}
-
-	addresses, err := h.useCase.GetUserAddresses(userID)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "GET_ADDRESSES_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, addresses)
-}
-
-// GetAddress retrieves a specific address
-// GET /api/v1/addresses/:id
-func (h *CartHandler) GetAddress(c *gin.Context) {
-	userID, err := h.getUserID(c)
-	if err != nil {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
-		return
-	}
-
-	addressID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid address ID")
-		return
-	}
-
-	address, err := h.useCase.GetAddress(addressID, userID)
-	if err != nil {
-		response.Error(c, http.StatusNotFound, "NOT_FOUND", err.Error())
-		return
-	}
-
-	response.Success(c, address)
-}
-
-// CreateAddress creates a new address
-// POST /api/v1/addresses
-func (h *CartHandler) CreateAddress(c *gin.Context) {
-	userID, err := h.getUserID(c)
-	if err != nil {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
-		return
-	}
-
-	var input cart.AddressInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		response.ValidationError(c, err.Error())
-		return
-	}
-
-	address, err := h.useCase.AddAddress(userID, input)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "CREATE_ADDRESS_FAILED", err.Error())
-		return
-	}
-
-	response.Created(c, address)
-}
-
-// UpdateAddress updates an address
-// PUT /api/v1/addresses/:id
-func (h *CartHandler) UpdateAddress(c *gin.Context) {
-	userID, err := h.getUserID(c)
-	if err != nil {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
-		return
-	}
-
-	addressID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid address ID")
-		return
-	}
-
-	var input cart.AddressInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		response.ValidationError(c, err.Error())
-		return
-	}
-
-	address, err := h.useCase.UpdateAddress(addressID, userID, input)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "UPDATE_ADDRESS_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, address)
-}
-
-// DeleteAddress deletes an address
-// DELETE /api/v1/addresses/:id
-func (h *CartHandler) DeleteAddress(c *gin.Context) {
-	userID, err := h.getUserID(c)
-	if err != nil {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
-		return
-	}
-
-	addressID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid address ID")
-		return
-	}
-
-	if err := h.useCase.DeleteAddress(addressID, userID); err != nil {
-		response.Error(c, http.StatusBadRequest, "DELETE_ADDRESS_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, gin.H{"message": "Address deleted successfully"})
-}
-
-// SetDefaultAddress sets an address as default
-// PUT /api/v1/addresses/:id/default
-func (h *CartHandler) SetDefaultAddress(c *gin.Context) {
-	userID, err := h.getUserID(c)
-	if err != nil {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
-		return
-	}
-
-	addressID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid address ID")
-		return
-	}
-
-	if err := h.useCase.SetDefaultAddress(addressID, userID); err != nil {
-		response.Error(c, http.StatusBadRequest, "SET_DEFAULT_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, gin.H{"message": "Default address updated"})
-}
 
 // ===== HELPER METHODS =====
 
@@ -348,16 +205,6 @@ func (h *CartHandler) getCartIdentifiers(c *gin.Context) (*uuid.UUID, string) {
 	}
 
 	return nil, sessionID
-}
-
-// getUserID extracts authenticated user ID
-func (h *CartHandler) getUserID(c *gin.Context) (uuid.UUID, error) {
-	if userIDVal, exists := c.Get("user_id"); exists {
-		if userID, ok := userIDVal.(uuid.UUID); ok {
-			return userID, nil
-		}
-	}
-	return uuid.Nil, errors.New("user not authenticated")
 }
 
 // getIntQuery gets integer query parameter with default

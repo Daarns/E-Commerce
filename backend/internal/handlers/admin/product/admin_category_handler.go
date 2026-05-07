@@ -11,11 +11,11 @@ import (
 
 // AdminCategoryHandler handles admin category HTTP requests
 type AdminCategoryHandler struct {
-	useCase *product.ProductService
+	useCase *product.CategoryService
 }
 
 // NewAdminCategoryHandler creates a new admin category handler
-func NewAdminCategoryHandler(useCase *product.ProductService) *AdminCategoryHandler {
+func NewAdminCategoryHandler(useCase *product.CategoryService) *AdminCategoryHandler {
 	return &AdminCategoryHandler{useCase: useCase}
 }
 

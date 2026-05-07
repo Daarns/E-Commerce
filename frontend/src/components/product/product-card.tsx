@@ -37,8 +37,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const isToggling = useWishlistStore((state) => state.isToggling(product.id));
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const discountPercentage = product.sale_price
-    ? Math.round((1 - product.sale_price / product.regular_price) * 100)
+  // Go decimal serializes as string; parseFloat handles both string and number
+  const regularPrice = parseFloat(String(product.regular_price));
+  const salePrice = product.sale_price ? parseFloat(String(product.sale_price)) : undefined;
+
+  const discountPercentage = salePrice && !isNaN(salePrice) && !isNaN(regularPrice)
+    ? Math.round((1 - salePrice / regularPrice) * 100)
     : 0;
 
   // Anime.js badge animation on mount
@@ -224,11 +228,11 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                 {/* Price */}
                 <div className="flex items-baseline gap-2">
                   <span className="text-sm font-bold">
-                    {formatCurrency(product.sale_price || product.regular_price)}
+                    {formatCurrency(salePrice ?? regularPrice)}
                   </span>
-                  {product.sale_price && (
+                  {salePrice && (
                     <span className="text-xs text-muted-foreground line-through">
-                      {formatCurrency(product.regular_price)}
+                      {formatCurrency(regularPrice)}
                     </span>
                   )}
                 </div>

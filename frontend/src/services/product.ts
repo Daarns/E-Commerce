@@ -225,14 +225,22 @@ export const productService = {
 };
 
 export const categoryService = {
+  // GET /categories — returns { data: { categories: [...] } }
   async getCategories(): Promise<Category[]> {
     const response = await api.get<ApiResponse<{ categories: Category[] }>>('/categories');
     return response.data.data?.categories || [];
   },
 
+  // GET /categories/tree — backend returns the array DIRECTLY in data (not wrapped)
+  // i.e. { success: true, data: [{id, name, children: [...]}, ...] }
   async getCategoryTree(): Promise<Category[]> {
-    const response = await api.get<ApiResponse<{ categories: Category[] }>>('/categories/tree');
-    return response.data.data?.categories || [];
+    const response = await api.get<ApiResponse<Category[]>>('/categories/tree');
+    // Handle both: array directly in data, or {categories:[]} wrapper
+    const raw = response.data.data;
+    if (Array.isArray(raw)) return raw;
+    // Fallback: try {categories:[]} shape
+    const maybeWrapped = raw as unknown as { categories: Category[] };
+    return maybeWrapped?.categories || [];
   },
 
   async getCategory(idOrSlug: string): Promise<Category> {

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { LogOut, Bell, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
+import { BurgerButton } from '@/components/admin/sidebar';
 import { toast } from 'sonner';
 
 export function AdminHeader() {
@@ -15,48 +16,46 @@ export function AdminHeader() {
       await logout();
       router.push('/login');
       toast.success('Logged out successfully');
-    } catch (error) {
+    } catch {
       toast.error('Failed to logout');
     }
   };
 
   return (
-    <header className="border-b border-border bg-card">
-      <div className="flex items-center justify-between p-4 px-8">
-        <div>
-          <h2 className="text-xl font-semibold">Welcome back, {user?.name}!</h2>
-          <p className="text-sm text-muted-foreground">{user?.email}</p>
+    <header className="shrink-0 border-b border-border bg-card">
+      <div className="flex items-center justify-between h-[60px] px-4 gap-4">
+        {/* Left: burger + page title */}
+        <div className="flex items-center gap-3 min-w-0">
+          <BurgerButton />
+          <div className="min-w-0 hidden sm:block">
+            <h2 className="text-base font-semibold leading-none truncate">
+              Welcome back, {user?.name}!
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">{user?.email}</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            title="Notifications"
-            className="relative"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
+        {/* Right: actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="ghost" size="icon" title="Notifications" className="relative h-8 w-8">
+            <Bell className="h-4 w-4" />
+            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-red-500 rounded-full" />
           </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            title="Settings"
-          >
-            <Settings className="h-5 w-5" />
+          <Button variant="ghost" size="icon" title="Settings" className="h-8 w-8">
+            <Settings className="h-4 w-4" />
           </Button>
 
-          <div className="w-px h-6 bg-border" />
+          <div className="w-px h-5 bg-border" />
 
           <Button
             variant="outline"
             size="sm"
             onClick={handleLogout}
-            className="gap-2"
+            className="gap-2 h-8 text-xs"
           >
-            <LogOut className="h-4 w-4" />
-            Logout
+            <LogOut className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Logout</span>
           </Button>
         </div>
       </div>

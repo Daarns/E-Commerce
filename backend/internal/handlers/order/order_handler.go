@@ -2,10 +2,10 @@ package order
 
 import (
 	"ecommerce-backend/internal/services/order"
+	"ecommerce-backend/internal/middleware"
 	paymentSvc "ecommerce-backend/internal/services/payment"
 	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -33,7 +33,7 @@ func NewOrderHandler(useCase *order.OrderService, syncSvc ...*paymentSvc.Payment
 // Checkout processes checkout
 // POST /api/v1/checkout
 func (h *OrderHandler) Checkout(c *gin.Context) {
-	userID, err := h.getUserID(c)
+	userID, err := middleware.GetUserID(c)
 	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
 		return
@@ -57,7 +57,7 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 // GetOrders retrieves user's orders
 // GET /api/v1/orders
 func (h *OrderHandler) GetOrders(c *gin.Context) {
-	userID, err := h.getUserID(c)
+	userID, err := middleware.GetUserID(c)
 	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
 		return
@@ -78,7 +78,7 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 // GetOrder retrieves a specific order
 // GET /api/v1/orders/:id
 func (h *OrderHandler) GetOrder(c *gin.Context) {
-	userID, err := h.getUserID(c)
+	userID, err := middleware.GetUserID(c)
 	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
 		return
@@ -108,7 +108,7 @@ func (h *OrderHandler) GetOrder(c *gin.Context) {
 // CancelOrder cancels an order
 // POST /api/v1/orders/:id/cancel
 func (h *OrderHandler) CancelOrder(c *gin.Context) {
-	userID, err := h.getUserID(c)
+	userID, err := middleware.GetUserID(c)
 	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
 		return
@@ -137,7 +137,7 @@ func (h *OrderHandler) CancelOrder(c *gin.Context) {
 // ValidatePromoCode validates a promo code
 // POST /api/v1/promo-codes/validate
 func (h *OrderHandler) ValidatePromoCode(c *gin.Context) {
-	userID, err := h.getUserID(c)
+	userID, err := middleware.GetUserID(c)
 	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
 		return
@@ -173,7 +173,7 @@ func (h *OrderHandler) ValidatePromoCode(c *gin.Context) {
 // Reuses the cached token if still within Midtrans' 24-hour validity window.
 // POST /api/v1/orders/:id/pay
 func (h *OrderHandler) PayOrder(c *gin.Context) {
-	userID, err := h.getUserID(c)
+	userID, err := middleware.GetUserID(c)
 	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
 		return
@@ -219,7 +219,7 @@ func (h *OrderHandler) PayOrder(c *gin.Context) {
 // Fallback for when webhooks fail to deliver (e.g. ngrok URL changes in dev).
 // POST /api/v1/orders/:id/sync-payment
 func (h *OrderHandler) SyncPaymentStatus(c *gin.Context) {
-	userID, err := h.getUserID(c)
+	userID, err := middleware.GetUserID(c)
 	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
 		return
@@ -265,12 +265,4 @@ func (h *OrderHandler) SyncPaymentStatus(c *gin.Context) {
 	response.SuccessWithMessage(c, http.StatusOK, "Payment status synced", result)
 }
 
-// getUserID extracts authenticated user ID
-func (h *OrderHandler) getUserID(c *gin.Context) (uuid.UUID, error) {
-	if userIDVal, exists := c.Get("user_id"); exists {
-		if userID, ok := userIDVal.(uuid.UUID); ok {
-			return userID, nil
-		}
-	}
-	return uuid.Nil, fmt.Errorf("user not authenticated")
-}
+

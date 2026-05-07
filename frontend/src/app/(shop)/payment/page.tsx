@@ -27,7 +27,7 @@ function PaymentPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
-  
+
   const orderId = searchParams.get('order_id');
   const [state, setState] = useState<PaymentPageState>({
     isLoading: true,
@@ -47,7 +47,7 @@ function PaymentPageContent() {
     const fetchOrder = async () => {
       try {
         const order = await orderService.getOrder(orderId);
-        
+
         // Check if order already has a payment_url
         if (order.payment_url) {
           setState(prev => ({
@@ -91,16 +91,16 @@ function PaymentPageContent() {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       await openPayment(state.snapToken);
-      
+
       // Payment successful
       setState(prev => ({
         ...prev,
         paymentStatus: 'settlement',
         isLoading: false,
       }));
-      
+
       toast.success('Payment successful!');
-      
+
       // Redirect to order confirmation after 2 seconds
       setTimeout(() => {
         router.push(`/orders/${orderId}`);

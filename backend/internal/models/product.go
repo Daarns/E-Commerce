@@ -39,8 +39,10 @@ type Product struct {
 	AvgRating           float64         `gorm:"type:decimal(3,2);default:0" json:"avg_rating"`
 	ReviewCount         int64           `gorm:"default:0" json:"review_count"`
 	Version             int             `gorm:"default:1" json:"version"`
-	MetaTitle           string          `gorm:"size:255" json:"meta_title"`
-	MetaDescription     string          `gorm:"type:text" json:"meta_description"`
+	MetaTitle           string          `gorm:"size:60" json:"meta_title"`
+	MetaDescription     string          `gorm:"size:160" json:"meta_description"`
+	CanonicalURL        string          `gorm:"size:500" json:"canonical_url"`
+	OGImage             string          `gorm:"size:500" json:"og_image"`
 	Images              []ProductImage  `gorm:"foreignKey:ProductID" json:"images,omitempty"`
 	Variants            []ProductVariant `gorm:"foreignKey:ProductID" json:"variants,omitempty"`
 	CreatedAt           time.Time       `json:"created_at"`
@@ -64,6 +66,21 @@ func (p *Product) BeforeCreate(tx *gorm.DB) error {
 	if p.SKU == "" {
 		p.SKU = fmt.Sprintf("SKU-%s", strings.ToUpper(p.ID.String()[:8]))
 	}
+
+	// --- SEO auto-generate (baru) ---
+	if p.MetaTitle == "" {
+		p.MetaTitle = GenerateMetaTitle(p)
+	}
+	if p.MetaDescription == "" {
+		p.MetaDescription = GenerateMetaDescription(p)
+	}
+	if p.CanonicalURL == "" {
+		p.CanonicalURL = GenerateCanonicalURL(p.Slug)
+	}
+	if p.OGImage == "" {
+		p.OGImage = GetPrimaryImageURL(p.Images)
+	}
+
 	return nil
 }
 

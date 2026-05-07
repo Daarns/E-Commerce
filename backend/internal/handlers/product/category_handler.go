@@ -12,12 +12,13 @@ import (
 
 // CategoryHandler handles category HTTP requests
 type CategoryHandler struct {
-	useCase *product.ProductService
+	useCase    *product.CategoryService
+	productSvc *product.ProductService
 }
 
 // NewCategoryHandler creates a new category handler
-func NewCategoryHandler(useCase *product.ProductService) *CategoryHandler {
-	return &CategoryHandler{useCase: useCase}
+func NewCategoryHandler(useCase *product.CategoryService, productSvc *product.ProductService) *CategoryHandler {
+	return &CategoryHandler{useCase: useCase, productSvc: productSvc}
 }
 
 
@@ -119,7 +120,7 @@ func (h *CategoryHandler) GetCategoryWithProducts(c *gin.Context) {
 		Limit:      20,
 	}
 	
-	products, err := h.useCase.ListProducts(filter)
+	products, err := h.productSvc.ListProducts(filter)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "FETCH_FAILED", err.Error())
 		return

@@ -10,34 +10,73 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// RateLimiter implements token bucket rate limiting using Redis
+// RateLimiter implements fixed-window rate limiting using Redis with atomic Lua script.
+// Each limiter instance is namespaced so different route groups never share counters.
 type RateLimiter struct {
 	redis       *redis.Client
 	maxRequests int
 	window      time.Duration
+	namespace   string // key prefix, e.g. "rl:global", "rl:auth"
 }
 
-// NewRateLimiter creates a new rate limiter
-func NewRateLimiter(redis *redis.Client, maxRequests int, window time.Duration) *RateLimiter {
+// NewRateLimiter creates a new rate limiter with an explicit namespace.
+// Using distinct namespaces prevents different route groups from sharing the same Redis key.
+func NewRateLimiter(redisClient *redis.Client, maxRequests int, window time.Duration) *RateLimiter {
 	return &RateLimiter{
-		redis:       redis,
+		redis:       redisClient,
 		maxRequests: maxRequests,
 		window:      window,
+		namespace:   "rl:global",
 	}
 }
 
-// Middleware returns a gin middleware for rate limiting
+// NewNamespacedRateLimiter creates a rate limiter with a custom namespace.
+// Always use this when applying multiple limiters to the same request path
+// to avoid key collisions.
+func NewNamespacedRateLimiter(redisClient *redis.Client, maxRequests int, window time.Duration, namespace string) *RateLimiter {
+	return &RateLimiter{
+		redis:       redisClient,
+		maxRequests: maxRequests,
+		window:      window,
+		namespace:   namespace,
+	}
+}
+
+// Lua script for atomic increment + expire.
+// Returns the current count AFTER increment.
+// This avoids the TOCTOU race between GET → INCR in the old implementation.
+var rateLimitScript = redis.NewScript(`
+local key = KEYS[1]
+local limit = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+
+local current = redis.call("INCR", key)
+if current == 1 then
+    redis.call("EXPIRE", key, window)
+end
+return current
+`)
+
+// isAllowed checks rate limit atomically and returns (allowed, remaining, error).
+func (rl *RateLimiter) isAllowed(ctx context.Context, key string) (bool, error) {
+	windowSecs := int(rl.window.Seconds())
+	count, err := rateLimitScript.Run(ctx, rl.redis, []string{key}, rl.maxRequests, windowSecs).Int()
+	if err != nil {
+		return false, err
+	}
+	return count <= rl.maxRequests, nil
+}
+
+// Middleware returns a Gin middleware that rate-limits by client IP.
 func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get client IP
 		clientIP := c.ClientIP()
-		key := fmt.Sprintf("rate_limit:%s", clientIP)
+		key := fmt.Sprintf("%s:%s", rl.namespace, clientIP)
 
-		// Check rate limit
 		allowed, err := rl.isAllowed(c.Request.Context(), key)
 		if err != nil {
-			// Log error but don't block request
-			fmt.Printf("Rate limiter error: %v\n", err)
+			// Fail-open on Redis error: log and allow the request through.
+			fmt.Printf("[RateLimit] Redis error (namespace=%s): %v\n", rl.namespace, err)
 			c.Next()
 			return
 		}
@@ -52,88 +91,41 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 	}
 }
 
-// isAllowed checks if request is allowed based on rate limit
-func (rl *RateLimiter) isAllowed(ctx context.Context, key string) (bool, error) {
-	// Get current count
-	count, err := rl.redis.Get(ctx, key).Int()
-	if err != nil && err != redis.Nil {
-		return false, err
-	}
-
-	// If key doesn't exist or count is below limit
-	if err == redis.Nil || count < rl.maxRequests {
-		// Increment counter
-		pipe := rl.redis.Pipeline()
-		pipe.Incr(ctx, key)
-		
-		// Set expiry on first request
-		if err == redis.Nil {
-			pipe.Expire(ctx, key, rl.window)
-		}
-		
-		_, err := pipe.Exec(ctx)
-		if err != nil {
-			return false, err
-		}
-		
-		return true, nil
-	}
-
-	// Rate limit exceeded
-	return false, nil
-}
-
-// PerIPRateLimit creates a rate limiter per IP address
-func PerIPRateLimit(redis *redis.Client, maxRequests int, window time.Duration) gin.HandlerFunc {
-	limiter := NewRateLimiter(redis, maxRequests, window)
+// PerIPRateLimit creates a namespaced middleware to rate-limit by IP.
+// Provide a unique namespace (e.g. "rl:auth") so it does not collide
+// with other limiters applied to the same request chain.
+func PerIPRateLimit(redisClient *redis.Client, maxRequests int, window time.Duration, namespace string) gin.HandlerFunc {
+	limiter := NewNamespacedRateLimiter(redisClient, maxRequests, window, namespace)
 	return limiter.Middleware()
 }
 
-// PerUserRateLimit creates a rate limiter per authenticated user
-func PerUserRateLimit(redisClient *redis.Client, maxRequests int, window time.Duration) gin.HandlerFunc {
+// PerUserRateLimit creates a rate limiter per authenticated user ID.
+// Skips unauthenticated requests silently.
+func PerUserRateLimit(redisClient *redis.Client, maxRequests int, window time.Duration, namespace string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get user ID from context (set by auth middleware)
 		userID, exists := c.Get("user_id")
 		if !exists {
-			// Skip rate limiting for unauthenticated requests
 			c.Next()
 			return
 		}
 
-		key := fmt.Sprintf("rate_limit:user:%v", userID)
-
-		// Create context
+		key := fmt.Sprintf("%s:user:%v", namespace, userID)
 		ctx := c.Request.Context()
+		windowSecs := int(window.Seconds())
 
-		// Check rate limit
-		count, err := redisClient.Get(ctx, key).Int()
-		if err != nil && err != redis.Nil {
-			// Log error but don't block
-			fmt.Printf("Rate limiter error: %v\n", err)
+		count, err := rateLimitScript.Run(ctx, redisClient, []string{key}, maxRequests, windowSecs).Int()
+		if err != nil {
+			fmt.Printf("[RateLimit] Redis error (namespace=%s): %v\n", namespace, err)
 			c.Next()
 			return
 		}
 
-		if err == redis.Nil || count < maxRequests {
-			// Increment counter
-			pipe := redisClient.Pipeline()
-			pipe.Incr(ctx, key)
-			
-			if err == redis.Nil {
-				pipe.Expire(ctx, key, window)
-			}
-			
-			_, err := pipe.Exec(ctx)
-			if err != nil {
-				fmt.Printf("Rate limiter error: %v\n", err)
-			}
-			
-			c.Next()
+		if count > maxRequests {
+			response.TooManyRequests(c, "Too many requests. Please try again later.")
+			c.Abort()
 			return
 		}
 
-		// Rate limit exceeded
-		response.TooManyRequests(c, "Too many requests. Please try again later.")
-		c.Abort()
+		c.Next()
 	}
 }

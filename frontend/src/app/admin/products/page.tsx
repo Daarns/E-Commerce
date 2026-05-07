@@ -165,12 +165,12 @@ export default function AdminProductsPage() {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onView={handleView}
-              sortBy={filters.sort_by as any}
+              sortBy={filters.sort_by}
               sortOrder={filters.sort_order}
               onSort={(by, order) => {
                 setFilters(prev => ({
                   ...prev,
-                  sort_by: by as any,
+                  sort_by: by as ProductFilters['sort_by'],
                   sort_order: order,
                 }));
               }}

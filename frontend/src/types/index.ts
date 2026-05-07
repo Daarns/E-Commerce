@@ -24,8 +24,9 @@ export interface Product {
   slug: string;
   description: string;
   short_description?: string;
-  regular_price: number;
-  sale_price?: number;
+  // Go decimal.Decimal serializes to JSON string e.g. "150000.00"
+  regular_price: string | number;
+  sale_price?: string | number;
   discount_percentage?: number;
   sku: string;
   stock_quantity: number;
@@ -33,6 +34,10 @@ export interface Product {
   is_featured: boolean;
   brand?: string;
   category?: Category;
+  meta_title?: string;
+  meta_description?: string;
+  canonical_url?: string;
+  og_image?: string;
   images: ProductImage[];
   variants: ProductVariant[];
   created_at: string;

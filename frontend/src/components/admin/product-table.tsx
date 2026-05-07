@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { AdminProduct } from '@/services/admin';
+import { AdminProduct, ProductFilters } from '@/services/admin';
 import { formatCurrency } from '@/lib/utils';
 
 interface ProductTableProps {
@@ -38,7 +38,7 @@ interface ProductTableProps {
   onEdit: (product: AdminProduct) => void;
   onDelete: (productId: string) => Promise<void>;
   onView: (product: AdminProduct) => void;
-  sortBy?: 'name' | 'price' | 'stock' | 'created_at';
+  sortBy?: ProductFilters['sort_by'];
   sortOrder?: 'asc' | 'desc';
   onSort?: (by: string, order: 'asc' | 'desc') => void;
 }

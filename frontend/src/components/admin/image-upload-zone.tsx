@@ -153,10 +153,11 @@ export function ImageUploadZone({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         animate={{
-          backgroundColor: isDragging ? 'var(--color-muted)' : 'transparent',
-          borderColor: isDragging ? 'var(--color-primary)' : 'var(--color-border)',
+          backgroundColor: isDragging ? 'rgba(var(--muted), 0.5)' : 'rgba(0,0,0,0)',
         }}
-        className="border-2 border-dashed rounded-lg p-8 transition-colors cursor-pointer"
+        className={`border-2 border-dashed rounded-lg p-8 transition-colors cursor-pointer ${
+          isDragging ? 'border-primary' : 'border-border'
+        }`}
         onClick={() => !disabled && !isUploading && fileInputRef.current?.click()}
       >
         <input

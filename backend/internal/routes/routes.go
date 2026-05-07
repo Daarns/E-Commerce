@@ -45,6 +45,7 @@ type Config struct {
 	WishlistH      *handlers.WishlistHandler
 	AdminUserH     *adminUserHandler.AdminUserHandler
 	AdminActivityH *adminUserHandler.AdminActivityHandler
+	AddressH       *cartHandler.AddressHandler
 }
 
 func Setup(c Config) {
@@ -65,9 +66,9 @@ func Setup(c Config) {
 	// API v1 routes
 	v1 := c.Router.Group("/api/v1")
 	{
-		// Rate limiting middleware (100 req/min)
-		rateLimiter := middleware.NewRateLimiter(c.RedisClient, 100, time.Minute)
-		v1.Use(rateLimiter.Middleware())
+		// Global rate limit: 300 req/min per IP — protects all public endpoints.
+		// Uses namespace "rl:global" so it never conflicts with stricter auth limits.
+		v1.Use(middleware.PerIPRateLimit(c.RedisClient, 300, time.Minute, "rl:global"))
 
 		// Public routes
 		v1.GET("/ping", func(ctx *gin.Context) {
@@ -76,8 +77,11 @@ func Setup(c Config) {
 			})
 		})
 
-		// Auth routes (public) - strictly rate limited (5 requests per minute per IP)
-		authRoutes := v1.Group("/auth", middleware.PerIPRateLimit(c.RedisClient, 5, time.Minute))
+		// Auth routes — tighter limit to slow brute-force / credential stuffing.
+		// Industry standard: ~10–20 login attempts per minute per IP is acceptable for
+		// legitimate users (mobile retries, password managers, etc.) while still blocking bots.
+		// Namespace "rl:auth" is SEPARATE from "rl:global" — counters do NOT overlap.
+		authRoutes := v1.Group("/auth", middleware.PerIPRateLimit(c.RedisClient, 20, time.Minute, "rl:auth"))
 		{
 			authRoutes.POST("/register", c.AuthH.Register)
 			authRoutes.POST("/login", c.AuthH.Login)
@@ -154,8 +158,11 @@ func Setup(c Config) {
 		}
 
 		// Protected routes (require authentication)
+		// Per-user limit: 600 req/min — generous for legitimate SPA usage while
+		// capping compromised tokens from being used for mass scraping.
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware(c.JWTManager))
+		protected.Use(middleware.PerUserRateLimit(c.RedisClient, 600, time.Minute, "rl:user"))
 		{
 			protected.POST("/auth/logout", c.AuthH.Logout)
 			protected.GET("/auth/me", c.AuthH.GetProfile)
@@ -169,12 +176,12 @@ func Setup(c Config) {
 			// Address routes
 			addressRoutes := protected.Group("/addresses")
 			{
-				addressRoutes.GET("", c.CartH.GetAddresses)
-				addressRoutes.GET("/:id", c.CartH.GetAddress)
-				addressRoutes.POST("", c.CartH.CreateAddress)
-				addressRoutes.PUT("/:id", c.CartH.UpdateAddress)
-				addressRoutes.DELETE("/:id", c.CartH.DeleteAddress)
-				addressRoutes.PUT("/:id/default", c.CartH.SetDefaultAddress)
+				addressRoutes.GET("", c.AddressH.GetAddresses)
+				addressRoutes.GET("/:id", c.AddressH.GetAddress)
+				addressRoutes.POST("", c.AddressH.CreateAddress)
+				addressRoutes.PUT("/:id", c.AddressH.UpdateAddress)
+				addressRoutes.DELETE("/:id", c.AddressH.DeleteAddress)
+				addressRoutes.PUT("/:id/default", c.AddressH.SetDefaultAddress)
 			}
 
 			// Order routes (customer)
@@ -239,6 +246,7 @@ func Setup(c Config) {
 			adminProducts := admin.Group("/products")
 			{
 				adminProducts.GET("", c.AdminProductH.AdminListProducts)
+				adminProducts.POST("/upload-image", c.AdminProductH.UploadImageOnly)
 				adminProducts.GET("/:id", c.AdminProductH.AdminGetProduct)
 				adminProducts.POST("", c.AdminProductH.CreateProduct)
 				adminProducts.PUT("/:id", c.AdminProductH.UpdateProduct)

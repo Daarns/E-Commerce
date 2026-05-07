@@ -15,7 +15,7 @@ export default function CreateProductPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (data: CreateProductRequest) => {
+  const handleSubmit = async (data: CreateProductRequest & { id?: string }) => {
     try {
       setIsLoading(true);
       const response = await adminService.createProduct(data);

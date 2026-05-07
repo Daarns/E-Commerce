@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { adminService, UpdateProductRequest, AdminProduct } from '@/services/admin';
+import { adminService, CreateProductRequest, AdminProduct } from '@/services/admin';
 import { toast } from 'sonner';
 
 export default function EditProductPage() {
@@ -48,10 +48,11 @@ export default function EditProductPage() {
     }
   };
 
-  const handleSubmit = async (data: UpdateProductRequest) => {
+  const handleSubmit = async (data: CreateProductRequest & { id?: string }) => {
     try {
       setIsUpdating(true);
-      await adminService.updateProduct(productId, data);
+      // Pass productId from route params, not from data
+      await adminService.updateProduct(productId, { ...data, id: productId });
       toast.success('Product updated successfully');
       loadProduct();
     } catch (error) {
@@ -153,7 +154,7 @@ export default function EditProductPage() {
           <DialogHeader>
             <DialogTitle>Delete Product</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{product.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{product.name}&quot;? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

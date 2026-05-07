@@ -361,7 +361,7 @@ func (r *OrderRepository) GetOrderSummary(userID *uuid.UUID) (*OrderSummary, err
 	
 	if err := revenueQuery.
 		Select("COALESCE(SUM(total), 0) as total").
-		First(&revenue).Error; err != nil {
+		Scan(&revenue).Error; err != nil {
 		return nil, err
 	}
 	summary.TotalRevenue = revenue.Total
