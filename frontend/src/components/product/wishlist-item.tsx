@@ -28,7 +28,7 @@ export function WishlistItem({ wishlistId, product, index = 0 }: WishlistItemPro
   const { removeFromWishlist } = useWishlistStore();
 
   const discountPercentage = product.sale_price
-    ? Math.round((1 - product.sale_price / product.regular_price) * 100)
+    ? Math.round((1 - Number(product.sale_price) / Number(product.regular_price)) * 100)
     : 0;
 
   const handleAddToCart = async (e: React.MouseEvent) => {

@@ -29,7 +29,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
 import { formatCurrency } from '@/lib/utils';
 import { Address } from '@/types';
-import { orderService, promoService } from '@/services/order';
+import { orderService } from '@/services/order';
+import { promoService } from '@/services/promo';
 import addressService from '@/services/address';
 import shippingService, { ShippingMethod, formatEstimate } from '@/services/shipping';
 

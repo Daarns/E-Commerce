@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { wishlistService, Wishlist } from '@/services/product';
+import { wishlistService, Wishlist } from '@/services/wishlist';
 import { toast } from 'sonner';
 
 interface WishlistState {

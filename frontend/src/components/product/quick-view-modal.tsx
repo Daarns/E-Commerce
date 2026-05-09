@@ -36,7 +36,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   const currentImage = images[currentImageIndex];
 
   const discountPercentage = product.sale_price
-    ? Math.round((1 - product.sale_price / product.regular_price) * 100)
+    ? Math.round((1 - Number(product.sale_price) / Number(product.regular_price)) * 100)
     : 0;
 
   const isWishlisted = isInWishlist(product.id);
