@@ -5,3 +5,5 @@ export { ForgotPasswordForm } from './ForgotPasswordForm';
 export { CheckEmailScreen } from './CheckEmailScreen';
 export { PasswordRequirements } from './PasswordRequirements';
 export { VerificationDialog } from './VerificationDialog';
+export { ResetPasswordForm } from './ResetPasswordForm';
+export { InvalidTokenScreen } from './InvalidTokenScreen';
