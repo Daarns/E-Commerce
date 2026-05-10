@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useRegisterForm } from '@/hooks/useRegisterForm';
-import { RegisterForm } from '@/components/common/RegisterForm';
+import { RegisterForm } from '@/components/auth/RegisterForm';
 
 export default function RegisterPage() {
   const {

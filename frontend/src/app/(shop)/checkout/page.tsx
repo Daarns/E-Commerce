@@ -31,8 +31,8 @@ import { formatCurrency } from '@/utils';
 import { Address } from '@/types';
 import { orderService } from '@/services/order';
 import { promoService } from '@/services/promo';
-import addressService from '@/services/address';
-import shippingService, { ShippingMethod, formatEstimate } from '@/services/shipping';
+import { addressService } from '@/services/address';
+import { shippingService, formatEstimate, type ShippingMethod } from '@/services/shipping';
 
 // Checkout Steps
 const STEPS = [

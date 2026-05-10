@@ -4,8 +4,8 @@ import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useLoginForm } from '@/hooks/useLoginForm';
-import { LoginForm } from '@/components/common/LoginForm';
-import { VerificationDialog } from '@/components/common/VerificationDialog';
+import { LoginForm } from '@/components/auth/LoginForm';
+import { VerificationDialog } from '@/components/auth/VerificationDialog';
 
 export default function LoginPage() {
   const {

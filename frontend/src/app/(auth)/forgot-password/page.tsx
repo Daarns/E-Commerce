@@ -5,8 +5,8 @@ import { Card } from '@/components/ui/card';
 import { CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
 import { useForgotPasswordForm } from '@/hooks/useForgotPasswordForm';
-import { ForgotPasswordForm } from '@/components/common/ForgotPasswordForm';
-import { CheckEmailScreen } from '@/components/common/CheckEmailScreen';
+import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
+import { CheckEmailScreen } from '@/components/auth/CheckEmailScreen';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();

@@ -40,8 +40,8 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import { Address } from '@/types';
 import { authService } from '@/services/auth';
-import userService from '@/services/user';
-import addressService from '@/services/address';
+import { userService } from '@/services/user';
+import { addressService } from '@/services/address';
 import { AvatarSVG } from '@/components/common/avatar';
 import { toast } from 'sonner';
 
