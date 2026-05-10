@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { ProductGrid } from '@/components/product/product-grid';
 import { productService, categoryService } from '@/services/product';
 import { Product, Category } from '@/types';
-import { debounce } from '@/lib/utils';
+import { debounce } from '@/utils';
 
 const sortOptions = [
   { value: 'newest', label: 'Newest' },

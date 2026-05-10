@@ -7,7 +7,7 @@ import { Search, Loader2, TrendingUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { productService, PopularSearch } from '@/services/product';
-import { debounce } from '@/lib/utils';
+import { debounce } from '@/utils';
 
 interface SearchInputProps {
   placeholder?: string;

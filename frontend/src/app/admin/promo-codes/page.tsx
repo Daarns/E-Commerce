@@ -18,7 +18,7 @@ import {
   PromoCode,
   CreatePromoInput,
 } from '@/services/admin';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/utils';
 
 // ─── Form data (UI-side, dates stored as YYYY-MM-DD then converted) ─────────
 interface PromoFormData {

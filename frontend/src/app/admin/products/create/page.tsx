@@ -8,19 +8,19 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { AdminLayout } from '@/components/admin/layout';
 import { ProductForm } from '@/components/admin/product-form';
-import { adminService, CreateProductRequest } from '@/services/admin';
+import { adminService, CreateProductRequest, UpdateProductRequest } from '@/services/admin';
 import { toast } from 'sonner';
 
 export default function CreateProductPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (data: CreateProductRequest & { id?: string }) => {
+  const handleSubmit = async (data: CreateProductRequest | UpdateProductRequest) => {
     try {
       setIsLoading(true);
-      const response = await adminService.createProduct(data);
+      const response = await adminService.createProduct(data as CreateProductRequest);
       toast.success('Product created successfully');
-      router.push(`/admin/products/${response.data.id}`);
+      router.push(`/admin/products/${response.id}`);
     } catch (error) {
       console.error('Failed to create product:', error);
       toast.error(

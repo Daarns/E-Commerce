@@ -27,7 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/utils';
 import { Address } from '@/types';
 import { orderService } from '@/services/order';
 import { promoService } from '@/services/promo';
@@ -944,7 +944,7 @@ export default function CheckoutPage() {
                         {item.product?.name} x {item.quantity}
                       </span>
                       <span>
-                        {formatCurrency((item.product?.sale_price || item.product?.regular_price || 0) * item.quantity)}
+                        {formatCurrency(Number(item.product?.sale_price || item.product?.regular_price || 0) * item.quantity)}
                       </span>
                     </div>
                   ))}

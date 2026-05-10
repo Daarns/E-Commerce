@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { orderService } from '@/services/order';
 import { loadMidtransSnap, openPayment, getPaymentStatusDisplay } from '@/services/payment';
 import { useAuthStore } from '@/stores/auth-store';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/utils';
 import { toast } from 'sonner';
 import Link from 'next/link';
 

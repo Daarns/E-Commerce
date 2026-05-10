@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { productService, ProductReview, ReviewStats } from '@/services/product';
 import { useAuthStore } from '@/stores/auth-store';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/utils';
 import { toast } from 'sonner';
 import { ReviewForm } from './review-form';
 

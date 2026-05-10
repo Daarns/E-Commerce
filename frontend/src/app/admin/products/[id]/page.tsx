@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { adminService, CreateProductRequest, AdminProduct } from '@/services/admin';
+import { adminService, CreateProductRequest, UpdateProductRequest, AdminProduct } from '@/services/admin';
 import { toast } from 'sonner';
 
 export default function EditProductPage() {
@@ -48,11 +48,16 @@ export default function EditProductPage() {
     }
   };
 
-  const handleSubmit = async (data: CreateProductRequest & { id?: string }) => {
+  const handleSubmit = async (data: CreateProductRequest | UpdateProductRequest) => {
     try {
       setIsUpdating(true);
       // Pass productId from route params, not from data
-      await adminService.updateProduct(productId, { ...data, id: productId });
+      const updateData: UpdateProductRequest = {
+        ...data,
+        id: productId,
+        version: product?.version ?? 0,
+      };
+      await adminService.updateProduct(productId, updateData);
       toast.success('Product updated successfully');
       loadProduct();
     } catch (error) {

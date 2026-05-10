@@ -30,7 +30,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { AdminProduct, ProductFilters } from '@/services/admin';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/utils';
 
 interface ProductTableProps {
   products: AdminProduct[];

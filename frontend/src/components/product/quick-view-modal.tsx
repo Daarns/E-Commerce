@@ -7,7 +7,7 @@ import { X, ChevronLeft, ChevronRight, ShoppingBag, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Product } from '@/types';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/utils';
 import { useCartStore } from '@/stores/cart-store';
 import { useWishlistStore } from '@/stores/wishlist-store';
 import { useAuthStore } from '@/stores/auth-store';

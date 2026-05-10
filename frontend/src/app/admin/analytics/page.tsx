@@ -28,7 +28,7 @@ import {
   ProductPerformance,
 } from '@/services/admin';
 import { RevenueChart } from '@/components/admin/charts/revenue-chart';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/utils';
 import { toast } from 'sonner';
 
 function motionProps(delay = 0) {

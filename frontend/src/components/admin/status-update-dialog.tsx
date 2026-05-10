@@ -16,8 +16,8 @@ interface StatusUpdateDialogProps {
 }
 
 const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  pending: ['confirmed', 'cancelled'],
-  confirmed: ['processing', 'cancelled'],
+  pending: ['payment_confirmed', 'cancelled'],
+  payment_confirmed: ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
   shipped: ['delivered'],
   delivered: ['refunded'],

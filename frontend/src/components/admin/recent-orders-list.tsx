@@ -1,7 +1,7 @@
 'use client';
 
 import { CheckCircle, Clock } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { formatDate } from '@/utils';
 import { AdminOrder } from '@/services/admin';
 
 interface RecentOrdersListProps {

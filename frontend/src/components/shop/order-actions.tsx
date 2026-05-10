@@ -20,8 +20,9 @@ export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
   const [openRefundDialog, setOpenRefundDialog] = useState(false);
   const router = useRouter();
 
-  const canCancel = ['pending', 'confirmed', 'processing'].includes(order.status);
-  const canRequestRefund = order.status === 'delivered' && order.payment_status === 'paid';
+  const status = order.order_status || order.status;
+  const canCancel = status && ['pending', 'payment_confirmed', 'processing'].includes(status);
+  const canRequestRefund = status === 'delivered' && order.payment_status === 'paid';
 
   const handleCancelOrder = async () => {
     try {
@@ -117,7 +118,7 @@ export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
               </DialogHeader>
               <div className="flex flex-col gap-4">
                 <p className="text-sm text-gray-600">
-                  <strong>Refund Amount:</strong> Rp {order.total_amount.toLocaleString('id-ID')}
+                  <strong>Refund Amount:</strong> Rp {Number(order.total_amount ?? order.total ?? 0).toLocaleString('id-ID')}
                 </p>
                 <div className="flex gap-2 justify-end">
                   <Button

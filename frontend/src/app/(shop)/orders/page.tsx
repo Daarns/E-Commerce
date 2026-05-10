@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/auth-store';
 import { orderService } from '@/services/order';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/utils';
 import { Order, OrderStatus } from '@/types';
 import { toast } from 'sonner';
 import api from '@/services/api';

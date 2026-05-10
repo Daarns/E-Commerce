@@ -36,6 +36,7 @@ export interface UpdateProductRequest {
   stock_quantity?: number;
   category_id?: string;
   brand?: string;
+  sku?: string;
   status?: 'active' | 'draft' | 'archived';
   meta_title?: string;
   meta_description?: string;

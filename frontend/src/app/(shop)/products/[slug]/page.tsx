@@ -20,7 +20,7 @@ import { productService } from '@/services/product';
 import { useCartStore } from '@/stores/cart-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { Product, ProductVariant } from '@/types';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/utils';
 import { toast } from 'sonner';
 
 export default function ProductDetailPage() {
@@ -89,15 +89,15 @@ export default function ProductDetailPage() {
     : [{ id: 'placeholder', url: '/placeholder-product.jpg', alt_text: product.name, is_primary: true, sort_order: 0 }];
 
   const currentPrice = selectedVariant
-    ? (product.sale_price || product.regular_price) + selectedVariant.price_adjustment
+    ? Number(product.sale_price || product.regular_price) + selectedVariant.price_adjustment
     : (product.sale_price || product.regular_price);
 
   const originalPrice = selectedVariant
-    ? product.regular_price + selectedVariant.price_adjustment
+    ? Number(product.regular_price) + selectedVariant.price_adjustment
     : product.regular_price;
 
   const discountPercentage = product.sale_price
-    ? Math.round((1 - product.sale_price / product.regular_price) * 100)
+    ? Math.round((1 - Number(product.sale_price) / Number(product.regular_price)) * 100)
     : 0;
 
   const stockQuantity = selectedVariant?.stock_quantity ?? product.stock_quantity;

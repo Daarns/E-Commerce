@@ -23,7 +23,7 @@ import { RevenueChart } from '@/components/admin/charts/revenue-chart';
 import { OrderStatusChart } from '@/components/admin/charts/order-status-chart';
 import { TopProductsTable } from '@/components/admin/tables/top-products-table';
 import { RecentOrdersList } from '@/components/admin/recent-orders-list';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/utils';
 
 // Animation helper — pass directly to motion.div without variants
 function motionProps(delay = 0) {

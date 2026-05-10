@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 import { adminService, RevenueTrend } from '@/services/admin';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/utils';
 
 // Custom tooltip for IDR currency
 function CustomTooltip({ active, payload, label }: any) {

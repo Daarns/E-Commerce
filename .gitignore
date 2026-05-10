@@ -32,10 +32,12 @@ dist/
 !.vscode/settings.json
 !.vscode/extensions.json
 .agents/
+.claude/
 
 # Copilot instructions (local)
 copilot-instructions.md
 *.copilotmd
+.copilot
 
 # Skills lock (auto-generated)
 skills-lock.json
@@ -86,3 +88,5 @@ implement-plan/
 
 roadmap/
 roadmap/SEO/
+
+schema.sql
