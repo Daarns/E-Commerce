@@ -89,3 +89,15 @@ export const validateResetPasswordForm = (
   return errors;
 };
 
+export const validateVerificationCode = (code: string): Record<string, string> => {
+  const errors: Record<string, string> = {};
+
+  if (!code) {
+    errors.code = 'Verification code is required';
+  } else if (code.length !== 6) {
+    errors.code = 'Code must be 6 digits';
+  }
+
+  return errors;
+};
+

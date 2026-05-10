@@ -7,3 +7,5 @@ export { PasswordRequirements } from './PasswordRequirements';
 export { VerificationDialog } from './VerificationDialog';
 export { ResetPasswordForm } from './ResetPasswordForm';
 export { InvalidTokenScreen } from './InvalidTokenScreen';
+export { VerifyEmailForm } from './VerifyEmailForm';
+export { VerifyEmailConfirmScreen, type VerificationStatus } from './VerifyEmailConfirmScreen';

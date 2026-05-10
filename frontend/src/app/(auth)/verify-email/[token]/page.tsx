@@ -2,123 +2,38 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { toast } from 'sonner';
+import { VerifyEmailConfirmScreen, type VerificationStatus } from '@/components/auth';
 
-type VerificationStatus = 'loading' | 'success' | 'error' | 'expired' | 'not_found';
-
-function VerifyEmailConfirmContent() {
+function VerifyEmailTokenContent() {
   const router = useRouter();
-  const [status, setStatus] = useState<VerificationStatus>('not_found');
-  const [message, setMessage] = useState('');
+  const [status, setStatus] = useState<VerificationStatus>('redirect');
 
   useEffect(() => {
-    // Email verification is now done through the main verify-email page
-    // This page is kept for future magic link or token-based verification
-    setStatus('not_found');
-    setMessage('Please use the verification code sent to your email. Redirecting...');
-    
-    setTimeout(() => {
+    // Token-based verification is currently not implemented
+    // This page redirects to the main verify-email page with code-based verification
+    setStatus('redirect');
+
+    const redirectTimer = setTimeout(() => {
       router.push('/verify-email');
     }, 2000);
+
+    return () => clearTimeout(redirectTimer);
   }, [router]);
 
-  if (status === 'loading') {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-md px-4"
-      >
-        <Card className="border-0 shadow-lg">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="mb-4 h-12 w-12 animate-spin text-blue-600" />
-            <p className="text-center text-muted-foreground">
-              Verifying your email...
-            </p>
-          </CardContent>
-        </Card>
-      </motion.div>
-    );
-  }
-
-  if (status === 'success') {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-md px-4"
-      >
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Email Verified!</CardTitle>
-            <CardDescription>
-              {message}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-lg bg-green-50 p-4 text-sm text-green-700">
-              <p>
-                You will be redirected to the login page in a few seconds. If not, click the button below.
-              </p>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={() => router.push('/login')}>
-              Go to Login
-            </Button>
-          </CardFooter>
-        </Card>
-      </motion.div>
-    );
-  }
-
-  // Default: redirect to main verify-email page
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="w-full max-w-md px-4"
-    >
-      <Card className="border-0 shadow-lg">
-        <CardHeader className="text-center">
-          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-blue-500" />
-          <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
-          <CardDescription>
-            {message || 'Please use the verification code sent to your email'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert className="border-blue-200 bg-blue-50">
-            <AlertDescription className="text-blue-700">
-              A verification code has been sent to your email address. Please enter it on the verification page.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-        <CardFooter>
-          <Button className="w-full" onClick={() => router.push('/verify-email')}>
-            Go to Verification Page
-          </Button>
-        </CardFooter>
-      </Card>
-    </motion.div>
+    <VerifyEmailConfirmScreen
+      status={status}
+      message="Please use the verification code sent to your email. Redirecting..."
+      onGoToVerify={() => router.push('/verify-email')}
+    />
   );
 }
 
-export default function VerifyEmailConfirmPage() {
+export default function VerifyEmailTokenPage() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <VerifyEmailConfirmContent />
+      <VerifyEmailTokenContent />
     </Suspense>
   );
 }
+
