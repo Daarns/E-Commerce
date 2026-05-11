@@ -1,5 +1,5 @@
 // Format utilities (global - used everywhere)
-export { formatCurrency, formatDate, formatDateTime, formatCountdown } from './format';
+export { toNum, formatCurrency, formatDate, formatDateTime, formatCountdown } from './format';
 
 // String utilities
 export { truncate, slugify } from './string';

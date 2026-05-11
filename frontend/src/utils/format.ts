@@ -1,3 +1,10 @@
+// Convert decimal string from Go backend to number
+// Handles: string ("150000.00"), number, undefined, null
+export function toNum(val: string | number | undefined | null): number {
+  if (val === undefined || val === null) return 0;
+  return typeof val === 'number' ? val : parseFloat(val) || 0;
+}
+
 // Accepts number OR decimal string from Go backend (e.g. "150000.00").
 // Returns formatted IDR currency. Returns "Rp 0" on NaN instead of crashing.
 export function formatCurrency(amount: number | string, currency: string = 'IDR'): string {

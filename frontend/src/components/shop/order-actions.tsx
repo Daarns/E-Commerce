@@ -1,12 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { Order, OrderStatus } from '@/types';
-import { orderService } from '@/services/order';
+import { Order } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Phone, FileText, RotateCcw, Trash2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useOrderDetailActions } from '@/hooks/useOrderDetailActions';
 
 interface OrderActionsProps {
   order: Order;
@@ -14,54 +12,20 @@ interface OrderActionsProps {
 }
 
 export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [openCancelDialog, setOpenCancelDialog] = useState(false);
-  const [openRefundDialog, setOpenRefundDialog] = useState(false);
-  const router = useRouter();
-
-  const status = order.order_status || order.status;
-  const canCancel = status && ['pending', 'payment_confirmed', 'processing'].includes(status);
-  const canRequestRefund = status === 'delivered' && order.payment_status === 'paid';
-
-  const handleCancelOrder = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const updatedOrder = await orderService.cancelOrder(order.id);
-      onOrderUpdated?.(updatedOrder);
-      setOpenCancelDialog(false);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to cancel order');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleContactSupport = () => {
-    // Open a mailto link or navigate to support page
-    window.location.href = `mailto:support@ecommerce.com?subject=Order%20${order.order_number}`;
-  };
-
-  const handleViewInvoice = () => {
-    // TODO: Implement invoice download/view
-    console.log('View invoice for order:', order.id);
-  };
-
-  const handleRequestRefund = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      // TODO: Implement refund request flow
-      console.log('Request refund for order:', order.id);
-      setOpenRefundDialog(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to request refund');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    isLoading,
+    error,
+    openCancelDialog,
+    setOpenCancelDialog,
+    openRefundDialog,
+    setOpenRefundDialog,
+    canCancel,
+    canRequestRefund,
+    handleCancelOrder,
+    handleContactSupport,
+    handleViewInvoice,
+    handleRequestRefund,
+  } = useOrderDetailActions(order, onOrderUpdated);
 
   return (
     <div className="bg-white rounded-lg border p-6">
