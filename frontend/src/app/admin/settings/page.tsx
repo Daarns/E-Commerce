@@ -1,9 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Settings,
   Store,
   Bell,
   ShieldCheck,
@@ -15,6 +13,7 @@ import {
   Info,
   CheckCircle2,
 } from 'lucide-react';
+import { useState } from 'react';
 import { AdminLayout } from '@/components/admin/layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +21,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { Toggle } from '@/components/admin/toggle';
+import { SettingRow } from '@/components/admin/setting-row';
+import {
+  SETTINGS_SECTIONS,
+  CURRENCY_OPTIONS,
+  LOG_LEVEL_OPTIONS,
+  ITEMS_PER_PAGE_OPTIONS,
+  THEME_OPTIONS,
+  BACKEND_INFO,
+} from '@/constants/settings.constants';
+import type { SectionId } from '@/constants/settings.constants';
 
 function motionProps(delay = 0) {
   return {
@@ -32,119 +42,21 @@ function motionProps(delay = 0) {
   };
 }
 
-// ─── Section nav ──────────────────────────────────────────────────────────────
-const sections = [
-  { id: 'store', label: 'Toko', icon: Store },
-  { id: 'notifications', label: 'Notifikasi', icon: Bell },
-  { id: 'security', label: 'Keamanan', icon: ShieldCheck },
-  { id: 'system', label: 'Sistem', icon: Database },
-  { id: 'appearance', label: 'Tampilan', icon: Palette },
-] as const;
+const iconMap = {
+  Store,
+  Bell,
+  ShieldCheck,
+  Database,
+  Palette,
+} as const;
 
-type SectionId = (typeof sections)[number]['id'];
-
-// ─── Toggle ───────────────────────────────────────────────────────────────────
-function Toggle({
-  checked,
-  onChange,
-}: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${checked ? 'bg-primary' : 'bg-muted'}`}
-    >
-      <span
-        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`}
-      />
-    </button>
-  );
-}
-
-// ─── Setting row ──────────────────────────────────────────────────────────────
-function SettingRow({
-  label,
-  description,
-  children,
-  badge,
-}: {
-  label: string;
-  description?: string;
-  children: React.ReactNode;
-  badge?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-6 py-4 border-b border-border/60 last:border-0">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium">{label}</p>
-          {badge && <Badge variant="outline" className="text-xs">{badge}</Badge>}
-        </div>
-        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const [active, setActive] = useState<SectionId>('store');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  // Store settings
-  const [storeName, setStoreName] = useState('Daarn Store');
-  const [storeEmail, setStoreEmail] = useState('hello@daarn.store');
-  const [storePhone, setStorePhone] = useState('+62 812 3456 7890');
-  const [storeAddress, setStoreAddress] = useState('Jakarta, Indonesia');
-  const [storeCurrency, setStoreCurrency] = useState('IDR');
-  const [storeLogo, setStoreLogo] = useState('');
-
-  // Notification settings
-  const [notifNewOrder, setNotifNewOrder] = useState(true);
-  const [notifLowStock, setNotifLowStock] = useState(true);
-  const [notifNewUser, setNotifNewUser] = useState(false);
-  const [notifPayment, setNotifPayment] = useState(true);
-  const [notifEmail, setNotifEmail] = useState(true);
-  const [lowStockThreshold, setLowStockThreshold] = useState('10');
-
-  // Security settings
-  const [sessionTimeout, setSessionTimeout] = useState('60');
-  const [maxLoginAttempts, setMaxLoginAttempts] = useState('5');
-  const [requireEmailVerif, setRequireEmailVerif] = useState(true);
-  const [twoFactorAdmin, setTwoFactorAdmin] = useState(false);
-
-  // System settings
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [debugMode, setDebugMode] = useState(false);
-  const [logLevel, setLogLevel] = useState('info');
-
-  // Appearance
-  const [defaultTheme, setDefaultTheme] = useState<'light' | 'dark' | 'system'>('system');
-  const [itemsPerPage, setItemsPerPage] = useState('20');
-
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      // NOTE: Backend Settings API belum ada — ini simulasi.
-      // Ketika backend Settings handler siap, panggil:
-      //   await api.put('/admin/settings', { store_name: storeName, ... })
-      await new Promise((r) => setTimeout(r, 800));
-      setSaved(true);
-      toast.success('Pengaturan berhasil disimpan');
-      setTimeout(() => setSaved(false), 3000);
-    } catch {
-      toast.error('Gagal menyimpan pengaturan');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { settings, updateSetting, isSaving, saved, handleSave } = useAdminSettings();
 
   return (
     <AdminLayout>
       <div className="space-y-8">
-
         {/* Header */}
         <motion.div {...motionProps(0)} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -153,15 +65,15 @@ export default function SettingsPage() {
               Konfigurasi platform e-commerce Anda.
             </p>
           </div>
-          <Button onClick={handleSave} disabled={saving} className="gap-2 shrink-0">
-            {saving ? (
+          <Button onClick={handleSave} disabled={isSaving} className="gap-2 shrink-0">
+            {isSaving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : saved ? (
               <CheckCircle2 className="h-4 w-4" />
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {saving ? 'Menyimpan…' : saved ? 'Tersimpan' : 'Simpan Pengaturan'}
+            {isSaving ? 'Menyimpan…' : saved ? 'Tersimpan' : 'Simpan Pengaturan'}
           </Button>
         </motion.div>
 
@@ -180,22 +92,25 @@ export default function SettingsPage() {
           {/* Section nav */}
           <div className="md:col-span-1">
             <nav className="space-y-1">
-              {sections.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => setActive(id)}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
-                    active === id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {label}
-                  {active !== id && <ChevronRight className="h-3.5 w-3.5 ml-auto opacity-40" />}
-                </button>
-              ))}
+              {SETTINGS_SECTIONS.map(({ id, label, icon }) => {
+                const Icon = iconMap[icon];
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setActive(id)}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
+                      active === id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {label}
+                    {active !== id && <ChevronRight className="h-3.5 w-3.5 ml-auto opacity-40" />}
+                  </button>
+                );
+              })}
             </nav>
           </div>
 
@@ -216,37 +131,50 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label>Nama Toko</Label>
-                      <Input value={storeName} onChange={(e) => setStoreName(e.target.value)} />
+                      <Input
+                        value={settings.store.name}
+                        onChange={(e) => updateSetting('store', 'name', e.target.value)}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Mata Uang</Label>
                       <select
-                        value={storeCurrency}
-                        onChange={(e) => setStoreCurrency(e.target.value)}
+                        value={settings.store.currency}
+                        onChange={(e) => updateSetting('store', 'currency', e.target.value)}
                         className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
                       >
-                        <option value="IDR">IDR — Rupiah</option>
-                        <option value="USD">USD — US Dollar</option>
-                        <option value="SGD">SGD — Singapore Dollar</option>
+                        {CURRENCY_OPTIONS.map(({ value, label }) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="space-y-1.5">
                       <Label>Email Toko</Label>
-                      <Input type="email" value={storeEmail} onChange={(e) => setStoreEmail(e.target.value)} />
+                      <Input
+                        type="email"
+                        value={settings.store.email}
+                        onChange={(e) => updateSetting('store', 'email', e.target.value)}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Nomor Telepon</Label>
-                      <Input value={storePhone} onChange={(e) => setStorePhone(e.target.value)} />
+                      <Input
+                        value={settings.store.phone}
+                        onChange={(e) => updateSetting('store', 'phone', e.target.value)}
+                      />
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label>Alamat</Label>
-                      <Input value={storeAddress} onChange={(e) => setStoreAddress(e.target.value)} />
+                      <Input
+                        value={settings.store.address}
+                        onChange={(e) => updateSetting('store', 'address', e.target.value)}
+                      />
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label>URL Logo</Label>
                       <Input
-                        value={storeLogo}
-                        onChange={(e) => setStoreLogo(e.target.value)}
+                        value={settings.store.logo}
+                        onChange={(e) => updateSetting('store', 'logo', e.target.value)}
                         placeholder="https://cdn.example.com/logo.png"
                       />
                     </div>
@@ -267,28 +195,28 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent>
                   <SettingRow label="Pesanan Baru" description="Notifikasi saat ada pesanan masuk">
-                    <Toggle checked={notifNewOrder} onChange={setNotifNewOrder} />
+                    <Toggle checked={settings.notifications.newOrder} onChange={(v) => updateSetting('notifications', 'newOrder', v)} />
                   </SettingRow>
                   <SettingRow label="Pembayaran Dikonfirmasi" description="Notifikasi saat Midtrans konfirmasi pembayaran">
-                    <Toggle checked={notifPayment} onChange={setNotifPayment} />
+                    <Toggle checked={settings.notifications.payment} onChange={(v) => updateSetting('notifications', 'payment', v)} />
                   </SettingRow>
                   <SettingRow label="Stok Hampir Habis" description="Notifikasi saat stok produk di bawah threshold">
-                    <Toggle checked={notifLowStock} onChange={setNotifLowStock} />
+                    <Toggle checked={settings.notifications.lowStock} onChange={(v) => updateSetting('notifications', 'lowStock', v)} />
                   </SettingRow>
                   <SettingRow label="Threshold Stok Rendah" description="Jumlah stok minimum sebelum notifikasi">
                     <Input
                       type="number"
                       min={1}
-                      value={lowStockThreshold}
-                      onChange={(e) => setLowStockThreshold(e.target.value)}
+                      value={settings.notifications.lowStockThreshold}
+                      onChange={(e) => updateSetting('notifications', 'lowStockThreshold', e.target.value)}
                       className="w-20 text-right"
                     />
                   </SettingRow>
                   <SettingRow label="Pengguna Baru Daftar" description="Notifikasi saat pelanggan baru mendaftar">
-                    <Toggle checked={notifNewUser} onChange={setNotifNewUser} />
+                    <Toggle checked={settings.notifications.newUser} onChange={(v) => updateSetting('notifications', 'newUser', v)} />
                   </SettingRow>
                   <SettingRow label="Kirim via Email" description="Duplikasikan notifikasi ke email admin" badge="SMTP Required">
-                    <Toggle checked={notifEmail} onChange={setNotifEmail} />
+                    <Toggle checked={settings.notifications.email} onChange={(v) => updateSetting('notifications', 'email', v)} />
                   </SettingRow>
                 </CardContent>
               </Card>
@@ -310,8 +238,8 @@ export default function SettingsPage() {
                       type="number"
                       min={5}
                       max={480}
-                      value={sessionTimeout}
-                      onChange={(e) => setSessionTimeout(e.target.value)}
+                      value={settings.security.sessionTimeout}
+                      onChange={(e) => updateSetting('security', 'sessionTimeout', e.target.value)}
                       className="w-20 text-right"
                     />
                   </SettingRow>
@@ -320,16 +248,16 @@ export default function SettingsPage() {
                       type="number"
                       min={3}
                       max={20}
-                      value={maxLoginAttempts}
-                      onChange={(e) => setMaxLoginAttempts(e.target.value)}
+                      value={settings.security.maxLoginAttempts}
+                      onChange={(e) => updateSetting('security', 'maxLoginAttempts', e.target.value)}
                       className="w-20 text-right"
                     />
                   </SettingRow>
                   <SettingRow label="Verifikasi Email Wajib" description="Pelanggan harus verifikasi email sebelum bisa login">
-                    <Toggle checked={requireEmailVerif} onChange={setRequireEmailVerif} />
+                    <Toggle checked={settings.security.requireEmailVerif} onChange={(v) => updateSetting('security', 'requireEmailVerif', v)} />
                   </SettingRow>
                   <SettingRow label="2FA untuk Admin" description="Wajibkan Two-Factor Authentication untuk akun admin" badge="Coming Soon">
-                    <Toggle checked={twoFactorAdmin} onChange={setTwoFactorAdmin} />
+                    <Toggle checked={settings.security.twoFactorAdmin} onChange={(v) => updateSetting('security', 'twoFactorAdmin', v)} />
                   </SettingRow>
                 </CardContent>
               </Card>
@@ -348,30 +276,29 @@ export default function SettingsPage() {
                   </CardHeader>
                   <CardContent>
                     <SettingRow label="Mode Maintenance" description="Tampilkan halaman maintenance ke semua pengunjung" badge="Hati-hati">
-                      <Toggle checked={maintenanceMode} onChange={setMaintenanceMode} />
+                      <Toggle checked={settings.system.maintenanceMode} onChange={(v) => updateSetting('system', 'maintenanceMode', v)} />
                     </SettingRow>
                     <SettingRow label="Debug Mode" description="Log request detail — hanya aktifkan di development" badge="Dev Only">
-                      <Toggle checked={debugMode} onChange={setDebugMode} />
+                      <Toggle checked={settings.system.debugMode} onChange={(v) => updateSetting('system', 'debugMode', v)} />
                     </SettingRow>
                     <SettingRow label="Log Level" description="Level log backend Go">
                       <select
-                        value={logLevel}
-                        onChange={(e) => setLogLevel(e.target.value)}
+                        value={settings.system.logLevel}
+                        onChange={(e) => updateSetting('system', 'logLevel', e.target.value)}
                         className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                       >
-                        <option value="debug">Debug</option>
-                        <option value="info">Info</option>
-                        <option value="warn">Warn</option>
-                        <option value="error">Error</option>
+                        {LOG_LEVEL_OPTIONS.map(({ value, label }) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
                       </select>
                     </SettingRow>
                     <SettingRow label="Item per Halaman" description="Default jumlah item di tabel admin">
                       <select
-                        value={itemsPerPage}
-                        onChange={(e) => setItemsPerPage(e.target.value)}
+                        value={settings.system.itemsPerPage}
+                        onChange={(e) => updateSetting('system', 'itemsPerPage', e.target.value)}
                         className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                       >
-                        {['10', '20', '50', '100'].map((n) => (
+                        {ITEMS_PER_PAGE_OPTIONS.map((n) => (
                           <option key={n} value={n}>{n}</option>
                         ))}
                       </select>
@@ -384,13 +311,7 @@ export default function SettingsPage() {
                   <CardContent className="p-5">
                     <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">Info Backend</p>
                     <div className="space-y-2 text-sm">
-                      {[
-                        { label: 'Framework', value: 'Gin (Go)' },
-                        { label: 'Database', value: 'PostgreSQL (Docker)' },
-                        { label: 'Cache', value: 'Redis' },
-                        { label: 'Storage', value: 'SeaweedFS' },
-                        { label: 'Payment', value: 'Midtrans Snap (Sandbox)' },
-                      ].map(({ label, value }) => (
+                      {BACKEND_INFO.map(({ label, value }) => (
                         <div key={label} className="flex items-center justify-between">
                           <span className="text-muted-foreground">{label}</span>
                           <Badge variant="outline" className="font-mono text-xs">{value}</Badge>
@@ -416,22 +337,18 @@ export default function SettingsPage() {
                   <div className="space-y-3">
                     <Label>Tema Default Admin</Label>
                     <div className="grid grid-cols-3 gap-3">
-                      {([
-                        { value: 'light', label: 'Terang', preview: 'bg-white border-2' },
-                        { value: 'dark', label: 'Gelap', preview: 'bg-zinc-900 border-2' },
-                        { value: 'system', label: 'Sistem', preview: 'bg-gradient-to-br from-white to-zinc-900 border-2' },
-                      ] as const).map(({ value, label, preview }) => (
+                      {THEME_OPTIONS.map(({ value, label, preview }) => (
                         <button
                           key={value}
-                          onClick={() => setDefaultTheme(value)}
+                          onClick={() => updateSetting('appearance', 'defaultTheme', value)}
                           className={cn(
                             'flex flex-col items-center gap-2 p-3 rounded-lg border transition-all',
-                            defaultTheme === value
+                            settings.appearance.defaultTheme === value
                               ? 'border-primary bg-primary/5 ring-1 ring-primary'
                               : 'border-border hover:border-primary/40'
                           )}
                         >
-                          <div className={`w-full h-12 rounded-md ${preview} ${defaultTheme === value ? 'border-primary' : 'border-border'}`} />
+                          <div className={`w-full h-12 rounded-md ${preview} ${settings.appearance.defaultTheme === value ? 'border-primary' : 'border-border'}`} />
                           <span className="text-xs font-medium">{label}</span>
                         </button>
                       ))}
@@ -439,11 +356,13 @@ export default function SettingsPage() {
                   </div>
                   <SettingRow label="Item per Halaman (Table)" description="Default baris di semua tabel data">
                     <select
-                      value={itemsPerPage}
-                      onChange={(e) => setItemsPerPage(e.target.value)}
+                      value={settings.appearance.itemsPerPage}
+                      onChange={(e) => updateSetting('appearance', 'itemsPerPage', e.target.value)}
                       className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                     >
-                      {['10', '20', '50', '100'].map((n) => <option key={n} value={n}>{n}</option>)}
+                      {ITEMS_PER_PAGE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
                     </select>
                   </SettingRow>
                 </CardContent>

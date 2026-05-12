@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,77 +15,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { adminService, CreateProductRequest, UpdateProductRequest, AdminProduct } from '@/services/admin';
-import { toast } from 'sonner';
+import { useProductEdit } from '@/hooks/useProductEdit';
 
 export default function EditProductPage() {
   const router = useRouter();
-  const params = useParams();
-  const productId = params.id as string;
-
-  const [product, setProduct] = useState<AdminProduct | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  useEffect(() => {
-    loadProduct();
-  }, [productId]);
-
-  const loadProduct = async () => {
-    try {
-      setIsLoading(true);
-      const response = await adminService.getProduct(productId);
-      setProduct(response.data);
-    } catch (error) {
-      console.error('Failed to load product:', error);
-      toast.error('Failed to load product');
-      router.push('/admin/products');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmit = async (data: CreateProductRequest | UpdateProductRequest) => {
-    try {
-      setIsUpdating(true);
-      // Pass productId from route params, not from data
-      const updateData: UpdateProductRequest = {
-        ...data,
-        id: productId,
-        version: product?.version ?? 0,
-      };
-      await adminService.updateProduct(productId, updateData);
-      toast.success('Product updated successfully');
-      loadProduct();
-    } catch (error) {
-      console.error('Failed to update product:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to update product'
-      );
-      throw error;
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    try {
-      setIsDeleting(true);
-      await adminService.deleteProduct(productId);
-      toast.success('Product deleted successfully');
-      router.push('/admin/products');
-    } catch (error) {
-      console.error('Failed to delete product:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to delete product'
-      );
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
-    }
-  };
+  const {
+    product,
+    isLoading,
+    isUpdating,
+    isDeleting,
+    showDeleteConfirm,
+    setShowDeleteConfirm,
+    handleSubmit,
+    handleDelete,
+  } = useProductEdit();
 
   if (isLoading) {
     return (

@@ -1,16 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AdminLayout } from '@/components/admin/layout';
 import { ProductSearch } from '@/components/admin/product-search';
 import { ProductTable } from '@/components/admin/product-table';
-import { adminService, ProductFilters, AdminProduct } from '@/services/admin';
-import { toast } from 'sonner';
+import { AdminProduct } from '@/services/admin';
+import { useAdminProducts } from '@/hooks/useAdminProducts';
+import { calculateProductStats } from '@/utils/product.stats';
 import {
   Pagination,
   PaginationContent,
@@ -23,58 +23,27 @@ import {
 
 export default function AdminProductsPage() {
   const router = useRouter();
-  const [products, setProducts] = useState<AdminProduct[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
-  const [total, setTotal] = useState(0);
-  const [filters, setFilters] = useState<ProductFilters>({
-    sort_by: 'created_at',
-    sort_order: 'desc',
-  });
+  const {
+    products,
+    isLoading,
+    page,
+    total,
+    limit,
+    filters,
+    totalPages,
+    handleFiltersChange,
+    handleSort,
+    handlePageChange,
+    handleDelete,
+  } = useAdminProducts();
 
-  const totalPages = Math.ceil(total / limit);
+  const stats = calculateProductStats(products);
 
-  useEffect(() => {
-    loadProducts();
-  }, [page, limit, filters]);
-
-  const loadProducts = async () => {
-    try {
-      setIsLoading(true);
-      const response = await adminService.getProducts(filters, page, limit);
-      setProducts(response.data.products);
-      setTotal(response.data.total);
-    } catch (error) {
-      console.error('Failed to load products:', error);
-      toast.error('Failed to load products');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleFiltersChange = (newFilters: ProductFilters) => {
-    setFilters(newFilters);
-    setPage(1); // Reset to first page when filters change
-  };
-
-  const handleEdit = (product: AdminProduct) => {
+  const handleEdit = (product: AdminProduct): void => {
     router.push(`/admin/products/${product.id}`);
   };
 
-  const handleDelete = async (productId: string) => {
-    try {
-      await adminService.deleteProduct(productId);
-      toast.success('Product deleted successfully');
-      loadProducts();
-    } catch (error) {
-      console.error('Failed to delete product:', error);
-      toast.error('Failed to delete product');
-    }
-  };
-
-  const handleView = (product: AdminProduct) => {
-    // Navigate to product detail page or open modal
+  const handleView = (product: AdminProduct): void => {
     router.push(`/products/${product.slug}`);
   };
 
@@ -115,9 +84,7 @@ export default function AdminProductsPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">
-                  {products.filter(p => p.is_active).length}
-                </p>
+                <p className="text-3xl font-bold">{stats.active}</p>
                 <p className="text-sm text-muted-foreground">Active</p>
               </div>
             </CardContent>
@@ -125,9 +92,7 @@ export default function AdminProductsPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">
-                  {products.filter(p => p.stock_quantity === 0).length}
-                </p>
+                <p className="text-3xl font-bold">{stats.outOfStock}</p>
                 <p className="text-sm text-muted-foreground">Out of Stock</p>
               </div>
             </CardContent>
@@ -167,13 +132,7 @@ export default function AdminProductsPage() {
               onView={handleView}
               sortBy={filters.sort_by}
               sortOrder={filters.sort_order}
-              onSort={(by, order) => {
-                setFilters(prev => ({
-                  ...prev,
-                  sort_by: by as ProductFilters['sort_by'],
-                  sort_order: order,
-                }));
-              }}
+              onSort={handleSort}
             />
           </CardContent>
         </Card>
@@ -189,7 +148,7 @@ export default function AdminProductsPage() {
                 {page > 1 && (
                   <PaginationItem>
                     <PaginationPrevious
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      onClick={() => handlePageChange(Math.max(1, page - 1))}
                     />
                   </PaginationItem>
                 )}
@@ -200,7 +159,7 @@ export default function AdminProductsPage() {
                     <PaginationItem key={pageNum}>
                       <PaginationLink
                         isActive={page === pageNum}
-                        onClick={() => setPage(pageNum)}
+                        onClick={() => handlePageChange(pageNum)}
                       >
                         {pageNum}
                       </PaginationLink>
@@ -217,7 +176,7 @@ export default function AdminProductsPage() {
                 {page < totalPages && (
                   <PaginationItem>
                     <PaginationNext
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
                     />
                   </PaginationItem>
                 )}

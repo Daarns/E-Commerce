@@ -33,6 +33,7 @@ dist/
 !.vscode/extensions.json
 .agents/
 .claude/
+.claude/skills/
 
 # Copilot instructions (local)
 copilot-instructions.md

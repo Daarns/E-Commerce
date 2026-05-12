@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   DollarSign,
@@ -13,105 +12,22 @@ import {
   RefreshCw,
   ArrowUpRight,
 } from 'lucide-react';
-import { adminService, DashboardSummary } from '@/services/admin';
-import { toast } from 'sonner';
 import { AdminLayout } from '@/components/admin/layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { StatCard } from '@/components/admin/stat-card';
+import { SkeletonCard } from '@/components/admin/skeleton-card';
 import { RevenueChart } from '@/components/admin/charts/revenue-chart';
 import { OrderStatusChart } from '@/components/admin/charts/order-status-chart';
 import { TopProductsTable } from '@/components/admin/tables/top-products-table';
 import { RecentOrdersList } from '@/components/admin/recent-orders-list';
-import { formatCurrency, formatDate } from '@/utils';
-
-// Animation helper — pass directly to motion.div without variants
-function motionProps(delay = 0) {
-  return {
-    initial: { opacity: 0, y: 18 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.4, delay, ease: 'easeOut' as const },
-  };
-}
-
-function StatCard({
-  label,
-  value,
-  sub,
-  icon: Icon,
-  color,
-  delay = 0,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  icon: React.ElementType;
-  color: string;
-  delay?: number;
-}) {
-  return (
-    <motion.div {...motionProps(delay)}>
-      <Card className="overflow-hidden border-border/60 hover:shadow-lg hover:border-primary/30 transition-all duration-300">
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1 flex-1">
-              <p className="text-sm font-medium text-muted-foreground">{label}</p>
-              <p className="text-2xl font-bold tracking-tight">{value}</p>
-              {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
-            </div>
-            <div className={`p-3 rounded-xl ${color} shrink-0`}>
-              <Icon className="h-5 w-5" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
-
-function SkeletonCard() {
-  return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2 flex-1">
-            <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-            <div className="h-7 w-32 rounded bg-muted animate-pulse" />
-            <div className="h-3 w-20 rounded bg-muted animate-pulse" />
-          </div>
-          <div className="h-11 w-11 rounded-xl bg-muted animate-pulse" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+import { useAdminDashboard } from '@/hooks/useAdminDashboard';
+import { formatCurrency } from '@/utils';
+import { motionProps } from '@/utils/motion';
 
 export default function AdminDashboardPage() {
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const fetchDashboard = useCallback(async (silent = false) => {
-    try {
-      if (!silent) setIsLoading(true);
-      else setIsRefreshing(true);
-      const data = await adminService.getDashboardSummary();
-      console.log('[Dashboard] API Response summary:', data);
-      console.log('[Dashboard] Recent orders:', data.recent_orders);
-      if (data.recent_orders && data.recent_orders.length > 0) {
-        console.log('[Dashboard] First recent order:', JSON.stringify(data.recent_orders[0], null, 2));
-      }
-      setSummary(data);
-    } catch (error) {
-      console.error('Failed to fetch dashboard:', error);
-      toast.error('Gagal memuat data dashboard');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+  const { summary, isLoading, isRefreshing, fetchDashboard } = useAdminDashboard();
 
   const stats = summary
     ? [

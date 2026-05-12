@@ -40,7 +40,7 @@ interface ProductTableProps {
   onView: (product: AdminProduct) => void;
   sortBy?: ProductFilters['sort_by'];
   sortOrder?: 'asc' | 'desc';
-  onSort?: (by: string, order: 'asc' | 'desc') => void;
+  onSort?: (by: ProductFilters['sort_by'], order: 'asc' | 'desc') => void;
 }
 
 const getStockStatus = (stock: number): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } => {
@@ -81,7 +81,7 @@ export function ProductTable({
     setSelectedIds(newSelected);
   };
 
-  const handleSort = (column: string) => {
+  const handleSort = (column: ProductFilters['sort_by']) => {
     if (!onSort) return;
 
     let newOrder: 'asc' | 'desc' = 'asc';
