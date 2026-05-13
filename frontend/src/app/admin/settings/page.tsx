@@ -14,7 +14,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useState } from 'react';
-import { AdminLayout } from '@/components/admin/layout';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,8 +22,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
-import { Toggle } from '@/components/admin/toggle';
-import { SettingRow } from '@/components/admin/setting-row';
+import { Toggle } from '@/components/admin/shared/toggle';
+import { SettingRow } from '@/components/admin/settings/setting-row';
 import {
   SETTINGS_SECTIONS,
   CURRENCY_OPTIONS,

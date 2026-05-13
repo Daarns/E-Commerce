@@ -15,15 +15,15 @@ import {
   Loader2,
   Filter,
 } from 'lucide-react';
-import { AdminLayout } from '@/components/admin/layout';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { PromoCode } from '@/services/admin';
 import { useAdminPromos } from '@/hooks/useAdminPromos';
-import { PromoModal } from '@/components/admin/promo-modal';
-import { CopyButton } from '@/components/admin/copy-button';
+import { PromoModal } from '@/components/admin/promo/promo-modal';
+import { CopyButton } from '@/components/admin/shared/copy-button';
 import { calculatePromoStats, formatPromoDate, formatDiscountValue, isPromoExpired } from '@/utils/promo.stats';
 import { formatCurrency } from '@/utils';
 

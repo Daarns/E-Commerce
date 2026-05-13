@@ -5,8 +5,8 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { AdminLayout } from '@/components/admin/layout';
-import { ProductForm } from '@/components/admin/product-form';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
+import { ProductForm } from '@/components/admin/product/product-form';
 import {
   Dialog,
   DialogContent,

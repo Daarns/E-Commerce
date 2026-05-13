@@ -12,16 +12,16 @@ import {
   RefreshCw,
   ArrowUpRight,
 } from 'lucide-react';
-import { AdminLayout } from '@/components/admin/layout';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { StatCard } from '@/components/admin/stat-card';
-import { SkeletonCard } from '@/components/admin/skeleton-card';
+import { StatCard } from '@/components/admin/shared/stat-card';
+import { SkeletonCard } from '@/components/admin/shared/skeleton-card';
 import { RevenueChart } from '@/components/admin/charts/revenue-chart';
 import { OrderStatusChart } from '@/components/admin/charts/order-status-chart';
 import { TopProductsTable } from '@/components/admin/tables/top-products-table';
-import { RecentOrdersList } from '@/components/admin/recent-orders-list';
+import { RecentOrdersList } from '@/components/admin/order/recent-orders-list';
 import { useAdminDashboard } from '@/hooks/useAdminDashboard';
 import { formatCurrency } from '@/utils';
 import { motionProps } from '@/utils/motion';

@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useUserDetail } from '@/hooks/useUserDetail';
-import { ActivityTimeline } from '@/components/admin/activity-timeline';
-import { UserDetailActions } from '@/components/admin/user-detail-actions';
-import { UserInfoCard } from '@/components/admin/user-info-card';
-import { UserDetailLoading } from '@/components/admin/user-detail-loading';
-import { UserDetailError } from '@/components/admin/user-detail-error';
+import { ActivityTimeline } from '@/components/admin/shared/activity-timeline';
+import { UserDetailActions } from '@/components/admin/user/user-detail-actions';
+import { UserInfoCard } from '@/components/admin/user/user-info-card';
+import { UserDetailLoading } from '@/components/admin/user/user-detail-loading';
+import { UserDetailError } from '@/components/admin/user/user-detail-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

@@ -18,7 +18,7 @@ import {
 } from '@/services/admin';
 import { categoryService } from '@/services/product';
 import { Category } from '@/types';
-import { ImageUploadZone } from './image-upload-zone';
+import { ImageUploadZone } from '../image-upload-zone';
 import Image from 'next/image';
 import api from '@/services/api';
 import { ApiResponse } from '@/types';
@@ -28,7 +28,7 @@ import { ApiResponse } from '@/types';
 interface ProductFormProps {
   mode: 'create' | 'edit';
   product?: AdminProduct;
-  onSubmit: (data: CreateProductRequest | UpdateProductRequest) => Promise<void>;
+  onSubmit: (data: CreateProductRequest | UpdateProductRequest, variants?: CreateVariantInput[]) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -199,7 +199,16 @@ export function ProductForm({ mode, product, onSubmit, isLoading = false }: Prod
         };
         await onSubmit(payload);
       } else {
-        await onSubmit({ ...formData, image_urls: uploadedImages });
+        // Pass variants as second parameter for creation
+        const variantsToSubmit = variants.map(v => ({
+          variant_type: v.variant_type,
+          variant_value: v.variant_value,
+          price_adjustment: v.price_adjustment,
+          stock_quantity: v.stock_quantity,
+          sku_suffix: v.sku_suffix,
+          is_active: v.is_active,
+        }));
+        await onSubmit({ ...formData, image_urls: uploadedImages }, variantsToSubmit);
       }
     } catch { /* parent handles toast */ }
   };

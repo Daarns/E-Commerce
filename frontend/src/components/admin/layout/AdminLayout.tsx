@@ -3,8 +3,8 @@
 import { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
-import { AdminSidebar, SidebarProvider } from '@/components/admin/sidebar';
-import { AdminHeader } from '@/components/admin/header';
+import { AdminSidebar, SidebarProvider } from '@/components/admin/layout/sidebar';
+import { AdminHeader } from '@/components/admin/layout/header';
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();

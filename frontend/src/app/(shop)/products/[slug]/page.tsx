@@ -61,11 +61,11 @@ export default function ProductDetailPage() {
     : [{ id: 'placeholder', url: '/placeholder-product.jpg', alt_text: product.name, is_primary: true, sort_order: 0 }];
 
   const currentPrice = selectedVariant
-    ? Number(product.sale_price || product.regular_price) + selectedVariant.price_adjustment
+    ? Number(product.sale_price || product.regular_price) + Number(selectedVariant.price_adjustment ?? 0)
     : Number(product.sale_price || product.regular_price);
 
   const originalPrice = selectedVariant
-    ? Number(product.regular_price) + selectedVariant.price_adjustment
+    ? Number(product.regular_price) + Number(selectedVariant.price_adjustment ?? 0)
     : Number(product.regular_price);
 
   const discountPercentage = product.sale_price

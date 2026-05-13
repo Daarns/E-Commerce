@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { AdminOrder } from '@/services/admin';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { StatusUpdateDialog } from '@/components/admin/status-update-dialog';
-import { RefundForm } from '@/components/admin/refund-form';
+import { StatusUpdateDialog } from '@/components/admin/order/status-update-dialog';
+import { RefundForm } from '@/components/admin/order/refund-form';
 import { useRouter } from 'next/navigation';
 
 interface OrderDetailActionsProps {

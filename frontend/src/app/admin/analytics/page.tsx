@@ -1,7 +1,7 @@
 'use client';
 
 import { DollarSign, ShoppingCart, Users, TrendingUp } from 'lucide-react';
-import { AdminLayout } from '@/components/admin/layout';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { MetricCard } from '@/components/admin/analytics/MetricCard';
 import { SkeletonCard } from '@/components/admin/analytics/SkeletonCard';
 import { OrderStatusChart } from '@/components/admin/analytics/OrderStatusChart';

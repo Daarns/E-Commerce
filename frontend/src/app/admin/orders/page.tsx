@@ -1,11 +1,11 @@
 'use client';
 
 import { useAdminOrders } from '@/hooks/useAdminOrders';
-import { OrderTable } from '@/components/admin/order-table';
-import { OrderSearch } from '@/components/admin/order-search';
-import { OrderMetrics } from '@/components/admin/OrderMetrics';
-import { OrderPagination } from '@/components/admin/OrderPagination';
-import { AdminLayout } from '@/components/admin/layout';
+import { OrderTable } from '@/components/admin/order/order-table';
+import { OrderSearch } from '@/components/admin/order/order-search';
+import { OrderMetrics } from '@/components/admin/order/OrderMetrics';
+import { OrderPagination } from '@/components/admin/order/OrderPagination';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 
 export default function AdminOrdersPage(): React.ReactElement {
   const {

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { LogOut, Bell, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
-import { BurgerButton } from '@/components/admin/sidebar';
+import { BurgerButton } from '@/components/admin/layout/sidebar';
 import { toast } from 'sonner';
 
 export function AdminHeader() {

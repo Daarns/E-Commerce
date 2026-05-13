@@ -1,7 +1,7 @@
 'use client';
 
 import { AdminOrderMetrics } from '@/services/admin';
-import { MetricCard } from './analytics/MetricCard';
+import { MetricCard } from '../analytics/MetricCard';
 import { TrendingUp, Package, CheckCircle, DollarSign } from 'lucide-react';
 
 interface OrderMetricsProps {

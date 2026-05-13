@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { AdminUser } from '@/services/admin';
-import { RoleSelector } from './role-selector';
-import { StatusManager } from './status-manager';
+import { RoleSelector } from '../role-selector';
+import { StatusManager } from '../status-manager';
 import { Button } from '@/components/ui/button';
 import { Edit2, Shield } from 'lucide-react';
 

@@ -1,10 +1,10 @@
 'use client';
 
 import { useAdminUsers } from '@/hooks/useAdminUsers';
-import { UserSearch } from '@/components/admin/user-search';
-import { UserTable } from '@/components/admin/user-table';
-import { UserMetricsCard } from '@/components/admin/user-metrics-card';
-import { AdminLayout } from '@/components/admin/layout';
+import { UserSearch } from '@/components/admin/user/user-search';
+import { UserTable } from '@/components/admin/user/user-table';
+import { UserMetricsCard } from '@/components/admin/user/user-metrics-card';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 
 export default function UsersPage() {
   const { users, metrics, isLoading, handleFilterChange, handleReset } = useAdminUsers();

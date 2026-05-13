@@ -42,6 +42,7 @@ export interface UpdateProductRequest {
   meta_description?: string;
   canonical_url?: string;
   og_image?: string;
+  image_urls?: string[];          // for updating product images during edit
 }
 
 export interface CreateVariantInput {
