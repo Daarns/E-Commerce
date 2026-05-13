@@ -10,29 +10,31 @@ import (
 	"syscall"
 	"time"
 
+	"ecommerce-backend/internal/handlers"
 	adminHandler "ecommerce-backend/internal/handlers/admin"
 	adminProductHandler "ecommerce-backend/internal/handlers/admin/product"
 	adminUserHandler "ecommerce-backend/internal/handlers/admin/user"
 	authHandler "ecommerce-backend/internal/handlers/auth"
 	cartHandler "ecommerce-backend/internal/handlers/cart"
-	"ecommerce-backend/internal/handlers"
 	orderHandler "ecommerce-backend/internal/handlers/order"
 	productHandler "ecommerce-backend/internal/handlers/product"
 	"ecommerce-backend/internal/repositories"
+	"ecommerce-backend/internal/routes"
 	adminService "ecommerce-backend/internal/services/admin"
 	authService "ecommerce-backend/internal/services/auth"
 	cartService "ecommerce-backend/internal/services/cart"
-	emailService "ecommerce-backend/internal/services/email"
 	chatService "ecommerce-backend/internal/services/chat"
+	cleanupService "ecommerce-backend/internal/services/cleanup"
+	emailService "ecommerce-backend/internal/services/email"
 	newsletterService "ecommerce-backend/internal/services/newsletter"
-	searchService "ecommerce-backend/internal/services/search"
-	wishlistService "ecommerce-backend/internal/services/wishlist"
 	orderService "ecommerce-backend/internal/services/order"
 	paymentService "ecommerce-backend/internal/services/payment"
 	productService "ecommerce-backend/internal/services/product"
-	"ecommerce-backend/internal/routes"
+	searchService "ecommerce-backend/internal/services/search"
+	wishlistService "ecommerce-backend/internal/services/wishlist"
 	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/jwt"
+	"ecommerce-backend/pkg/storage"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -122,6 +124,8 @@ func main() {
 	emailQueueRepo := repositories.NewEmailQueueRepository(db)
 	wishlistRepo := repositories.NewWishlistRepository(db)
 	shippingRepo := repositories.NewShippingRepository(db)
+	tempUploadRepo := repositories.NewTempUploadRepository(db)
+	webhookEventRepo := repositories.NewWebhookEventRepository(db)
 
 	// Initialize Email Service
 	emailConfig := emailService.EmailConfig{
@@ -152,6 +156,13 @@ func main() {
 		emailSvc = nil
 	}
 
+	// Initialize Image Service
+	imageSvc := storage.NewImageService(
+		os.Getenv("SEAWEEDFS_ENDPOINT"),
+		os.Getenv("SEAWEEDFS_ACCESS_KEY"),
+		os.Getenv("SEAWEEDFS_SECRET_KEY"),
+	)
+
 	// Initialize Payment Services (Midtrans)
 	paymentConfig, err := paymentService.LoadPaymentGatewayConfig()
 	if err != nil {
@@ -167,6 +178,7 @@ func main() {
 		} else {
 			snapSvc = paymentService.NewSnapService(paymentConfig)
 			webhookSvc = paymentService.NewPaymentWebhookService(orderRepo, promoCodeRepo, paymentConfig.ServerKey)
+			webhookSvc.SetWebhookEventRepository(webhookEventRepo)
 			syncSvc = paymentService.NewPaymentSyncService(paymentConfig, orderRepo, promoCodeRepo)
 			log.Printf("✅ Midtrans payment gateway initialized (sandbox=%v)", paymentConfig.IsSandbox())
 		}
@@ -183,6 +195,8 @@ func main() {
 	
 	dashboardSvc := adminService.NewDashboardService(nil, nil, nil, sqlDB)
 	productSvc := productService.NewProductService(productRepo, categoryRepo)
+	productSvc.SetDB(db)
+	productSvc.SetImageService(imageSvc)
 	categorySvc := productService.NewCategoryService(categoryRepo, productRepo)
 	cartSvc := cartService.NewCartService(cartRepo, addressRepo, productRepo)
 	addressSvc := cartService.NewAddressService(addressRepo)
@@ -193,6 +207,7 @@ func main() {
 	wishlistSvc := wishlistService.NewWishlistService(wishlistRepo, productRepo)
 	activitySvc := utils.NewActivityService(activityRepo)
 	exportSvc := utils.NewExportService(userRepo, orderRepo)
+	cleanupSvc := cleanupService.NewCleanupService(db, tempUploadRepo, imageSvc, redisClient)
 
 	// Initialize Handlers
 	authH := authHandler.NewAuthHandler(authSvc)
@@ -208,7 +223,7 @@ func main() {
 	wishlistH := handlers.NewWishlistHandler(wishlistSvc)
 	adminUserH := adminUserHandler.NewAdminUserHandler(exportSvc, userRepo)
 	adminActivityH := adminUserHandler.NewAdminActivityHandler(activitySvc)
-	adminProductH := adminProductHandler.NewAdminProductHandler(productSvc)
+	adminProductH := adminProductHandler.NewAdminProductHandler(productSvc, tempUploadRepo)
 	adminCategoryH := adminProductHandler.NewAdminCategoryHandler(categorySvc)
 	adminOrderH := adminHandler.NewAdminOrderHandler(orderSvc)
 	adminSearchH := adminHandler.NewAdminSearchHandler(searchSvc)
@@ -253,6 +268,10 @@ func main() {
 		AddressH:       addressH,
 		AdminPromoH:    adminPromoH,
 	})
+
+	// Start background cleanup jobs
+	cleanupSvc.StartBackgroundJobs()
+	log.Println("✅ Background cleanup jobs started")
 
 	// Start server
 	port := os.Getenv("PORT")

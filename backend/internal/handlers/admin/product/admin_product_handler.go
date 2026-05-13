@@ -13,12 +13,16 @@ import (
 
 // AdminProductHandler handles admin product HTTP requests
 type AdminProductHandler struct {
-	useCase *product.ProductService
+	useCase      *product.ProductService
+	tempUploadRepo *repositories.TempUploadRepository
 }
 
 // NewAdminProductHandler creates a new admin product handler
-func NewAdminProductHandler(useCase *product.ProductService) *AdminProductHandler {
-	return &AdminProductHandler{useCase: useCase}
+func NewAdminProductHandler(useCase *product.ProductService, tempUploadRepo *repositories.TempUploadRepository) *AdminProductHandler {
+	return &AdminProductHandler{
+		useCase:      useCase,
+		tempUploadRepo: tempUploadRepo,
+	}
 }
 
 // ============================================================

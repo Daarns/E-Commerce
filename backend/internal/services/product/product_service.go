@@ -3,19 +3,24 @@ package product
 import (
 	"ecommerce-backend/internal/models"
 	"ecommerce-backend/internal/repositories"
+	"ecommerce-backend/pkg/storage"
 	"fmt"
+	"log"
 	"mime/multipart"
 	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 // ProductService handles product business logic
 type ProductService struct {
 	productRepo  *repositories.ProductRepository
 	categoryRepo *repositories.CategoryRepository
+	db           *gorm.DB
+	imageSvc     *storage.ImageService
 }
 
 // NewProductService creates a new product service
@@ -24,6 +29,16 @@ func NewProductService(productRepo *repositories.ProductRepository, categoryRepo
 		productRepo:  productRepo,
 		categoryRepo: categoryRepo,
 	}
+}
+
+// SetDB sets the database connection for image commit operations
+func (uc *ProductService) SetDB(db *gorm.DB) {
+	uc.db = db
+}
+
+// SetImageService sets the image service for image commit operations
+func (uc *ProductService) SetImageService(imageSvc *storage.ImageService) {
+	uc.imageSvc = imageSvc
 }
 
 // CreateProductInput represents product creation input
@@ -42,6 +57,7 @@ type CreateProductInput struct {
 	MetaDescription  string  `json:"meta_description"`
 	CanonicalURL     string  `json:"canonical_url"`
 	OGImage          string  `json:"og_image"`
+	ImageURLs        []string `json:"image_urls"` // temp URLs from upload step
 }
 
 // UpdateProductInput represents product update input
@@ -124,6 +140,26 @@ func (uc *ProductService) CreateProduct(input CreateProductInput) (*models.Produ
 
 	if err := uc.productRepo.Create(product); err != nil {
 		return nil, fmt.Errorf("failed to create product: %w", err)
+	}
+
+	// Commit temp images if provided
+	if len(input.ImageURLs) > 0 && uc.db != nil && uc.imageSvc != nil {
+		for i, tempURL := range input.ImageURLs {
+			// Commit image in upload_temp table
+			if err := uc.imageSvc.CommitImage(uc.db, tempURL); err != nil {
+				log.Printf("warning: commit image failed %s: %v", tempURL, err)
+			}
+
+			// Add product image association
+			productImage := &models.ProductImage{
+				ProductID:    product.ID,
+				ImageURL:     tempURL,
+				DisplayOrder: i,
+			}
+			if err := uc.productRepo.AddImage(productImage); err != nil {
+				log.Printf("warning: failed to add product image %s: %v", tempURL, err)
+			}
+		}
 	}
 
 	return uc.productRepo.GetByID(product.ID)

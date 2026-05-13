@@ -1,15 +1,18 @@
 package product
 
 import (
+	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/models"
 	"ecommerce-backend/pkg/response"
 	"ecommerce-backend/pkg/storage"
 	"fmt"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -136,6 +139,20 @@ func (h *AdminProductHandler) UploadImageOnly(c *gin.Context) {
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "SAVE_FAILED", err.Error())
 		return
+	}
+
+	// Record temp upload for cleanup job (web-security: no silent failures, log warnings)
+	userID, _ := middleware.GetUserID(c)
+	tempUpload := &models.TempUpload{
+		ID:        uuid.New(),
+		ImageURL:  imageURL,
+		UploadedBy: &userID,
+		ExpiresAt: time.Now().Add(2 * time.Hour),
+		Claimed:   false,
+		CreatedAt: time.Now(),
+	}
+	if err := h.tempUploadRepo.Create(tempUpload); err != nil {
+		log.Printf("warning: failed to record temp upload: %v", err)
 	}
 
 	response.Created(c, gin.H{

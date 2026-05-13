@@ -7,12 +7,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
+	"ecommerce-backend/internal/handlers"
 	adminHandler "ecommerce-backend/internal/handlers/admin"
 	adminProductHandler "ecommerce-backend/internal/handlers/admin/product"
 	adminUserHandler "ecommerce-backend/internal/handlers/admin/user"
 	authHandler "ecommerce-backend/internal/handlers/auth"
 	cartHandler "ecommerce-backend/internal/handlers/cart"
-	"ecommerce-backend/internal/handlers"
 	orderHandler "ecommerce-backend/internal/handlers/order"
 	productHandler "ecommerce-backend/internal/handlers/product"
 	"ecommerce-backend/internal/middleware"
@@ -247,12 +247,19 @@ func Setup(c Config) {
 			adminProducts := admin.Group("/products")
 			{
 				adminProducts.GET("", c.AdminProductH.AdminListProducts)
-				adminProducts.POST("/upload-image", c.AdminProductH.UploadImageOnly)
+
+				// Image upload routes with rate limiting (10 requests per minute per user)
+				uploadRoutes := adminProducts.Group("")
+				uploadRoutes.Use(middleware.ImageUploadRateLimit(c.RedisClient))
+				{
+					uploadRoutes.POST("/upload-image", c.AdminProductH.UploadImageOnly)
+					uploadRoutes.POST("/:id/images", c.AdminProductH.UploadProductImage)
+				}
+
 				adminProducts.GET("/:id", c.AdminProductH.AdminGetProduct)
 				adminProducts.POST("", c.AdminProductH.CreateProduct)
 				adminProducts.PUT("/:id", c.AdminProductH.UpdateProduct)
 				adminProducts.DELETE("/:id", c.AdminProductH.DeleteProduct)
-				adminProducts.POST("/:id/images", c.AdminProductH.UploadProductImage)
 				adminProducts.PUT("/:id/images/reorder", c.AdminProductH.ReorderProductImages)
 				adminProducts.DELETE("/images/:imageId", c.AdminProductH.DeleteProductImage)
 				adminProducts.POST("/:id/variants", c.AdminProductH.AddVariant)

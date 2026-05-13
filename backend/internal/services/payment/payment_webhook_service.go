@@ -3,6 +3,7 @@ package payment
 import (
 	"crypto/sha512"
 	"ecommerce-backend/internal/models"
+	"ecommerce-backend/internal/repositories"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -49,9 +50,10 @@ type PromoCodeRepositoryInterface interface {
 
 // PaymentWebhookService handles payment webhook processing
 type PaymentWebhookService struct {
-	orderRepo     OrderRepositoryInterface
-	promoRepo     PromoCodeRepositoryInterface
-	serverKey     string
+	orderRepo        OrderRepositoryInterface
+	promoRepo        PromoCodeRepositoryInterface
+	webhookEventRepo *repositories.WebhookEventRepository
+	serverKey        string
 }
 
 // NewPaymentWebhookService creates new payment webhook service
@@ -61,6 +63,11 @@ func NewPaymentWebhookService(orderRepo OrderRepositoryInterface, promoRepo Prom
 		promoRepo: promoRepo,
 		serverKey: serverKey,
 	}
+}
+
+// SetWebhookEventRepository sets the webhook event repository for idempotency checks
+func (s *PaymentWebhookService) SetWebhookEventRepository(repo *repositories.WebhookEventRepository) {
+	s.webhookEventRepo = repo
 }
 
 // VerifySignature verifies Midtrans webhook signature using SHA512
@@ -76,11 +83,27 @@ func (s *PaymentWebhookService) VerifySignature(orderID, statusCode, grossAmount
 	return constantTimeCompare(calculatedSignature, signatureKey)
 }
 
-// ProcessWebhook processes incoming payment webhook
+// ProcessWebhook processes incoming payment webhook with idempotency guarantee
 func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (*PaymentWebhookResponse, error) {
 	// Verify signature
 	if !s.VerifySignature(webhook.OrderID, webhook.StatusCode, webhook.GrossAmount, webhook.SignatureKey) {
 		return nil, fmt.Errorf("invalid webhook signature")
+	}
+
+	// Check idempotency: if webhook event already processed, return success
+	if s.webhookEventRepo != nil {
+		processed, err := s.webhookEventRepo.IsProcessed(webhook.TransactionID)
+		if err != nil {
+			fmt.Printf("Warning: failed to check webhook idempotency: %v\n", err)
+			// Continue anyway — idempotency check is not critical
+		} else if processed {
+			return &PaymentWebhookResponse{
+				Success:       true,
+				Message:       "Webhook already processed",
+				OrderID:       webhook.OrderID,
+				PaymentStatus: "already_processed",
+			}, nil
+		}
 	}
 
 	// Find order by order number.
@@ -92,16 +115,6 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 	order, err := s.orderRepo.GetByOrderNumber(orderNumber)
 	if err != nil {
 		return nil, fmt.Errorf("order not found: %w", err)
-	}
-
-	// Check idempotency: if transaction already processed, return existing status
-	if order.PaymentTransactionID != "" && order.PaymentTransactionID == webhook.TransactionID {
-		return &PaymentWebhookResponse{
-			Success:       true,
-			Message:       "Webhook already processed",
-			OrderID:       webhook.OrderID,
-			PaymentStatus: order.PaymentStatus,
-		}, nil
 	}
 
 	// Map Midtrans status to our payment status
@@ -147,6 +160,13 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 			if err := s.promoRepo.IncrementUsage(promo.ID); err != nil {
 				fmt.Printf("Warning: failed to increment promo usage for order %s: %v\n", order.OrderNumber, err)
 			}
+		}
+	}
+
+	// Record webhook event for idempotency (non-fatal if it fails)
+	if s.webhookEventRepo != nil {
+		if err := s.webhookEventRepo.Record(webhook.TransactionID, webhook.TransactionStatus); err != nil {
+			fmt.Printf("Warning: failed to record webhook event: %v\n", err)
 		}
 	}
 

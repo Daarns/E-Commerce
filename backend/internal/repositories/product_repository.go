@@ -267,26 +267,33 @@ func (r *ProductRepository) UpdateStock(id uuid.UUID, quantity int, version int)
 }
 
 // DeductStockWithLock deducts stock with pessimistic locking (for checkout)
+// Use this when you don't have an existing transaction
 func (r *ProductRepository) DeductStockWithLock(id uuid.UUID, quantity int) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		var product models.Product
-		
-		// Lock the row for update
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			First(&product, "id = ?", id).Error
-		if err != nil {
-			return err
-		}
-		
-		// Check stock
-		if product.StockQuantity < quantity {
-			return fmt.Errorf("insufficient stock: requested %d, available %d", quantity, product.StockQuantity)
-		}
-		
-		// Deduct stock
-		return tx.Model(&product).
-			Update("stock_quantity", gorm.Expr("stock_quantity - ?", quantity)).Error
+		return r.DeductStockWithLockTx(tx, id, quantity)
 	})
+}
+
+// DeductStockWithLockTx deducts stock with pessimistic locking within an existing transaction
+// Use this when you already have a transaction context (e.g., during checkout)
+func (r *ProductRepository) DeductStockWithLockTx(tx *gorm.DB, id uuid.UUID, quantity int) error {
+	var product models.Product
+
+	// Lock the row for update
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&product, "id = ?", id).Error
+	if err != nil {
+		return err
+	}
+
+	// Check stock
+	if product.StockQuantity < quantity {
+		return fmt.Errorf("insufficient stock: requested %d, available %d", quantity, product.StockQuantity)
+	}
+
+	// Deduct stock
+	return tx.Model(&product).
+		Update("stock_quantity", gorm.Expr("stock_quantity - ?", quantity)).Error
 }
 
 // Delete soft deletes a product

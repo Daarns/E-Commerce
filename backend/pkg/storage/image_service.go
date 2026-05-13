@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"gorm.io/gorm"
 )
 
 // ImageService handles image operations including optimization and uploads.
@@ -234,6 +235,15 @@ func (s *ImageService) uploadToSeaweedFS(data []byte, objectPath string) (string
 
     return fmt.Sprintf("%s/%s/%s", strings.TrimRight(s.publicBaseURL, "/"), s.bucketName, objectPath), nil
 }
+// CommitImage marks a temp upload as committed in the database
+// db should be *gorm.DB instance
+func (s *ImageService) CommitImage(db *gorm.DB, imageURL string) error {
+	if db == nil {
+		return fmt.Errorf("database connection required to commit image")
+	}
+	return db.Exec("UPDATE upload_temp SET is_committed = true WHERE image_url = ?", imageURL).Error
+}
+
 // DeleteFromSeaweedFS removes an object from SeaweedFS given its full public URL.
 // Safe to call even if the URL points to local storage (no-op in that case).
 func (s *ImageService) DeleteFromSeaweedFS(publicURL string) error {

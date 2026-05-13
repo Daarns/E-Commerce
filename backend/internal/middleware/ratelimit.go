@@ -129,3 +129,10 @@ func PerUserRateLimit(redisClient *redis.Client, maxRequests int, window time.Du
 		c.Next()
 	}
 }
+
+// ImageUploadRateLimit is a convenience wrapper for image upload rate limiting.
+// Default: 10 requests per 1 minute per user.
+// Uses namespace "rl:image-upload" to avoid collision with other limiters.
+func ImageUploadRateLimit(redisClient *redis.Client) gin.HandlerFunc {
+	return PerUserRateLimit(redisClient, 10, time.Minute, "rl:image-upload")
+}

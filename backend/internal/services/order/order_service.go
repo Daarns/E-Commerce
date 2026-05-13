@@ -67,6 +67,7 @@ type CheckoutResult struct {
 }
 
 // Checkout processes checkout with pessimistic locking
+// Ensures atomicity: stock deduction, order creation, and cart clearing all succeed or all fail
 func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*CheckoutResult, error) {
 	// Parse address ID from string
 	addressID, err := uuid.Parse(input.AddressID)
@@ -79,7 +80,7 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if cart.IsEmpty() {
 		return nil, fmt.Errorf("cart is empty")
 	}
@@ -97,52 +98,40 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 	var subtotal decimal.Decimal
 	var orderItems []models.OrderItem
 
-	// Process each cart item with stock validation
-	err = uc.db.Transaction(func(tx *gorm.DB) error {
-		for _, item := range cart.Items {
-			// Deduct stock with pessimistic lock
-			if err := uc.productRepo.DeductStockWithLock(item.ProductID, item.Quantity); err != nil {
-				return fmt.Errorf("failed to reserve stock for %s: %w", item.Product.Name, err)
-			}
+	// Process each cart item with stock validation (WITHOUT transaction yet)
+	for _, item := range cart.Items {
+		itemSubtotal := item.Price.Mul(decimal.NewFromInt(int64(item.Quantity)))
+		subtotal = subtotal.Add(itemSubtotal)
 
-			itemSubtotal := item.Price.Mul(decimal.NewFromInt(int64(item.Quantity)))
-			subtotal = subtotal.Add(itemSubtotal)
-
-			orderItem := models.OrderItem{
-				ProductID:   item.ProductID,
-				VariantID:   item.VariantID,
-				ProductName: item.Product.Name,
-				ProductSKU:  item.Product.SKU,
-				Quantity:    item.Quantity,
-				UnitPrice:   item.Price,
-				Subtotal:    itemSubtotal,
-			}
-
-			// Add variant info if present
-			if item.Variant != nil {
-				orderItem.VariantType = item.Variant.VariantType
-				orderItem.VariantValue = item.Variant.VariantValue
-			}
-
-			orderItems = append(orderItems, orderItem)
+		orderItem := models.OrderItem{
+			ProductID:   item.ProductID,
+			VariantID:   item.VariantID,
+			ProductName: item.Product.Name,
+			ProductSKU:  item.Product.SKU,
+			Quantity:    item.Quantity,
+			UnitPrice:   item.Price,
+			Subtotal:    itemSubtotal,
 		}
-		return nil
-	})
 
-	if err != nil {
-		return nil, err
+		// Add variant info if present
+		if item.Variant != nil {
+			orderItem.VariantType = item.Variant.VariantType
+			orderItem.VariantValue = item.Variant.VariantValue
+		}
+
+		orderItems = append(orderItems, orderItem)
 	}
 
 	// Apply promo code if provided
 	var discount decimal.Decimal
 	var promoCodeID *uuid.UUID
-	
+
 	if input.PromoCode != "" {
 		promo, err := uc.promoCodeRepo.ValidateAndLock(input.PromoCode, userID)
 		if err != nil {
 			return nil, fmt.Errorf("invalid promo code: %w", err)
 		}
-		
+
 		discount = promo.CalculateDiscount(subtotal)
 		promoCodeID = &promo.ID
 		// NOTE: RecordUsage + IncrementUsage are intentionally deferred to
@@ -156,10 +145,10 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 	// Calculate total
 	total := subtotal.Sub(discount).Add(shippingCost)
 
-	// Create order
+	// Create order object
 	order := &models.Order{
 		UserID: userID,
-		
+
 		// Shipping address snapshot
 		ShippingName:         address.RecipientName,
 		ShippingPhone:        address.Phone,
@@ -168,45 +157,62 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 		ShippingCity:         address.City,
 		ShippingProvince:     address.Province,
 		ShippingPostalCode:   address.PostalCode,
-		
+
 		// Pricing
 		Subtotal:       subtotal,
 		ShippingCost:   shippingCost,
 		DiscountAmount: discount,
 		TaxAmount:      decimal.Zero,
 		Total:          total,
-		
+
 		// Promo
 		PromoCodeID: promoCodeID,
-		
+
 		// Status
 		OrderStatus:   models.OrderStatusPending,
 		PaymentStatus: models.PaymentStatusUnpaid,
-		
+
 		// Payment
 		PaymentMethod:   input.PaymentMethod,
 		ShippingMethod:  input.ShippingMethod,
 		CustomerNotes:   input.CustomerNotes,
 		IdempotencyKey:  input.IdempotencyKey,
 		CustomerEmail:   input.CustomerEmail, // Stored so retry payment always has the email
-		
+
 		// Items
 		Items: orderItems,
 	}
 
-	// Create order with idempotency
-	createdOrder, err := uc.orderRepo.CreateWithIdempotency(order, input.IdempotencyKey)
+	// Execute atomic transaction: stock deduction + order creation + cart clearing
+	var createdOrder *models.Order
+	err = uc.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Deduct stock for all cart items (with pessimistic locking)
+		for _, item := range cart.Items {
+			if err := uc.productRepo.DeductStockWithLockTx(tx, item.ProductID, item.Quantity); err != nil {
+				return fmt.Errorf("failed to reserve stock for %s: %w", item.Product.Name, err)
+			}
+		}
+
+		// 2. Create order with idempotency
+		var createErr error
+		createdOrder, createErr = uc.orderRepo.CreateWithIdempotency(order, input.IdempotencyKey)
+		if createErr != nil {
+			return fmt.Errorf("failed to create order: %w", createErr)
+		}
+
+		// 3. Clear cart
+		if clearErr := uc.cartRepo.ClearCartByUserID(userID); clearErr != nil {
+			return fmt.Errorf("failed to clear cart: %w", clearErr)
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to create order: %w", err)
+		return nil, err
 	}
 
-	// Clear cart
-	if err := uc.cartRepo.ClearCartByUserID(userID); err != nil {
-		// Log error but don't fail checkout
-		fmt.Printf("Warning: failed to clear cart: %v\n", err)
-	}
-
-	// Create Midtrans Snap transaction
+	// Create Midtrans Snap transaction (OUTSIDE transaction — external API call)
 	result := &CheckoutResult{Order: createdOrder}
 
 	if uc.snapService != nil {
