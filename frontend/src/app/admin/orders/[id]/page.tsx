@@ -1,4 +1,6 @@
-import { Suspense } from 'react';
+'use client';
+
+import { useEffect, useState } from 'react';
 import { adminService } from '@/services/admin';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,27 +11,60 @@ import { PaymentInfoSection } from '@/components/admin/order/PaymentInfoSection'
 import { OrderSummarySection } from '@/components/admin/order/OrderSummarySection';
 import { ChevronLeft, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { Metadata } from 'next';
 import { formatDate } from '@/utils';
+import { useParams } from 'next/navigation';
+import { AdminOrder } from '@/services/admin';
 
-async function OrderDetailContent({ orderId }: { orderId: string }) {
-  let order;
+export default function OrderDetailPage() {
+  const params = useParams();
+  const orderId = params.id as string;
+  const [order, setOrder] = useState<AdminOrder | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // ✅ try/catch hanya untuk data fetching, bukan JSX
-  try {
-    order = await adminService.getOrder(orderId);
-  } catch (error) {
+  useEffect(() => {
+    const fetchOrder = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await adminService.getOrder(orderId);
+        setOrder(data);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load order details';
+        setError(errorMessage);
+        console.error('Error fetching order:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (orderId) {
+      fetchOrder();
+    }
+  }, [orderId]);
+
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="text-center">
-          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
-          <p className="text-gray-600">Failed to load order details</p>
+          <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-b-2 border-gray-900" />
+          <p className="text-gray-600">Loading order details...</p>
         </div>
       </div>
     );
   }
 
-  // ✅ JSX rendering di luar try/catch
+  if (error || !order) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
+          <p className="text-gray-600">{error || 'Failed to load order details'}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-6xl px-4 py-8">
@@ -89,38 +124,4 @@ async function OrderDetailContent({ orderId }: { orderId: string }) {
       </div>
     </div>
   );
-}
-
-interface OrderDetailPageProps {
-  params: Promise<{
-    id: string;
-  }>;
-}
-
-export default async function OrderDetailPage({ params }: OrderDetailPageProps): Promise<React.ReactElement> {
-  const { id } = await params;
-
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gray-50">
-          <div className="text-center">
-            <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-b-2 border-gray-900" />
-            <p className="text-gray-600">Loading order details...</p>
-          </div>
-        </div>
-      }
-    >
-      <OrderDetailContent orderId={id} />
-    </Suspense>
-  );
-}
-
-export async function generateMetadata({ params }: OrderDetailPageProps): Promise<Metadata> {
-  const { id } = await params;
-
-  return {
-    title: `Order #${id} - Admin`,
-    description: 'View and manage order details',
-  };
 }

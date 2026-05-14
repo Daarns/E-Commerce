@@ -3,10 +3,29 @@
  * Handles payment processing and Snap integration
  */
 
+interface MidtransSnapResult {
+  order_id?: string;
+  status_code?: string;
+  transaction_status?: string;
+  payment_type?: string;
+}
+
+interface MidtransSnapCallbacks {
+  onSuccess: (result: MidtransSnapResult) => void;
+  onPending: (result: MidtransSnapResult) => void;
+  onError: (result: MidtransSnapResult) => void;
+  onClose: () => void;
+}
+
+interface MidtransSnap {
+  pay: (snapToken: string, callbacks: MidtransSnapCallbacks) => void;
+}
+
 // Load Midtrans Snap script
 export const loadMidtransSnap = (): Promise<void> => {
   return new Promise((resolve, reject) => {
-    if ((window as any).snap) {
+    const snapWindow = window as Window & { snap?: MidtransSnap };
+    if (snapWindow.snap) {
       resolve();
       return;
     }
@@ -15,7 +34,7 @@ export const loadMidtransSnap = (): Promise<void> => {
     script.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
     script.async = true;
     script.onload = () => {
-      if ((window as any).snap) {
+      if (snapWindow.snap) {
         resolve();
       } else {
         reject(new Error('Failed to load Midtrans Snap'));
@@ -51,19 +70,20 @@ export interface PaymentRequest {
 // Open Midtrans Snap payment
 export const openPayment = (snapToken: string): Promise<void> => {
   return new Promise((resolve, reject) => {
-    if (!(window as any).snap) {
+    const snap = (window as Window & { snap?: MidtransSnap }).snap;
+    if (!snap) {
       reject(new Error('Midtrans Snap not loaded'));
       return;
     }
 
-    (window as any).snap.pay(snapToken, {
-      onSuccess: (result: any) => {
+    snap.pay(snapToken, {
+      onSuccess: () => {
         resolve();
       },
-      onPending: (result: any) => {
+      onPending: (result) => {
         console.log('Payment pending:', result);
       },
-      onError: (result: any) => {
+      onError: () => {
         reject(new Error('Payment failed'));
       },
       onClose: () => {

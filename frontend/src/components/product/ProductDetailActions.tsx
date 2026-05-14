@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { WishlistButton } from '@/components/product/wishlist-button';
+import { OUT_OF_STOCK_LABEL } from '@/constants/product.constants';
 import { Minus, Plus, ShoppingBag, Share2, Truck, Shield, RefreshCcw } from 'lucide-react';
 
 interface ProductDetailActionsProps {
@@ -16,7 +17,6 @@ interface ProductDetailActionsProps {
 
 export function ProductDetailActions({
   productId,
-  productName,
   quantity,
   stockQuantity,
   isOutOfStock,
@@ -65,7 +65,7 @@ export function ProductDetailActions({
           disabled={isOutOfStock || isAddingToCart}
         >
           <ShoppingBag className="h-5 w-5" />
-          {isAddingToCart ? 'Adding...' : isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+          {isAddingToCart ? 'Adding...' : isOutOfStock ? OUT_OF_STOCK_LABEL : 'Add to Cart'}
         </Button>
         <WishlistButton productId={productId} size="lg" />
         <Button variant="outline" size="lg">

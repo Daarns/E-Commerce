@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  ORDER_STATUS_DESCRIPTIONS,
+  ORDER_STATUS_LABELS,
+  ORDER_TIMELINE_STATUS_FLOW,
+} from '@/constants/order.constants';
 import { Order, OrderStatus } from '@/types';
 import { Check, Clock } from 'lucide-react';
 
@@ -11,52 +16,22 @@ interface OrderTimelineEvent {
 }
 
 function getOrderTimelineEvents(order: Order): OrderTimelineEvent[] {
-  const statusOrder: OrderStatus[] = ['pending', 'payment_confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
-  
+  const statusOrder = ORDER_TIMELINE_STATUS_FLOW;
   const currentStatus = order.status || order.order_status;
   
   return statusOrder.map(status => {
-    const isCompleted = statusOrder.indexOf(status) <= statusOrder.indexOf(currentStatus);
-    const isCurrent = status === currentStatus;
-    
     return {
       status,
-      label: formatStatusLabel(status),
+      label: ORDER_STATUS_LABELS[status],
       date: status === currentStatus ? new Date(order.updated_at).toLocaleString('id-ID') : '',
-      description: getStatusDescription(status),
+      description: ORDER_STATUS_DESCRIPTIONS[status],
     };
   });
 }
 
-function formatStatusLabel(status: OrderStatus): string {
-  const labels: Record<OrderStatus, string> = {
-    pending: 'Pending',
-    payment_confirmed: 'Payment Confirmed',
-    processing: 'Processing',
-    shipped: 'Shipped',
-    delivered: 'Delivered',
-    cancelled: 'Cancelled',
-    refunded: 'Refunded',
-  };
-  return labels[status];
-}
-
-function getStatusDescription(status: OrderStatus): string {
-  const descriptions: Record<OrderStatus, string> = {
-    pending: 'Order placed and waiting for payment',
-    payment_confirmed: 'Payment confirmed and order being prepared',
-    processing: 'Items are being packed',
-    shipped: 'Package is on the way',
-    delivered: 'Package delivered',
-    cancelled: 'Order has been cancelled',
-    refunded: 'Order refunded',
-  };
-  return descriptions[status];
-}
-
 export function OrderTimeline({ order }: { order: Order }) {
   const events = getOrderTimelineEvents(order);
-  const statusOrder = ['pending', 'payment_confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'] as OrderStatus[];
+  const statusOrder = ORDER_TIMELINE_STATUS_FLOW;
   const currentStatus = order.status || order.order_status;
   const currentIndex = statusOrder.indexOf(currentStatus);
 

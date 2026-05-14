@@ -1,101 +1,36 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, Send, Loader2, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useAuthStore } from '@/stores/auth-store';
-import { useChatStore } from '@/stores/chat-store';
-import { useChatSocket } from '@/hooks/use-socket';
-import { ChatMessage } from '@/types/chat';
-import { toast } from 'sonner';
+import { useChatWidget } from '@/hooks/useChatWidget';
 
 export function ChatWidget() {
-  const user = useAuthStore((state) => state.user);
   const {
+    user,
     conversations,
     currentConversation,
     messages,
     isLoading,
-    createConversation,
-    sendMessage,
-    loadConversation,
-    setCurrentConversation,
-    addMessage,
-  } = useChatStore();
-
-  const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [messageInput, setMessageInput] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [newConversationSubject, setNewConversationSubject] = useState('');
-  const [showNewConversationForm, setShowNewConversationForm] = useState(false);
-
-  const { isConnected } = useChatSocket(currentConversation?.id || '');
-
-  // Auto-scroll to latest message
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Load existing conversations on widget open
-  useEffect(() => {
-    if (isOpen && user && conversations.length === 0) {
-      useChatStore.getState().loadConversations();
-    }
-  }, [isOpen, user, conversations.length]);
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!messageInput.trim()) return;
-
-    if (!currentConversation) {
-      toast.error('No conversation selected');
-      return;
-    }
-
-    setIsSending(true);
-    try {
-      await sendMessage(currentConversation.id, messageInput);
-      setMessageInput('');
-    } catch (error) {
-      console.error('Error sending message:', error);
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const handleStartConversation = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!messageInput.trim()) {
-      toast.error('Please enter a message');
-      return;
-    }
-
-    setIsSending(true);
-    try {
-      const conversation = await createConversation(
-        newConversationSubject || 'Support Request',
-        messageInput
-      );
-
-      if (conversation) {
-        setCurrentConversation(conversation);
-        setMessageInput('');
-        setNewConversationSubject('');
-        setShowNewConversationForm(false);
-        loadConversation(conversation.id);
-      }
-    } catch (error) {
-      console.error('Error creating conversation:', error);
-    } finally {
-      setIsSending(false);
-    }
-  };
+    isOpen,
+    isMinimized,
+    messageInput,
+    isSending,
+    newConversationSubject,
+    showNewConversationForm,
+    isConnected,
+    messagesEndRef,
+    setIsOpen,
+    setIsMinimized,
+    setMessageInput,
+    setNewConversationSubject,
+    setShowNewConversationForm,
+    selectConversation,
+    cancelNewConversation,
+    handleSendMessage,
+    handleStartConversation,
+  } = useChatWidget();
 
   if (!user) {
     return null;
@@ -275,15 +210,12 @@ export function ChatWidget() {
                           <Button
                             variant="outline"
                             className="flex-1"
-                            onClick={() => {
-                              setShowNewConversationForm(false);
-                              setMessageInput('');
-                            }}
+                            onClick={cancelNewConversation}
                           >
                             Cancel
                           </Button>
                           <Button
-                            onClick={handleStartConversation}
+                            onClick={() => void handleStartConversation()}
                             disabled={isSending || !messageInput.trim()}
                             className="flex-1"
                           >
@@ -305,10 +237,7 @@ export function ChatWidget() {
                               <motion.button
                                 key={conv.id}
                                 whileHover={{ x: 4 }}
-                                onClick={() => {
-                                  setCurrentConversation(conv);
-                                  loadConversation(conv.id);
-                                }}
+                                onClick={() => selectConversation(conv)}
                                 className="w-full text-left p-2 rounded-lg hover:bg-muted transition-colors"
                               >
                                 <p className="text-sm font-medium truncate">

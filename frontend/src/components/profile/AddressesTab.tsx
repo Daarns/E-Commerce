@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { MapPin, Edit2, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +11,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { useAddressesTab } from '@/hooks/useAddressesTab';
 import { Address } from '@/types';
 import { AddressFormDialog } from './AddressFormDialog';
 
@@ -32,28 +32,21 @@ export function AddressesTab({
   onDeleteAddress,
   onSetDefault,
 }: AddressesTabProps) {
-  const [showAddressModal, setShowAddressModal] = useState(false);
-  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-
-  const handleAddNew = () => {
-    setEditingAddress(null);
-    setShowAddressModal(true);
-  };
-
-  const handleEdit = (address: Address) => {
-    setEditingAddress(address);
-    setShowAddressModal(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      await onDeleteAddress(id);
-      setShowDeleteConfirm(null);
-    } catch (error) {
-      console.error('Failed to delete address:', error);
-    }
-  };
+  const {
+    showAddressModal,
+    editingAddress,
+    showDeleteConfirm,
+    setShowAddressModal,
+    setShowDeleteConfirm,
+    handleAddNew,
+    handleEdit,
+    handleDelete,
+    handleSubmitAddress,
+  } = useAddressesTab({
+    onAddAddress,
+    onEditAddress,
+    onDeleteAddress,
+  });
 
   return (
     <>
@@ -169,15 +162,7 @@ export function AddressesTab({
         open={showAddressModal}
         onOpenChange={setShowAddressModal}
         editingAddress={editingAddress}
-        onSubmit={async (data) => {
-          if (editingAddress) {
-            await onEditAddress(editingAddress.id, data);
-          } else {
-            await onAddAddress(data);
-          }
-          setShowAddressModal(false);
-          setEditingAddress(null);
-        }}
+        onSubmit={handleSubmitAddress}
         isLoading={isLoading}
       />
 
@@ -197,7 +182,9 @@ export function AddressesTab({
             <Button
               variant="destructive"
               disabled={isLoading}
-              onClick={() => showDeleteConfirm && handleDelete(showDeleteConfirm)}
+              onClick={() => {
+                if (showDeleteConfirm) void handleDelete(showDeleteConfirm);
+              }}
             >
               Delete
             </Button>

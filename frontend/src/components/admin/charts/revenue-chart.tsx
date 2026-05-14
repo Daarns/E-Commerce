@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   ComposedChart,
@@ -13,23 +12,35 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { adminService, RevenueTrend } from '@/services/admin';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { formatCurrency } from '@/utils';
+import { useRevenueChartData } from '@/hooks/useRevenueChartData';
+
+interface RevenueTooltipPayload {
+  name?: string;
+  value?: number | string;
+  color?: string;
+}
+
+interface RevenueTooltipProps {
+  active?: boolean;
+  payload?: RevenueTooltipPayload[];
+  label?: string | number;
+}
 
 // Custom tooltip for IDR currency
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label }: RevenueTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border border-border bg-background/95 backdrop-blur-sm shadow-lg p-3 text-sm">
       <p className="font-semibold mb-2 text-foreground">{label}</p>
-      {payload.map((entry: any) => (
+      {payload.map((entry) => (
         <div key={entry.name} className="flex items-center gap-2">
           <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
           <span className="text-muted-foreground">{entry.name}:</span>
           <span className="font-medium text-foreground">
             {entry.name === 'Revenue'
-              ? formatCurrency(entry.value)
+              ? formatCurrency(Number(entry.value ?? 0))
               : `${Number(entry.value).toLocaleString('id-ID')} pesanan`}
           </span>
         </div>
@@ -39,23 +50,7 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 export function RevenueChart() {
-  const [data, setData] = useState<RevenueTrend[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        const trends = await adminService.getRevenueTrends(12);
-        setData(trends);
-      } catch (error) {
-        console.error('Failed to fetch revenue trends:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const { data, isLoading } = useRevenueChartData();
 
   // Format month label: "2025-01" → "Jan '25"
   const formatMonthLabel = (month: string) => {

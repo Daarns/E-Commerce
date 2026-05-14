@@ -4,7 +4,13 @@ import { AdminOrder } from '@/services/admin';
 import { OrderStatus, PaymentStatus } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit2, Trash2 } from 'lucide-react';
+import {
+  ADMIN_ORDER_STATUS_LABELS,
+  ORDER_STATUS_BADGE_COLORS,
+  PAYMENT_STATUS_BADGE_COLORS,
+  PAYMENT_STATUS_LABELS,
+} from '@/constants/order.constants';
+import { Eye } from 'lucide-react';
 import Link from 'next/link';
 
 interface OrderTableProps {
@@ -16,68 +22,22 @@ interface OrderTableProps {
 }
 
 function getStatusBadgeColor(status: OrderStatus) {
-  switch (status) {
-    case 'pending':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'payment_confirmed':
-      return 'bg-blue-100 text-blue-800';
-    case 'processing':
-      return 'bg-purple-100 text-purple-800';
-    case 'shipped':
-      return 'bg-cyan-100 text-cyan-800';
-    case 'delivered':
-      return 'bg-green-100 text-green-800';
-    case 'cancelled':
-      return 'bg-red-100 text-red-800';
-    case 'refunded':
-      return 'bg-gray-100 text-gray-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
+  return ORDER_STATUS_BADGE_COLORS[status];
 }
 
 function getPaymentBadgeColor(status: PaymentStatus) {
-  switch (status) {
-    case 'paid':
-      return 'bg-green-100 text-green-800';
-    case 'unpaid':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'failed':
-      return 'bg-red-100 text-red-800';
-    case 'refunded':
-      return 'bg-blue-100 text-blue-800';
-    case 'expired':
-      return 'bg-red-100 text-red-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
+  return PAYMENT_STATUS_BADGE_COLORS[status];
 }
 
 function formatStatusLabel(status: OrderStatus): string {
-  const labels: Record<OrderStatus, string> = {
-    pending: 'Pending',
-    payment_confirmed: 'Confirmed',
-    processing: 'Processing',
-    shipped: 'Shipped',
-    delivered: 'Delivered',
-    cancelled: 'Cancelled',
-    refunded: 'Refunded',
-  };
-  return labels[status];
+  return ADMIN_ORDER_STATUS_LABELS[status];
 }
 
 function formatPaymentLabel(status: PaymentStatus): string {
-  const labels: Record<PaymentStatus, string> = {
-    paid: 'Paid',
-    unpaid: 'Unpaid',
-    failed: 'Failed',
-    refunded: 'Refunded',
-    expired: 'Expired',
-  };
-  return labels[status];
+  return PAYMENT_STATUS_LABELS[status];
 }
 
-export function OrderTable({ orders, isLoading, onView, onEdit, onDelete }: OrderTableProps) {
+export function OrderTable({ orders, isLoading }: OrderTableProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">

@@ -17,9 +17,8 @@ import {
   OrdersEmpty,
   OrdersSkeleton,
 } from '@/components/orders';
+import { SHOP_ORDER_STATUS_TABS } from '@/constants/order.constants';
 import { Order } from '@/types';
-
-const STATUS_TABS = ['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
 
 function OrdersPageContent() {
   const { isAuthenticated, user } = useAuthStore();
@@ -115,20 +114,20 @@ function OrdersPageContent() {
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            {STATUS_TABS.map((status) => (
+            {SHOP_ORDER_STATUS_TABS.map((status) => (
               <Button
-                key={status}
+                key={status.value}
                 variant={
-                  ordersList.statusFilter === status ? 'default' : 'outline'
+                  ordersList.statusFilter === status.value ? 'default' : 'outline'
                 }
                 size="sm"
                 onClick={() =>
                   ordersList.setStatusFilter(
-                    status as typeof ordersList.statusFilter
+                    status.value as typeof ordersList.statusFilter
                   )
                 }
               >
-                {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
+                {status.label}
               </Button>
             ))}
           </div>

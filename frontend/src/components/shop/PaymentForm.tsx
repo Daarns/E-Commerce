@@ -106,7 +106,7 @@ export function PaymentForm({
                 📱 Secure Payment Gateway
               </p>
               <p className="text-sm text-blue-800 mt-2">
-                You'll be redirected to Midtrans secure payment page to complete your transaction.
+                You&apos;ll be redirected to Midtrans secure payment page to complete your transaction.
               </p>
             </div>
 
@@ -180,7 +180,7 @@ export function PaymentForm({
             <div>
               <p className="font-medium text-sm mb-1">What happens next?</p>
               <p className="text-sm text-muted-foreground">
-                Click "Proceed to Payment" to be taken to Midtrans secure payment gateway where you can choose your preferred payment method.
+                Click &quot;Proceed to Payment&quot; to be taken to Midtrans secure payment gateway where you can choose your preferred payment method.
               </p>
             </div>
             <Separator />

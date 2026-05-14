@@ -8,29 +8,24 @@ export interface UseVerificationCountdownReturn {
 }
 
 export const useVerificationCountdown = (): UseVerificationCountdownReturn => {
-  const [canResend, setCanResend] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
+  const canResend = resendCountdown === 0;
 
   useEffect(() => {
-    if (resendCountdown > 0 && !canResend) {
-      const timer = setTimeout(() => {
-        setResendCountdown(resendCountdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
+    if (resendCountdown <= 0) return;
 
-    if (resendCountdown === 0 && resendCountdown > 0) {
-      setCanResend(true);
-    }
-  }, [resendCountdown, canResend]);
+    const timer = setTimeout(() => {
+      setResendCountdown((current) => Math.max(current - 1, 0));
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
 
   const startCountdown = (duration: number = 60) => {
-    setCanResend(false);
     setResendCountdown(duration);
   };
 
   const resetCountdown = () => {
-    setCanResend(false);
     setResendCountdown(0);
   };
 

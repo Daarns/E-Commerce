@@ -1,18 +1,15 @@
 'use client';
 
-import { useState } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, ShoppingBag, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { OUT_OF_STOCK_LABEL } from '@/constants/product.constants';
+import { useQuickViewProduct } from '@/hooks/useQuickViewProduct';
 import { Product } from '@/types';
 import { formatCurrency } from '@/utils';
-import { useCartStore } from '@/stores/cart-store';
-import { useWishlistStore } from '@/stores/wishlist-store';
-import { useAuthStore } from '@/stores/auth-store';
 import { AuthRequiredDialog } from '@/components/common/auth-required-dialog';
-import { toast } from 'sonner';
 
 interface QuickViewModalProps {
   product: Product | null;
@@ -21,69 +18,28 @@ interface QuickViewModalProps {
 }
 
 export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps) {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [quantity, setQuantity] = useState(1);
-  const { addToCart } = useCartStore();
-  const { addToWishlist, isInWishlist } = useWishlistStore();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
-  const [isAddingToWishlist, setIsAddingToWishlist] = useState(false);
-  const [authDialog, setAuthDialog] = useState<'cart' | 'wishlist' | null>(null);
+  const {
+    currentImageIndex,
+    quantity,
+    isAddingToCart,
+    isAddingToWishlist,
+    authDialog,
+    isWishlisted,
+    discountPercentage,
+    setCurrentImageIndex,
+    setAuthDialog,
+    handleNextImage,
+    handlePrevImage,
+    incrementQuantity,
+    decrementQuantity,
+    handleAddToCart,
+    handleToggleWishlist,
+  } = useQuickViewProduct({ product });
 
   if (!product) return null;
 
   const images = product.images || [];
   const currentImage = images[currentImageIndex];
-
-  const discountPercentage = product.sale_price
-    ? Math.round((1 - Number(product.sale_price) / Number(product.regular_price)) * 100)
-    : 0;
-
-  const isWishlisted = isInWishlist(product.id);
-
-  const handleNextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % images.length);
-  };
-
-  const handlePrevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
-  };
-
-  const handleAddToCart = async () => {
-    if (!isAuthenticated) { setAuthDialog('cart'); return; }
-    setIsAddingToCart(true);
-    try {
-      await addToCart(product.id, quantity);
-      toast.success('Added to cart', {
-        description: `${quantity} x ${product.name}`,
-      });
-    } catch {
-      toast.error('Failed to add to cart');
-    } finally {
-      setIsAddingToCart(false);
-    }
-  };
-
-  const handleToggleWishlist = async () => {
-    if (!isAuthenticated) { setAuthDialog('wishlist'); return; }
-    setIsAddingToWishlist(true);
-    try {
-      if (isWishlisted) {
-        const wishlistItem = useWishlistStore.getState().items.find(
-          (item) => item.product_id === product.id
-        );
-        if (wishlistItem) {
-          await useWishlistStore.getState().removeFromWishlist(wishlistItem.id);
-        }
-      } else {
-        await addToWishlist(product.id);
-      }
-    } catch {
-      toast.error('Failed to update wishlist');
-    } finally {
-      setIsAddingToWishlist(false);
-    }
-  };
 
   return (
     <>
@@ -143,7 +99,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                       )}
                       {product.stock_quantity === 0 && (
                         <Badge variant="outline" className="text-xs bg-background">
-                          Out of Stock
+                          {OUT_OF_STOCK_LABEL}
                         </Badge>
                       )}
                     </div>
@@ -227,7 +183,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                           ✓ In Stock ({product.stock_quantity} available)
                         </p>
                       ) : (
-                        <p className="text-sm text-red-600">Out of Stock</p>
+                        <p className="text-sm text-red-600">{OUT_OF_STOCK_LABEL}</p>
                       )}
                     </div>
                   </div>
@@ -255,7 +211,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                     <span className="text-sm font-medium">Quantity:</span>
                     <div className="flex items-center border rounded">
                       <button
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        onClick={decrementQuantity}
                         disabled={quantity === 1}
                         className="px-3 py-2 hover:bg-muted disabled:opacity-50"
                       >
@@ -263,7 +219,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                       </button>
                       <span className="px-6 py-2 border-x">{quantity}</span>
                       <button
-                        onClick={() => setQuantity(quantity + 1)}
+                        onClick={incrementQuantity}
                         disabled={quantity >= product.stock_quantity}
                         className="px-3 py-2 hover:bg-muted disabled:opacity-50"
                       >
@@ -276,7 +232,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                   <div className="flex gap-3 pt-4">
                     <Button
                       className="flex-1 gap-2"
-                      onClick={handleAddToCart}
+                      onClick={() => void handleAddToCart()}
                       disabled={product.stock_quantity === 0 || isAddingToCart}
                     >
                       <ShoppingBag className="h-4 w-4" />
@@ -285,7 +241,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                     <Button
                       variant={isWishlisted ? 'default' : 'outline'}
                       size="icon"
-                      onClick={handleToggleWishlist}
+                      onClick={() => void handleToggleWishlist()}
                       disabled={isAddingToWishlist}
                       className={isWishlisted ? 'bg-red-500 hover:bg-red-600' : ''}
                     >

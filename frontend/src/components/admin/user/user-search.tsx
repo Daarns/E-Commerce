@@ -4,6 +4,10 @@ import { useState } from 'react';
 import { UserFilters } from '@/services/admin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  ADMIN_USER_ROLE_FILTER_OPTIONS,
+  ADMIN_USER_STATUS_FILTER_OPTIONS,
+} from '@/constants/admin-user.constants';
 import { ChevronDown, X } from 'lucide-react';
 
 interface UserSearchProps {
@@ -96,9 +100,11 @@ export function UserSearch({ onFilterChange, onReset }: UserSearchProps) {
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
-              <option value="banned">Banned</option>
+              {ADMIN_USER_STATUS_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -111,8 +117,11 @@ export function UserSearch({ onFilterChange, onReset }: UserSearchProps) {
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Roles</option>
-              <option value="customer">Customer</option>
-              <option value="admin">Admin</option>
+              {ADMIN_USER_ROLE_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 

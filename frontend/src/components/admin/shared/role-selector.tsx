@@ -91,7 +91,7 @@ export function RoleSelector({ open, onOpenChange, currentRole, userName, onConf
           {selectedRole !== currentRole && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <p className="text-sm text-yellow-800">
-                ⚠️ This will change {userName}'s access level. Admins can manage products, orders, and users.
+                ⚠️ This will change {userName}&apos;s access level. Admins can manage products, orders, and users.
               </p>
             </div>
           )}

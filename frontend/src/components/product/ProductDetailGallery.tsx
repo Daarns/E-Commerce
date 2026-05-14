@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { OUT_OF_STOCK_LABEL, PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { ProductImage } from '@/types';
 
 interface ProductDetailGalleryProps {
@@ -44,7 +45,7 @@ export function ProductDetailGallery({
             className="absolute inset-0"
           >
             <Image
-              src={images[selectedImageIndex]?.url || '/placeholder-product.jpg'}
+              src={images[selectedImageIndex]?.url || PLACEHOLDER_PRODUCT_IMAGE}
               alt={images[selectedImageIndex]?.alt_text || productName}
               fill
               className="object-cover"
@@ -82,7 +83,7 @@ export function ProductDetailGallery({
             <Badge variant="destructive">-{discountPercentage}%</Badge>
           )}
           {isOutOfStock && (
-            <Badge variant="secondary">Out of Stock</Badge>
+            <Badge variant="secondary">{OUT_OF_STOCK_LABEL}</Badge>
           )}
         </div>
       </div>

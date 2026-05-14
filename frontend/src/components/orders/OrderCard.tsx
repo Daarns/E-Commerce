@@ -8,21 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {
+  ORDER_STATUS_LABELS,
+  SHOP_ORDER_STATUS_BADGE_COLORS,
+} from '@/constants/order.constants';
+import { PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { toNum, formatCurrency, formatDate } from '@/utils';
-import { Order, OrderStatus } from '@/types';
-
-const STATUS_CONFIG: Record<
-  OrderStatus,
-  { label: string; color: string; icon: React.ReactNode }
-> = {
-  pending: { label: 'Pending Payment', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200', icon: '⏰' },
-  payment_confirmed: { label: 'Payment Confirmed', color: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200', icon: '💳' },
-  processing: { label: 'Processing', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: '📦' },
-  shipped: { label: 'Shipped', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: '🚚' },
-  delivered: { label: 'Delivered', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', icon: '✓' },
-  cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', icon: '✕' },
-  refunded: { label: 'Refunded', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200', icon: '↩️' },
-};
+import { Order } from '@/types';
 
 interface OrderCardProps {
   order: Order;
@@ -47,7 +39,10 @@ export function OrderCard({
   onSync,
   onCancel,
 }: OrderCardProps) {
-  const statusConfig = STATUS_CONFIG[order.order_status] ?? STATUS_CONFIG.pending;
+  const statusLabel = order.order_status === 'pending'
+    ? 'Pending Payment'
+    : ORDER_STATUS_LABELS[order.order_status];
+  const statusColor = SHOP_ORDER_STATUS_BADGE_COLORS[order.order_status];
 
   return (
     <motion.div
@@ -62,8 +57,8 @@ export function OrderCard({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="font-semibold">{order.order_number}</h3>
-                <Badge className={statusConfig.color}>
-                  {statusConfig.label}
+                <Badge className={statusColor}>
+                  {statusLabel}
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -88,7 +83,7 @@ export function OrderCard({
               <div key={item.id} className="flex gap-3">
                 <div className="relative h-16 w-16 rounded-md overflow-hidden bg-muted flex-shrink-0">
                   <Image
-                    src="/placeholder-product.jpg"
+                    src={PLACEHOLDER_PRODUCT_IMAGE}
                     alt={item.product_name}
                     fill
                     className="object-cover"

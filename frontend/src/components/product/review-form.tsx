@@ -1,14 +1,13 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { productService, ProductReview, CreateReviewInput } from '@/services/product';
-import { toast } from 'sonner';
+import type { ProductReview } from '@/services/product';
+import { useProductReviewForm } from '@/hooks/useProductReviewForm';
 
 interface ReviewFormProps {
   productId: string;
@@ -17,48 +16,25 @@ interface ReviewFormProps {
 }
 
 export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) {
-  const [rating, setRating] = useState(0);
-  const [title, setTitle] = useState('');
-  const [reviewText, setReviewText] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hoveredRating, setHoveredRating] = useState(0);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (rating === 0) {
-      toast.error('Please select a rating');
-      return;
-    }
-
-    if (!title.trim() || !reviewText.trim()) {
-      toast.error('Please fill in all fields');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const input: CreateReviewInput = {
-        rating,
-        title,
-        review_text: reviewText,
-      };
-      const review = await productService.createReview(productId, input);
-      onSuccess(review);
-    } catch (error) {
-      console.error('Failed to submit review:', error);
-      toast.error('Failed to post review. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const {
+    rating,
+    title,
+    reviewText,
+    hoveredRating,
+    isSubmitting,
+    setRating,
+    setTitle,
+    setReviewText,
+    setHoveredRating,
+    handleSubmit,
+  } = useProductReviewForm({ productId, onSuccess });
 
   return (
     <motion.form
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      onSubmit={handleSubmit}
+      onSubmit={(event) => void handleSubmit(event)}
       className="space-y-6 p-6 border rounded-lg bg-muted/50"
     >
       <div>

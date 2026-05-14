@@ -11,21 +11,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
-import { toNum, formatCurrency, formatDate } from '@/utils';
-import { Order, OrderStatus } from '@/types';
-
-const STATUS_CONFIG: Record<
-  OrderStatus,
-  { label: string; color: string }
-> = {
-  pending: { label: 'Pending Payment', color: 'bg-yellow-100 text-yellow-800' },
-  payment_confirmed: { label: 'Payment Confirmed', color: 'bg-teal-100 text-teal-800' },
-  processing: { label: 'Processing', color: 'bg-blue-100 text-blue-800' },
-  shipped: { label: 'Shipped', color: 'bg-purple-100 text-purple-800' },
-  delivered: { label: 'Delivered', color: 'bg-green-100 text-green-800' },
-  cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
-  refunded: { label: 'Refunded', color: 'bg-gray-100 text-gray-800' },
-};
+import {
+  ORDER_STATUS_FLOW,
+  ORDER_STATUS_LABELS,
+  SHOP_ORDER_STATUS_BADGE_COLORS,
+} from '@/constants/order.constants';
+import { PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
+import { toNum, formatCurrency } from '@/utils';
+import { Order } from '@/types';
 
 interface OrderDetailModalProps {
   order: Order | null;
@@ -52,8 +45,11 @@ export function OrderDetailModal({
 }: OrderDetailModalProps) {
   if (!order) return null;
 
-  const progression = ['pending', 'payment_confirmed', 'processing', 'shipped', 'delivered'];
+  const progression = ORDER_STATUS_FLOW;
   const currentIdx = progression.indexOf(order.order_status);
+  const statusLabel = order.order_status === 'pending'
+    ? 'Pending Payment'
+    : ORDER_STATUS_LABELS[order.order_status];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -61,8 +57,8 @@ export function OrderDetailModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {order.order_number}
-            <Badge className={STATUS_CONFIG[order.order_status]?.color}>
-              {STATUS_CONFIG[order.order_status]?.label}
+            <Badge className={SHOP_ORDER_STATUS_BADGE_COLORS[order.order_status]}>
+              {statusLabel}
             </Badge>
           </DialogTitle>
         </DialogHeader>
@@ -118,7 +114,7 @@ export function OrderDetailModal({
                 <div key={item.id} className="flex gap-4">
                   <div className="relative h-20 w-20 rounded-md overflow-hidden bg-muted flex-shrink-0">
                     <Image
-                      src="/placeholder-product.jpg"
+                      src={PLACEHOLDER_PRODUCT_IMAGE}
                       alt={item.product_name}
                       fill
                       className="object-cover"

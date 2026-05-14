@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { useAddressFormDialog } from '@/hooks/useAddressFormDialog';
 import { Address } from '@/types';
 
 interface AddressFormDialogProps {
@@ -28,14 +28,6 @@ export function AddressFormDialog({
   onSubmit,
   isLoading,
 }: AddressFormDialogProps) {
-  const handleSubmit = async (formData: Partial<Address>) => {
-    try {
-      await onSubmit(formData);
-    } catch (error) {
-      console.error('Failed to submit address:', error);
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -45,8 +37,9 @@ export function AddressFormDialog({
           </DialogTitle>
         </DialogHeader>
         <AddressFormContent
+          key={editingAddress?.id ?? 'new-address'}
           editingAddress={editingAddress}
-          onSubmit={handleSubmit}
+          onSubmit={onSubmit}
           isLoading={isLoading}
           onClose={() => onOpenChange(false)}
         />
@@ -68,26 +61,10 @@ function AddressFormContent({
   isLoading,
   onClose,
 }: AddressFormContentProps) {
-  const [formData, setFormData] = React.useState<Partial<Address>>(
-    editingAddress || {
-      recipient_name: '',
-      phone: '',
-      street_address: '',
-      address_line2: '',
-      city: '',
-      province: '',
-      postal_code: '',
-      is_default: false,
-    }
-  );
-
-  const handleChange = (field: keyof Address, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async () => {
-    await onSubmit(formData);
-  };
+  const { formData, handleChange, handleSubmit } = useAddressFormDialog({
+    editingAddress,
+    onSubmit,
+  });
 
   return (
     <>
@@ -199,7 +176,7 @@ function AddressFormContent({
         >
           Cancel
         </Button>
-        <Button onClick={handleSubmit} disabled={isLoading}>
+        <Button onClick={() => void handleSubmit()} disabled={isLoading}>
           {isLoading ? (
             <span className="flex items-center gap-2">
               <span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />

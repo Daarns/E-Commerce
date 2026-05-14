@@ -10,8 +10,10 @@ import { ProductDetailGallery } from '@/components/product/ProductDetailGallery'
 import { ProductDetailInfo } from '@/components/product/ProductDetailInfo';
 import { ProductDetailActions } from '@/components/product/ProductDetailActions';
 import { ProductDetailTabs } from '@/components/product/ProductDetailTabs';
+import { PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { useProductDetail } from '@/hooks/useProductDetail';
 import { useProductActions } from '@/hooks/useProductActions';
+import { getProductPricing } from '@/utils';
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -58,19 +60,13 @@ export default function ProductDetailPage() {
 
   const images = product.images && product.images.length > 0
     ? product.images
-    : [{ id: 'placeholder', url: '/placeholder-product.jpg', alt_text: product.name, is_primary: true, sort_order: 0 }];
+    : [{ id: 'placeholder', url: PLACEHOLDER_PRODUCT_IMAGE, alt_text: product.name, is_primary: true, sort_order: 0 }];
 
-  const currentPrice = selectedVariant
-    ? Number(product.sale_price || product.regular_price) + Number(selectedVariant.price_adjustment ?? 0)
-    : Number(product.sale_price || product.regular_price);
-
-  const originalPrice = selectedVariant
-    ? Number(product.regular_price) + Number(selectedVariant.price_adjustment ?? 0)
-    : Number(product.regular_price);
-
-  const discountPercentage = product.sale_price
-    ? Math.round((1 - Number(product.sale_price) / Number(product.regular_price)) * 100)
-    : 0;
+  const {
+    currentPrice,
+    originalPrice,
+    discountPercentage,
+  } = getProductPricing(product, selectedVariant);
 
   const stockQuantity = selectedVariant?.stock_quantity ?? product.stock_quantity;
   const isOutOfStock = stockQuantity === 0;

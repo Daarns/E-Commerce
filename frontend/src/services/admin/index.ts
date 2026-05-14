@@ -10,6 +10,7 @@
  *   order.service.ts     → admin order list, get, status update, refund
  *   user.service.ts      → admin user list, get, role/status management
  *   promo.service.ts     → promo code CRUD (admin)
+ *   category.service.ts  → admin category creation
  */
 
 // ─── Re-export all domain types ───────────────────────────────────────────────
@@ -19,6 +20,7 @@ export type { CreateProductRequest, UpdateProductRequest, CreateVariantInput, Ad
 export type { AdminOrder, UpdateOrderStatusRequest, ProcessRefundRequest, OrderFilters, AdminOrderMetrics } from './order.service';
 export type { AdminUser, UserActivityLog, UserMetrics, UserFilters, UpdateUserRoleRequest, UpdateUserStatusRequest } from './user.service';
 export type { PromoCode, PromoListResult, PromoListFilters, CreatePromoInput, UpdatePromoInput } from './promo.service';
+export type { CreateAdminCategoryRequest } from './category.service';
 
 // ─── Re-export all domain services ───────────────────────────────────────────
 export { analyticsService } from './analytics.service';
@@ -27,6 +29,7 @@ export { adminProductService } from './product.service';
 export { adminOrderService } from './order.service';
 export { adminUserService } from './user.service';
 export { adminPromoService } from './promo.service';
+export { adminCategoryService } from './category.service';
 
 // ─── Legacy unified adminService ─────────────────────────────────────────────
 // Kept for backward compatibility — components using adminService.X continue
@@ -37,6 +40,7 @@ import { dashboardService } from './dashboard.service';
 import { adminProductService } from './product.service';
 import { adminOrderService } from './order.service';
 import { adminUserService } from './user.service';
+import { adminCategoryService } from './category.service';
 
 export const adminService = {
   // Dashboard
@@ -77,6 +81,9 @@ export const adminService = {
   getUserActivityLog: adminUserService.getUserActivityLog.bind(adminUserService),
   getUserActivity: adminUserService.getUserActivity.bind(adminUserService),
   getUserMetrics: adminUserService.getUserMetrics.bind(adminUserService),
+
+  // Categories
+  createCategory: adminCategoryService.createCategory.bind(adminCategoryService),
 };
 
 // Legacy alias — promoAdminService was the old name in admin.ts

@@ -7,6 +7,7 @@ import { Minus, Plus, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { toNum, formatCurrency } from '@/utils';
 import { ValidCartItem } from '@/types';
 
@@ -46,7 +47,7 @@ export function CartItem({
               className="relative w-24 h-24 flex-shrink-0 bg-muted rounded-lg overflow-hidden group"
             >
               <Image
-                src={item.product.images?.[0]?.url || '/placeholder-product.jpg'}
+                src={item.product.images?.[0]?.url || PLACEHOLDER_PRODUCT_IMAGE}
                 alt={item.product.name}
                 fill
                 className="object-cover group-hover:scale-110 transition-transform duration-300"

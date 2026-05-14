@@ -1,12 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { AdminOrder } from '@/services/admin';
-import { adminService } from '@/services/admin';
+import type { AdminOrder } from '@/services/admin';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { REFUND_REASONS, useOrderRefundForm } from '@/hooks/useOrderRefundForm';
 
 interface RefundFormProps {
   order: AdminOrder;
@@ -15,68 +14,24 @@ interface RefundFormProps {
   onRefundProcessed?: () => void;
 }
 
-const REFUND_REASONS = [
-  'Customer Request',
-  'Product Defect',
-  'Wrong Product Sent',
-  'No Longer Needed',
-  'Product Not as Described',
-  'Late Delivery',
-  'Other',
-];
-
 export function RefundForm({
   order,
   open,
   onOpenChange,
   onRefundProcessed,
 }: RefundFormProps) {
-  const orderTotal: number = typeof (order.total_amount || order.total) === 'number' 
-    ? (order.total_amount || order.total) as number
-    : parseFloat(String(order.total_amount || order.total || 0));
-  
-  const [amount, setAmount] = useState(orderTotal.toString());
-  const [reason, setReason] = useState('');
-  const [notes, setNotes] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async () => {
-    if (!reason) {
-      setError('Please select a reason');
-      return;
-    }
-
-    const refundAmount = parseFloat(amount);
-    if (isNaN(refundAmount) || refundAmount <= 0) {
-      setError('Please enter a valid refund amount');
-      return;
-    }
-
-    if (refundAmount > orderTotal) {
-      setError(`Refund amount cannot exceed order total (Rp ${orderTotal.toLocaleString('id-ID')})`);
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      await adminService.processRefund(order.id, {
-        amount: refundAmount,
-        reason,
-        notes: notes || undefined,
-      });
-      onRefundProcessed?.();
-      onOpenChange(false);
-      setAmount(orderTotal.toString());
-      setReason('');
-      setNotes('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to process refund');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    orderTotal,
+    amount,
+    reason,
+    notes,
+    isLoading,
+    error,
+    setAmount,
+    setReason,
+    setNotes,
+    handleSubmit,
+  } = useOrderRefundForm({ order, onOpenChange, onRefundProcessed });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -167,7 +122,7 @@ export function RefundForm({
               Cancel
             </Button>
             <Button
-              onClick={handleSubmit}
+              onClick={() => void handleSubmit()}
               disabled={isLoading || !reason}
               variant="destructive"
             >

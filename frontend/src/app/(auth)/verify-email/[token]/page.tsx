@@ -1,18 +1,16 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { VerifyEmailConfirmScreen, type VerificationStatus } from '@/components/auth';
 
 function VerifyEmailTokenContent() {
   const router = useRouter();
-  const [status, setStatus] = useState<VerificationStatus>('redirect');
+  const status: VerificationStatus = 'redirect';
 
   useEffect(() => {
     // Token-based verification is currently not implemented
     // This page redirects to the main verify-email page with code-based verification
-    setStatus('redirect');
-
     const redirectTimer = setTimeout(() => {
       router.push('/verify-email');
     }, 2000);

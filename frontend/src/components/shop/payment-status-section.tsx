@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  PAYMENT_STATUS_LABELS,
+  PAYMENT_STATUS_PANEL_COLORS,
+} from '@/constants/order.constants';
 import { Order, PaymentStatus } from '@/types';
 import { AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react';
 
@@ -25,32 +29,8 @@ function getPaymentStatusIcon(status: PaymentStatus) {
   }
 }
 
-function getPaymentStatusLabel(status: PaymentStatus): string {
-  const labels: Record<PaymentStatus, string> = {
-    paid: 'Paid',
-    unpaid: 'Unpaid',
-    failed: 'Failed',
-    refunded: 'Refunded',
-    expired: 'Expired',
-  };
-  return labels[status];
-}
-
 function getPaymentStatusColor(status: PaymentStatus): string {
-  switch (status) {
-    case 'paid':
-      return 'bg-green-50 border-green-200';
-    case 'unpaid':
-      return 'bg-yellow-50 border-yellow-200';
-    case 'failed':
-      return 'bg-red-50 border-red-200';
-    case 'refunded':
-      return 'bg-blue-50 border-blue-200';
-    case 'expired':
-      return 'bg-red-50 border-red-200';
-    default:
-      return 'bg-gray-50 border-gray-200';
-  }
+  return PAYMENT_STATUS_PANEL_COLORS[status];
 }
 
 export function PaymentStatusSection({ order }: { order: Order }) {
@@ -72,7 +52,7 @@ export function PaymentStatusSection({ order }: { order: Order }) {
               <p className="text-sm text-gray-600">Payment Status</p>
               <div className="flex items-center gap-2 mt-1">
                 {getPaymentStatusIcon(order.payment_status)}
-                <p className="font-medium">{getPaymentStatusLabel(order.payment_status)}</p>
+                <p className="font-medium">{PAYMENT_STATUS_LABELS[order.payment_status]}</p>
               </div>
             </div>
             

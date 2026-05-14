@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { OrderStatus } from '@/types';
-import { adminService } from '@/services/admin';
+import type { OrderStatus } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { useOrderStatusUpdate } from '@/hooks/useOrderStatusUpdate';
 
 interface StatusUpdateDialogProps {
   orderId: string;
@@ -15,16 +14,6 @@ interface StatusUpdateDialogProps {
   onStatusUpdated?: () => void;
 }
 
-const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  pending: ['payment_confirmed', 'cancelled'],
-  payment_confirmed: ['processing', 'cancelled'],
-  processing: ['shipped', 'cancelled'],
-  shipped: ['delivered'],
-  delivered: ['refunded'],
-  cancelled: [],
-  refunded: [],
-};
-
 export function StatusUpdateDialog({
   orderId,
   currentStatus,
@@ -32,37 +21,17 @@ export function StatusUpdateDialog({
   onOpenChange,
   onStatusUpdated,
 }: StatusUpdateDialogProps) {
-  const [newStatus, setNewStatus] = useState<OrderStatus | ''>('');
-  const [notes, setNotes] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const validTransitions = VALID_TRANSITIONS[currentStatus] || [];
-  const canUpdate = validTransitions.length > 0;
-
-  const handleSubmit = async () => {
-    if (!newStatus) {
-      setError('Please select a new status');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      await adminService.updateOrderStatus(orderId, {
-        status: newStatus as OrderStatus,
-        notes: notes || undefined,
-      });
-      onStatusUpdated?.();
-      onOpenChange(false);
-      setNewStatus('');
-      setNotes('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update status');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    newStatus,
+    notes,
+    isLoading,
+    error,
+    validTransitions,
+    canUpdate,
+    setNewStatus,
+    setNotes,
+    handleSubmit,
+  } = useOrderStatusUpdate({ orderId, currentStatus, onOpenChange, onStatusUpdated });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -128,7 +97,7 @@ export function StatusUpdateDialog({
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleSubmit}
+                  onClick={() => void handleSubmit()}
                   disabled={isLoading || !newStatus}
                 >
                   {isLoading ? 'Updating...' : 'Update Status'}

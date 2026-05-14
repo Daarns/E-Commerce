@@ -4,21 +4,15 @@ import { useState } from 'react';
 import { UserActivity } from '@/services/admin';
 import { Clock, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  ADMIN_USER_ACTIVITY_LABELS,
+  ADMIN_USER_ACTIVITY_TYPES,
+} from '@/constants/admin-user.constants';
 
 interface ActivityTimelineProps {
   activities: UserActivity[];
   isLoading?: boolean;
 }
-
-const ACTIVITY_TYPES = [
-  { value: 'login', label: 'Login' },
-  { value: 'logout', label: 'Logout' },
-  { value: 'purchase', label: 'Purchase' },
-  { value: 'profile_update', label: 'Profile Update' },
-  { value: 'password_change', label: 'Password Change' },
-  { value: 'account_created', label: 'Account Created' },
-  { value: 'payment_process', label: 'Payment Process' },
-];
 
 function getActivityIcon(action: string) {
   switch (action) {
@@ -42,16 +36,7 @@ function getActivityIcon(action: string) {
 }
 
 function formatActionLabel(action: string): string {
-  const labels: Record<string, string> = {
-    login: 'Logged in',
-    logout: 'Logged out',
-    purchase: 'Made a purchase',
-    profile_update: 'Updated profile',
-    password_change: 'Changed password',
-    account_created: 'Account created',
-    payment_process: 'Payment processed',
-  };
-  return labels[action] || action;
+  return ADMIN_USER_ACTIVITY_LABELS[action] || action;
 }
 
 export function ActivityTimeline({ activities, isLoading }: ActivityTimelineProps) {
@@ -143,7 +128,7 @@ export function ActivityTimeline({ activities, isLoading }: ActivityTimelineProp
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Actions</option>
-                {ACTIVITY_TYPES.map((type) => (
+                {ADMIN_USER_ACTIVITY_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>
                     {type.label}
                   </option>

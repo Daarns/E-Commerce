@@ -1,131 +1,30 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, TrendingUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { productService, PopularSearch } from '@/services/product';
-import { debounce } from '@/utils';
+import { useSearchInput } from '@/hooks/useSearchInput';
 
 interface SearchInputProps {
   placeholder?: string;
 }
 
 export function SearchInput({ placeholder = 'Search products...' }: SearchInputProps) {
-  const router = useRouter();
-  const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [popularSearches, setPopularSearches] = useState<PopularSearch[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Load popular searches on mount
-  useEffect(() => {
-    async function loadPopularSearches() {
-      try {
-        const searches = await productService.getPopularSearches(5, 'week');
-        setPopularSearches(searches);
-      } catch (error) {
-        console.error('Failed to load popular searches:', error);
-      }
-    }
-    loadPopularSearches();
-  }, []);
-
-  // Fetch autocomplete suggestions
-  const fetchSuggestions = useCallback(
-    debounce(async (searchQuery: string) => {
-      if (!searchQuery.trim()) {
-        setSuggestions([]);
-        return;
-      }
-
-      setIsLoading(true);
-      try {
-        const results = await productService.getSearchAutocomplete(searchQuery, 8);
-        setSuggestions(results.map((r) => r.query));
-      } catch (error) {
-        console.error('Failed to fetch suggestions:', error);
-        setSuggestions([]);
-      } finally {
-        setIsLoading(false);
-      }
-    }, 300),
-    []
-  );
-
-  const handleInputChange = (value: string) => {
-    setQuery(value);
-    setShowDropdown(true);
-    setActiveSuggestionIndex(-1);
-    if (value.trim()) {
-      fetchSuggestions(value);
-    } else {
-      setSuggestions([]);
-    }
-  };
-
-  const handleSearch = (searchQuery: string) => {
-    if (searchQuery.trim()) {
-      router.push(`/products?search=${encodeURIComponent(searchQuery)}`);
-      setQuery('');
-      setShowDropdown(false);
-      setSuggestions([]);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showDropdown) return;
-
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setActiveSuggestionIndex((prev) => 
-          prev < suggestions.length - 1 ? prev + 1 : 0
-        );
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setActiveSuggestionIndex((prev) =>
-          prev > 0 ? prev - 1 : suggestions.length - 1
-        );
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (activeSuggestionIndex >= 0) {
-          handleSearch(suggestions[activeSuggestionIndex]);
-        } else {
-          handleSearch(query);
-        }
-        break;
-      case 'Escape':
-        e.preventDefault();
-        setShowDropdown(false);
-        break;
-    }
-  };
-
-  // Close dropdown on click outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
-        inputRef.current &&
-        !inputRef.current.contains(event.target as Node)
-      ) {
-        setShowDropdown(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const {
+    query,
+    suggestions,
+    popularSearches,
+    isLoading,
+    showDropdown,
+    activeSuggestionIndex,
+    inputRef,
+    dropdownRef,
+    setShowDropdown,
+    setActiveSuggestionIndex,
+    handleInputChange,
+    handleSearch,
+    handleKeyDown,
+  } = useSearchInput();
 
   return (
     <div className="relative w-full max-w-md">

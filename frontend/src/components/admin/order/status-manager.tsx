@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { ADMIN_USER_STATUS_REASONS } from '@/constants/admin-user.constants';
 
 interface StatusManagerProps {
   open: boolean;
@@ -19,23 +20,6 @@ interface StatusManagerProps {
   userName: string;
   onConfirm: (newStatus: 'active' | 'suspended' | 'banned', reason?: string) => Promise<void>;
 }
-
-const STATUS_REASONS = {
-  suspended: [
-    { value: 'terms_violation', label: 'Terms of Service Violation' },
-    { value: 'suspicious_activity', label: 'Suspicious Activity' },
-    { value: 'payment_issue', label: 'Payment Issue' },
-    { value: 'manual_review', label: 'Manual Review Required' },
-    { value: 'other', label: 'Other' },
-  ],
-  banned: [
-    { value: 'fraud', label: 'Fraudulent Activity' },
-    { value: 'severe_violation', label: 'Severe Terms Violation' },
-    { value: 'repeated_violations', label: 'Repeated Violations' },
-    { value: 'abusive_behavior', label: 'Abusive Behavior' },
-    { value: 'other', label: 'Other' },
-  ],
-};
 
 export function StatusManager({
   open,
@@ -74,7 +58,9 @@ export function StatusManager({
     onOpenChange(newOpen);
   };
 
-  const currentReasons = selectedStatus === 'suspended' ? STATUS_REASONS.suspended : STATUS_REASONS.banned;
+  const currentReasons = selectedStatus === 'suspended'
+    ? ADMIN_USER_STATUS_REASONS.suspended
+    : ADMIN_USER_STATUS_REASONS.banned;
   const showReasonFields = selectedStatus !== 'active';
 
   return (
@@ -201,7 +187,7 @@ export function StatusManager({
                   ? 'text-red-800' 
                   : 'text-yellow-800'
               }`}>
-                ⚠️ This action will {selectedStatus === 'banned' ? 'permanently ban' : 'suspend'} {userName}'s account. They will not be able to access their account.
+                ⚠️ This action will {selectedStatus === 'banned' ? 'permanently ban' : 'suspend'} {userName}&apos;s account. They will not be able to access their account.
               </p>
             </div>
           )}

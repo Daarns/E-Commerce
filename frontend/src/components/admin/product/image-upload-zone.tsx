@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Cloud, Upload, X } from 'lucide-react';
+import { Cloud, Upload } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { adminService } from '@/services/admin';
-import { toast } from 'sonner';
+import { useAdminImageUpload } from '@/hooks/useAdminImageUpload';
 
 interface ImageUploadZoneProps {
   onImagesUpload: (urls: string[]) => void;
@@ -18,132 +16,18 @@ export function ImageUploadZone({
   disabled = false,
   maxFiles = 10,
 }: ImageUploadZoneProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const validateFile = (file: File): boolean => {
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!validTypes.includes(file.type)) {
-      setError('Only JPEG, PNG, WebP, and GIF files are allowed');
-      return false;
-    }
-
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
-      setError('File size must be less than 5MB');
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleUpload = useCallback(
-    async (files: FileList) => {
-      if (disabled) return;
-
-      const fileArray = Array.from(files);
-      if (fileArray.length > maxFiles) {
-        setError(`Maximum ${maxFiles} files allowed`);
-        return;
-      }
-
-      setError(null);
-      setIsUploading(true);
-      setUploadProgress(0);
-
-      const uploadedUrls: string[] = [];
-      const failedFiles: string[] = [];
-
-      try {
-        for (let i = 0; i < fileArray.length; i++) {
-          const file = fileArray[i];
-
-          if (!validateFile(file)) {
-            failedFiles.push(file.name);
-            continue;
-          }
-
-          try {
-            const response = await adminService.uploadProductImage(file);
-            uploadedUrls.push(response.data.image_url);
-            setUploadProgress(Math.round(((i + 1) / fileArray.length) * 100));
-          } catch (error) {
-            console.error(`Failed to upload ${file.name}:`, error);
-            failedFiles.push(file.name);
-          }
-        }
-
-        if (uploadedUrls.length > 0) {
-          onImagesUpload(uploadedUrls);
-          toast.success(`${uploadedUrls.length} image(s) uploaded successfully`);
-        }
-
-        if (failedFiles.length > 0) {
-          toast.error(`Failed to upload: ${failedFiles.join(', ')}`);
-        }
-      } catch (error) {
-        console.error('Upload error:', error);
-        setError('Failed to upload images. Please try again.');
-      } finally {
-        setIsUploading(false);
-        setUploadProgress(0);
-        // Reset file input
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      }
-    },
-    [maxFiles, disabled, onImagesUpload]
-  );
-
-  const handleDragEnter = useCallback(
-    (e: React.DragEvent) => {
-      if (disabled || isUploading) return;
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(true);
-    },
-    [disabled, isUploading]
-  );
-
-  const handleDragLeave = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-    },
-    []
-  );
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-
-      if (disabled || isUploading) return;
-
-      const { files } = e.dataTransfer;
-      if (files.length > 0) {
-        handleUpload(files);
-      }
-    },
-    [disabled, isUploading, handleUpload]
-  );
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      handleUpload(e.target.files);
-    }
-  };
+  const {
+    fileInputRef,
+    isDragging,
+    isUploading,
+    uploadProgress,
+    error,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+    handleFileSelect,
+  } = useAdminImageUpload({ disabled, maxFiles, onImagesUpload });
 
   return (
     <div className="space-y-4">

@@ -1,22 +1,23 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { animate } from 'animejs';
 import { Heart, ShoppingBag, Eye } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  LOW_STOCK_THRESHOLD,
+  OUT_OF_STOCK_LABEL,
+  PLACEHOLDER_PRODUCT_IMAGE,
+  PRODUCT_STOCK_STATUS,
+} from '@/constants/product.constants';
+import { useProductCard } from '@/hooks/useProductCard';
 import { Product } from '@/types';
 import { formatCurrency } from '@/utils';
-import { useCartStore } from '@/stores/cart-store';
-import { useWishlistStore } from '@/stores/wishlist-store';
-import { useAuthStore } from '@/stores/auth-store';
 import { QuickViewModal } from '@/components/product/quick-view-modal';
 import { AuthRequiredDialog } from '@/components/common/auth-required-dialog';
-import { toast } from 'sonner';
 
 interface ProductCardProps {
   product: Product;
@@ -24,80 +25,26 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, index = 0 }: ProductCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [showQuickView, setShowQuickView] = useState(false);
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
-  const [authDialog, setAuthDialog] = useState<'cart' | 'wishlist' | null>(null);
-  const { addToCart } = useCartStore();
-  const { toggleWishlist } = useWishlistStore();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  // Subscribe to wishlist items changes
-  const isWishlisted = useWishlistStore((state) => state.items.some((item) => item.product_id === product.id));
-  const isToggling = useWishlistStore((state) => state.isToggling(product.id));
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  // Go decimal serializes as string; parseFloat handles both string and number
-  const regularPrice = parseFloat(String(product.regular_price));
-  const salePrice = product.sale_price ? parseFloat(String(product.sale_price)) : undefined;
-
-  const discountPercentage = salePrice && !isNaN(salePrice) && !isNaN(regularPrice)
-    ? Math.round((1 - salePrice / regularPrice) * 100)
-    : 0;
-
-  // Anime.js badge animation on mount
-  useEffect(() => {
-    if (discountPercentage > 0 && cardRef.current) {
-      const badge = cardRef.current.querySelector('.discount-badge');
-      if (badge) {
-        animate(badge, {
-          scale: [0, 1],
-          rotate: [45, 0],
-          duration: 600,
-          delay: index * 100,
-          ease: 'outElastic(1, .6)',
-        });
-      }
-    }
-  }, [discountPercentage, index]);
-
-  const handleAddToCart = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!isAuthenticated) {
-      setAuthDialog('cart');
-      return;
-    }
-
-    setIsAddingToCart(true);
-    try {
-      await addToCart(product.id, 1);
-      toast.success('Added to cart', {
-        description: product.name,
-      });
-    } catch {
-      toast.error('Failed to add to cart');
-    } finally {
-      setIsAddingToCart(false);
-    }
-  };
-
-  const handleToggleWishlist = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!isAuthenticated) {
-      setAuthDialog('wishlist');
-      return;
-    }
-
-    try {
-      await toggleWishlist(product.id);
-    } catch {
-      // Error is already handled with toast in store
-    }
-  };
+  const {
+    cardRef,
+    isHovered,
+    imageLoaded,
+    showQuickView,
+    isAddingToCart,
+    authDialog,
+    regularPrice,
+    salePrice,
+    discountPercentage,
+    isWishlisted,
+    isToggling,
+    setIsHovered,
+    setImageLoaded,
+    setShowQuickView,
+    setAuthDialog,
+    handleAddToCart,
+    handleToggleWishlist,
+    openQuickView,
+  } = useProductCard({ product, index });
 
   return (
     <>
@@ -118,7 +65,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
               <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
                 {/* Main Image */}
                 <Image
-                  src={product.images?.[0]?.url || '/placeholder-product.jpg'}
+                  src={product.images?.[0]?.url || PLACEHOLDER_PRODUCT_IMAGE}
                   alt={product.name}
                   fill
                   className={`object-cover transition-all duration-500 ${
@@ -148,14 +95,14 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                       -{discountPercentage}%
                     </Badge>
                   )}
-                  {product.stock_quantity < 10 && product.stock_quantity > 0 && (
+                  {product.stock_quantity < LOW_STOCK_THRESHOLD && product.stock_quantity > 0 && (
                     <Badge variant="secondary" className="text-xs">
-                      Low Stock
+                      {PRODUCT_STOCK_STATUS.lowStock.label}
                     </Badge>
                   )}
                   {product.stock_quantity === 0 && (
                     <Badge variant="outline" className="text-xs bg-background">
-                      Out of Stock
+                      {OUT_OF_STOCK_LABEL}
                     </Badge>
                   )}
                 </div>
@@ -173,7 +120,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                     className={`h-8 w-8 rounded-full shadow-lg transition-colors ${
                       isWishlisted ? 'bg-red-500 hover:bg-red-600' : ''
                     }`}
-                    onClick={handleToggleWishlist}
+                    onClick={(event) => void handleToggleWishlist(event)}
                     disabled={isToggling}
                   >
                     <Heart
@@ -186,11 +133,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                     size="icon"
                     variant="secondary"
                     className="h-8 w-8 rounded-full shadow-lg"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowQuickView(true);
-                    }}
+                    onClick={openQuickView}
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -205,7 +148,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                 >
                   <Button
                     className="w-full gap-2"
-                    onClick={handleAddToCart}
+                    onClick={(event) => void handleAddToCart(event)}
                     disabled={isAddingToCart || product.stock_quantity === 0}
                   >
                     <ShoppingBag className="h-4 w-4" />

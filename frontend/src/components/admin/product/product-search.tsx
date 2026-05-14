@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Search,
@@ -10,7 +9,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -18,9 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Category } from '@/types';
-import { ProductFilters } from '@/services/admin';
-import { categoryService } from '@/services/product';
+import type { ProductFilters } from '@/services/admin';
+import {
+  ADMIN_PRODUCT_ACTIVE_STATUS_OPTIONS,
+  ADMIN_PRODUCT_SORT_OPTIONS,
+  ADMIN_PRODUCT_STOCK_STATUS_OPTIONS,
+  SORT_ORDER_OPTIONS,
+} from '@/constants/product.constants';
+import { useAdminProductSearch } from '@/hooks/useAdminProductSearch';
 
 interface ProductSearchProps {
   onFiltersChange: (filters: ProductFilters) => void;
@@ -33,77 +36,20 @@ export function ProductSearch({
   onSearchChange,
   isLoading = false,
 }: ProductSearchProps) {
-  const [search, setSearch] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [filters, setFilters] = useState<ProductFilters>({
-    search: '',
-    category_id: '',
-    stock_status: undefined,
-    min_price: undefined,
-    max_price: undefined,
-    is_active: undefined,
-    sort_by: 'created_at',
-    sort_order: 'desc',
-  });
-
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
-  const loadCategories = async () => {
-    try {
-      const cats = await categoryService.getCategoryTree();
-      setCategories(cats);
-    } catch (error) {
-      console.error('Failed to load categories:', error);
-    }
-  };
-
-  const handleSearchChange = (value: string) => {
-    setSearch(value);
-    const newFilters = { ...filters, search: value };
-    setFilters(newFilters);
-    onFiltersChange(newFilters);
-    onSearchChange?.(value);
-  };
-
-  const handleFilterChange = (key: keyof ProductFilters, value: any) => {
-    const newFilters = {
-      ...filters,
-      [key]: value === '' ? undefined : value,
-    };
-    setFilters(newFilters);
-    onFiltersChange(newFilters);
-  };
-
-  const hasActiveFilters = Boolean(
-    search ||
-    filters.category_id ||
-    filters.stock_status ||
-    filters.min_price ||
-    filters.max_price ||
-    filters.is_active !== undefined
-  );
-
-  const resetFilters = () => {
-    setSearch('');
-    setFilters({
-      search: '',
-      category_id: '',
-      stock_status: undefined,
-      min_price: undefined,
-      max_price: undefined,
-      is_active: undefined,
-      sort_by: 'created_at',
-      sort_order: 'desc',
-    });
-    onFiltersChange({
-      search: '',
-      sort_by: 'created_at',
-      sort_order: 'desc',
-    });
-  };
+  const {
+    search,
+    isExpanded,
+    categories,
+    filters,
+    hasActiveFilters,
+    setIsExpanded,
+    handleSearchChange,
+    handleFilterChange,
+    handleStockStatusChange,
+    handleSortByChange,
+    handleSortOrderChange,
+    resetFilters,
+  } = useAdminProductSearch({ onFiltersChange, onSearchChange });
 
   return (
     <div className="space-y-4">
@@ -184,12 +130,7 @@ export function ProductSearch({
               <Label>Stock Status</Label>
               <Select
                 value={filters.stock_status || ''}
-                onValueChange={(value) =>
-                  handleFilterChange(
-                    'stock_status',
-                    value as 'in_stock' | 'low_stock' | 'out_of_stock'
-                  )
-                }
+                onValueChange={handleStockStatusChange}
                 disabled={isLoading}
               >
                 <SelectTrigger>
@@ -197,9 +138,11 @@ export function ProductSearch({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">All statuses</SelectItem>
-                  <SelectItem value="in_stock">In Stock</SelectItem>
-                  <SelectItem value="low_stock">Low Stock</SelectItem>
-                  <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                  {ADMIN_PRODUCT_STOCK_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -229,8 +172,11 @@ export function ProductSearch({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">All statuses</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
+                  {ADMIN_PRODUCT_ACTIVE_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -273,35 +219,35 @@ export function ProductSearch({
             <div className="grid grid-cols-2 gap-4">
               <Select
                 value={filters.sort_by || 'created_at'}
-                onValueChange={(value) =>
-                  handleFilterChange('sort_by', value as any)
-                }
+                onValueChange={handleSortByChange}
                 disabled={isLoading}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="created_at">Date Created</SelectItem>
-                  <SelectItem value="name">Product Name</SelectItem>
-                  <SelectItem value="price">Price</SelectItem>
-                  <SelectItem value="stock">Stock</SelectItem>
+                  {ADMIN_PRODUCT_SORT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
               <Select
                 value={filters.sort_order || 'desc'}
-                onValueChange={(value) =>
-                  handleFilterChange('sort_order', value as 'asc' | 'desc')
-                }
+                onValueChange={handleSortOrderChange}
                 disabled={isLoading}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="desc">Descending</SelectItem>
-                  <SelectItem value="asc">Ascending</SelectItem>
+                  {SORT_ORDER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

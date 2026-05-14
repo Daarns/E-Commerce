@@ -1,5 +1,6 @@
 'use client';
 
+import { PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { Order } from '@/types';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -22,7 +23,7 @@ export function OrderItemsList({ order }: { order: Order }) {
             {/* Product Image */}
             <div className="relative w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
               <Image
-                src={item.product_image || '/placeholder-product.jpg'}
+                src={item.product_image || PLACEHOLDER_PRODUCT_IMAGE}
                 alt={item.product_name}
                 fill
                 className="object-cover"

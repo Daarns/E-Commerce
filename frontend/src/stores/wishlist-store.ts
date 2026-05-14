@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { wishlistService, Wishlist } from '@/services/wishlist';
 import { toast } from 'sonner';
+import axios from 'axios';
 
 interface WishlistState {
   items: Wishlist[];
@@ -47,9 +48,9 @@ export const useWishlistStore = create<WishlistState>()(
           }));
           toast.success('Added to wishlist');
           return item;
-        } catch (error: any) {
+        } catch (error) {
           // Handle 409 Conflict - product already in wishlist
-          if (error?.response?.status === 409) {
+          if (axios.isAxiosError(error) && error.response?.status === 409) {
             toast.info('Already in your wishlist', {
               description: 'Click the heart icon again to remove it'
             });

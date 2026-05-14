@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Edit2,
@@ -30,6 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { AdminProduct, ProductFilters } from '@/services/admin';
+import { LOW_STOCK_THRESHOLD, PRODUCT_STOCK_STATUS } from '@/constants/product.constants';
 import { formatCurrency } from '@/utils';
 
 interface ProductTableProps {
@@ -44,9 +46,9 @@ interface ProductTableProps {
 }
 
 const getStockStatus = (stock: number): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } => {
-  if (stock === 0) return { label: 'Out of Stock', variant: 'destructive' };
-  if (stock < 10) return { label: 'Low Stock', variant: 'secondary' };
-  return { label: 'In Stock', variant: 'default' };
+  if (stock === 0) return PRODUCT_STOCK_STATUS.outOfStock;
+  if (stock < LOW_STOCK_THRESHOLD) return PRODUCT_STOCK_STATUS.lowStock;
+  return PRODUCT_STOCK_STATUS.inStock;
 };
 
 export function ProductTable({
@@ -195,9 +197,11 @@ export function ProductTable({
                   <TableCell>
                     <div className="flex items-center gap-3">
                       {product.image_urls && product.image_urls.length > 0 && (
-                        <img
+                        <Image
                           src={product.image_urls[0]}
                           alt={product.name}
+                          width={40}
+                          height={40}
                           className="w-10 h-10 rounded object-cover"
                         />
                       )}
@@ -301,11 +305,8 @@ export function ProductTable({
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => {
-                // Handle bulk delete
-                const ids = Array.from(selectedIds);
-                // TODO: Implement bulk delete
-              }}
+              disabled
+              title="Bulk delete is not implemented yet"
             >
               Delete Selected
             </Button>

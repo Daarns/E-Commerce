@@ -10,22 +10,28 @@ import {
 } from 'recharts';
 import { OrderMetrics } from '@/services/admin';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ADMIN_ORDER_STATUS_CHART_CONFIG } from '@/constants/order.constants';
 
 interface OrderStatusChartProps {
   orders: OrderMetrics;
 }
 
-const STATUS_CONFIG = [
-  { key: 'pending_orders',    label: 'Pending',    color: '#EAB308' },
-  { key: 'processing_orders', label: 'Diproses',   color: '#3B82F6' },
-  { key: 'shipped_orders',    label: 'Dikirim',    color: '#A855F7' },
-  { key: 'delivered_orders',  label: 'Terkirim',   color: '#22C55E' },
-  { key: 'cancelled_orders',  label: 'Dibatalkan', color: '#EF4444' },
-] as const;
+interface ChartTooltipPayload {
+  name?: string;
+  value?: number | string;
+}
 
-function CustomTooltip({ active, payload }: any) {
+interface ChartTooltipProps {
+  active?: boolean;
+  payload?: ChartTooltipPayload[];
+}
+
+function CustomTooltip({ active, payload }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
-  const { name, value } = payload[0];
+  const firstPayload = payload[0];
+  if (!firstPayload) return null;
+
+  const { name, value } = firstPayload;
   return (
     <div className="rounded-lg border border-border bg-background/95 backdrop-blur-sm shadow-lg p-3 text-sm">
       <p className="font-medium">{name}</p>
@@ -35,7 +41,7 @@ function CustomTooltip({ active, payload }: any) {
 }
 
 export function OrderStatusChart({ orders }: OrderStatusChartProps) {
-  const data = STATUS_CONFIG
+  const data = ADMIN_ORDER_STATUS_CHART_CONFIG
     .map(({ key, label, color }) => ({
       name: label,
       value: Number(orders[key as keyof OrderMetrics] ?? 0),

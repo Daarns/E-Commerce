@@ -5,6 +5,10 @@ import { OrderFilters } from '@/services/admin';
 import { OrderStatus, PaymentStatus } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  ADMIN_ORDER_STATUS_FILTER_OPTIONS,
+  ADMIN_PAYMENT_STATUS_FILTER_OPTIONS,
+} from '@/constants/order.constants';
 import { ChevronDown, X } from 'lucide-react';
 
 interface OrderSearchProps {
@@ -106,13 +110,11 @@ export function OrderSearch({ onFilterChange, onReset }: OrderSearchProps) {
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="processing">Processing</option>
-              <option value="shipped">Shipped</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="refunded">Refunded</option>
+              {ADMIN_ORDER_STATUS_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -125,11 +127,11 @@ export function OrderSearch({ onFilterChange, onReset }: OrderSearchProps) {
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Payment Status</option>
-              <option value="paid">Paid</option>
-              <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
-              <option value="refunded">Refunded</option>
-              <option value="expired">Expired</option>
+              {ADMIN_PAYMENT_STATUS_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 

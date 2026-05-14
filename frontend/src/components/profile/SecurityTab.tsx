@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { useSecurityTab } from '@/hooks/useSecurityTab';
 
 interface SecurityTabProps {
   onPasswordChange: (current: string, newPassword: string) => Promise<void>;
@@ -27,48 +27,22 @@ export function SecurityTab({
   onDeleteAccount,
   isLoading,
 }: SecurityTabProps) {
-  const [passwordForm, setPasswordForm] = useState({
-    current: '',
-    new: '',
-    confirm: '',
-  });
-  const [showPasswords, setShowPasswords] = useState({
-    current: false,
-    new: false,
-    confirm: false,
-  });
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [deleteConfirmPassword, setDeleteConfirmPassword] = useState('');
-  const [showDeletePassword, setShowDeletePassword] = useState(false);
-
-  const handlePasswordChange = async () => {
-    if (passwordForm.new !== passwordForm.confirm) {
-      alert('Passwords do not match');
-      return;
-    }
-    if (passwordForm.new.length < 8) {
-      alert('New password must be at least 8 characters');
-      return;
-    }
-    try {
-      await onPasswordChange(passwordForm.current, passwordForm.new);
-      setPasswordForm({ current: '', new: '', confirm: '' });
-    } catch (error) {
-      console.error('Failed to change password:', error);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    if (!deleteConfirmPassword) {
-      alert('Please enter your password to confirm');
-      return;
-    }
-    try {
-      await onDeleteAccount(deleteConfirmPassword);
-    } catch (error) {
-      console.error('Failed to delete account:', error);
-    }
-  };
+  const {
+    passwordForm,
+    showPasswords,
+    showDeleteDialog,
+    deleteConfirmPassword,
+    showDeletePassword,
+    setDeleteConfirmPassword,
+    setShowDeletePassword,
+    updatePasswordField,
+    togglePasswordVisibility,
+    openDeleteDialog,
+    closeDeleteDialog,
+    setDeleteDialogOpen,
+    handlePasswordChange,
+    handleDeleteAccount,
+  } = useSecurityTab({ onPasswordChange, onDeleteAccount });
 
   return (
     <>
@@ -91,17 +65,13 @@ export function SecurityTab({
                   id="current-password"
                   type={showPasswords.current ? 'text' : 'password'}
                   value={passwordForm.current}
-                  onChange={e =>
-                    setPasswordForm(prev => ({ ...prev, current: e.target.value }))
-                  }
+                  onChange={e => updatePasswordField('current', e.target.value)}
                   disabled={isLoading}
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 -translate-y-1/2"
-                  onClick={() =>
-                    setShowPasswords(prev => ({ ...prev, current: !prev.current }))
-                  }
+                  onClick={() => togglePasswordVisibility('current')}
                 >
                   {showPasswords.current ? (
                     <EyeOff className="h-4 w-4" />
@@ -119,15 +89,13 @@ export function SecurityTab({
                   id="new-password"
                   type={showPasswords.new ? 'text' : 'password'}
                   value={passwordForm.new}
-                  onChange={e =>
-                    setPasswordForm(prev => ({ ...prev, new: e.target.value }))
-                  }
+                  onChange={e => updatePasswordField('new', e.target.value)}
                   disabled={isLoading}
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 -translate-y-1/2"
-                  onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+                  onClick={() => togglePasswordVisibility('new')}
                 >
                   {showPasswords.new ? (
                     <EyeOff className="h-4 w-4" />
@@ -145,17 +113,13 @@ export function SecurityTab({
                   id="confirm-password"
                   type={showPasswords.confirm ? 'text' : 'password'}
                   value={passwordForm.confirm}
-                  onChange={e =>
-                    setPasswordForm(prev => ({ ...prev, confirm: e.target.value }))
-                  }
+                  onChange={e => updatePasswordField('confirm', e.target.value)}
                   disabled={isLoading}
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 -translate-y-1/2"
-                  onClick={() =>
-                    setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))
-                  }
+                  onClick={() => togglePasswordVisibility('confirm')}
                 >
                   {showPasswords.confirm ? (
                     <EyeOff className="h-4 w-4" />
@@ -167,7 +131,7 @@ export function SecurityTab({
             </div>
 
             <Button
-              onClick={handlePasswordChange}
+              onClick={() => void handlePasswordChange()}
               disabled={
                 isLoading ||
                 !passwordForm.current ||
@@ -204,10 +168,7 @@ export function SecurityTab({
               <Button
                 variant="destructive"
                 disabled={isLoading}
-                onClick={() => {
-                  setDeleteConfirmPassword('');
-                  setShowDeleteDialog(true);
-                }}
+                onClick={openDeleteDialog}
               >
                 Delete Account
               </Button>
@@ -219,10 +180,7 @@ export function SecurityTab({
       {/* Delete Account Dialog */}
       <Dialog
         open={showDeleteDialog}
-        onOpenChange={open => {
-          setShowDeleteDialog(open);
-          if (!open) setDeleteConfirmPassword('');
-        }}
+        onOpenChange={setDeleteDialogOpen}
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -242,7 +200,9 @@ export function SecurityTab({
                   placeholder="Your current password"
                   value={deleteConfirmPassword}
                   onChange={e => setDeleteConfirmPassword(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleDeleteAccount()}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') void handleDeleteAccount();
+                  }}
                   disabled={isLoading}
                 />
                 <button
@@ -263,17 +223,14 @@ export function SecurityTab({
             <Button
               variant="ghost"
               disabled={isLoading}
-              onClick={() => {
-                setShowDeleteDialog(false);
-                setDeleteConfirmPassword('');
-              }}
+              onClick={closeDeleteDialog}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               disabled={isLoading || !deleteConfirmPassword}
-              onClick={handleDeleteAccount}
+              onClick={() => void handleDeleteAccount()}
             >
               {isLoading ? (
                 <span className="flex items-center gap-2">

@@ -3,7 +3,13 @@
 import { AdminUser } from '@/services/admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit2, Trash2, Download } from 'lucide-react';
+import {
+  ADMIN_USER_ROLE_BADGE_COLORS,
+  ADMIN_USER_ROLE_LABELS,
+  ADMIN_USER_STATUS_BADGE_COLORS,
+  ADMIN_USER_STATUS_LABELS,
+} from '@/constants/admin-user.constants';
+import { Eye, Download } from 'lucide-react';
 import Link from 'next/link';
 import { exportUsersToCSV } from '@/utils/csv-export';
 
@@ -17,47 +23,22 @@ interface UserTableProps {
 }
 
 function getStatusBadgeColor(status: 'active' | 'suspended' | 'banned'): string {
-  switch (status) {
-    case 'active':
-      return 'bg-green-100 text-green-800';
-    case 'suspended':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'banned':
-      return 'bg-red-100 text-red-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
+  return ADMIN_USER_STATUS_BADGE_COLORS[status];
 }
 
 function getRoleBadgeColor(role: 'customer' | 'admin'): string {
-  switch (role) {
-    case 'admin':
-      return 'bg-purple-100 text-purple-800';
-    case 'customer':
-      return 'bg-blue-100 text-blue-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
+  return ADMIN_USER_ROLE_BADGE_COLORS[role];
 }
 
 function formatStatusLabel(status: 'active' | 'suspended' | 'banned'): string {
-  const labels: Record<'active' | 'suspended' | 'banned', string> = {
-    active: 'Active',
-    suspended: 'Suspended',
-    banned: 'Banned',
-  };
-  return labels[status];
+  return ADMIN_USER_STATUS_LABELS[status];
 }
 
 function formatRoleLabel(role: 'customer' | 'admin'): string {
-  const labels: Record<'customer' | 'admin', string> = {
-    customer: 'Customer',
-    admin: 'Admin',
-  };
-  return labels[role];
+  return ADMIN_USER_ROLE_LABELS[role];
 }
 
-export function UserTable({ users, isLoading, onView, onEdit, onDelete, onExport }: UserTableProps) {
+export function UserTable({ users, isLoading, onExport }: UserTableProps) {
   const handleExport = () => {
     exportUsersToCSV(users);
     onExport?.();

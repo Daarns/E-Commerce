@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { AdminOrder } from '@/services/admin';
+import { PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { formatCurrency, toNum } from '@/utils';
 
 interface OrderItemsSectionProps {
@@ -19,7 +20,7 @@ export function OrderItemsSection({ items }: OrderItemsSectionProps) {
           <div key={item.id} className="flex gap-4 p-6">
             <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded bg-gray-100">
               <Image
-                src={item.product_image || '/placeholder-product.jpg'}
+                src={item.product_image || PLACEHOLDER_PRODUCT_IMAGE}
                 alt={item.product_name}
                 fill
                 className="object-cover"

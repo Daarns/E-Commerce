@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -8,11 +7,10 @@ import { Heart, ShoppingBag, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { OUT_OF_STOCK_LABEL, PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
+import { useWishlistItem } from '@/hooks/useWishlistItem';
 import { Product } from '@/types';
 import { formatCurrency } from '@/utils';
-import { useCartStore } from '@/stores/cart-store';
-import { useWishlistStore } from '@/stores/wishlist-store';
-import { toast } from 'sonner';
 
 interface WishlistItemProps {
   wishlistId: string;
@@ -21,47 +19,15 @@ interface WishlistItemProps {
 }
 
 export function WishlistItem({ wishlistId, product, index = 0 }: WishlistItemProps) {
-  const [isImageLoaded, setIsImageLoaded] = useState(false);
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
-  const [isRemoving, setIsRemoving] = useState(false);
-  const { addToCart } = useCartStore();
-  const { removeFromWishlist } = useWishlistStore();
-
-  const discountPercentage = product.sale_price
-    ? Math.round((1 - Number(product.sale_price) / Number(product.regular_price)) * 100)
-    : 0;
-
-  const handleAddToCart = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    setIsAddingToCart(true);
-    try {
-      await addToCart(product.id, 1);
-      toast.success('Added to cart', {
-        description: product.name,
-      });
-    } catch {
-      toast.error('Failed to add to cart');
-    } finally {
-      setIsAddingToCart(false);
-    }
-  };
-
-  const handleRemoveFromWishlist = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    setIsRemoving(true);
-    try {
-      await removeFromWishlist(wishlistId);
-      toast.success('Removed from wishlist');
-    } catch (error) {
-      // Error already handled with toast in store
-    } finally {
-      setIsRemoving(false);
-    }
-  };
+  const {
+    isImageLoaded,
+    isAddingToCart,
+    isRemoving,
+    discountPercentage,
+    setIsImageLoaded,
+    handleAddToCart,
+    handleRemoveFromWishlist,
+  } = useWishlistItem({ wishlistId, product });
 
   return (
     <motion.div
@@ -77,7 +43,7 @@ export function WishlistItem({ wishlistId, product, index = 0 }: WishlistItemPro
             <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
               {/* Main Image */}
               <Image
-                src={product.images?.[0]?.url || '/placeholder-product.jpg'}
+                src={product.images?.[0]?.url || PLACEHOLDER_PRODUCT_IMAGE}
                 alt={product.name}
                 fill
                 className={`object-cover transition-all duration-500 ${
@@ -117,7 +83,7 @@ export function WishlistItem({ wishlistId, product, index = 0 }: WishlistItemPro
                 <div className="flex gap-2">
                   <Button
                     className="flex-1 gap-2"
-                    onClick={handleAddToCart}
+                    onClick={(event) => void handleAddToCart(event)}
                     disabled={isAddingToCart || product.stock_quantity === 0}
                   >
                     <ShoppingBag className="h-4 w-4" />
@@ -126,7 +92,7 @@ export function WishlistItem({ wishlistId, product, index = 0 }: WishlistItemPro
                   <Button
                     variant="destructive"
                     size="icon"
-                    onClick={handleRemoveFromWishlist}
+                    onClick={(event) => void handleRemoveFromWishlist(event)}
                     disabled={isRemoving}
                     title="Remove from wishlist"
                   >
@@ -161,7 +127,7 @@ export function WishlistItem({ wishlistId, product, index = 0 }: WishlistItemPro
 
               {/* Stock Status */}
               {product.stock_quantity === 0 && (
-                <p className="text-xs text-destructive font-medium">Out of Stock</p>
+                <p className="text-xs text-destructive font-medium">{OUT_OF_STOCK_LABEL}</p>
               )}
             </div>
           </CardContent>

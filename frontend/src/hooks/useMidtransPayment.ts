@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-interface MidtransSnapWindow extends Window {
+type MidtransSnapWindow = Window & {
   snap?: {
     pay: (
       token: string,
@@ -12,7 +12,7 @@ interface MidtransSnapWindow extends Window {
       }
     ) => void;
   };
-}
+};
 
 export function useMidtransPayment() {
   const snapUrl = process.env.NEXT_PUBLIC_MIDTRANS_SNAP_URL;

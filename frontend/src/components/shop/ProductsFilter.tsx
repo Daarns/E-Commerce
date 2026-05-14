@@ -4,16 +4,9 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SHOP_PRODUCT_SORT_OPTIONS } from '@/constants/product.constants';
 import { Category } from '@/types';
 import { ProductFilters } from '@/hooks/useProductFilter';
-
-const sortOptions = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'price_asc', label: 'Price: Low to High' },
-  { value: 'price_desc', label: 'Price: High to Low' },
-  { value: 'popular', label: 'Most Popular' },
-  { value: 'name_asc', label: 'Name: A to Z' },
-];
 
 const capitalizeCategoryName = (name: string): string => {
   if (!name) return '';
@@ -108,11 +101,11 @@ export function ProductsFilter({
         <Select value={filters.sortBy} onValueChange={onSortChange}>
           <SelectTrigger>
             <SelectValue>
-              {sortOptions.find(opt => opt.value === filters.sortBy)?.label || 'Sort by'}
+              {SHOP_PRODUCT_SORT_OPTIONS.find(opt => opt.value === filters.sortBy)?.label || 'Sort by'}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {sortOptions.map((option) => (
+            {SHOP_PRODUCT_SORT_OPTIONS.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>

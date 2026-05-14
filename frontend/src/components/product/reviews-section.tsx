@@ -1,86 +1,40 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Star, ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { productService, ProductReview, ReviewStats } from '@/services/product';
 import { useAuthStore } from '@/stores/auth-store';
-import { formatCurrency } from '@/utils';
-import { toast } from 'sonner';
 import { ReviewForm } from './review-form';
+import { useProductReviews, type ProductReviewSort } from '@/hooks/useProductReviews';
 
 interface ReviewsSectionProps {
   productId: string;
 }
 
+const REVIEW_SORT_OPTIONS: ProductReviewSort[] = [
+  'helpful',
+  'recent',
+  'rating_high',
+  'rating_low',
+];
+
 export function ReviewsSection({ productId }: ReviewsSectionProps) {
   const user = useAuthStore((state) => state.user);
-  const [reviews, setReviews] = useState<ProductReview[]>([]);
-  const [stats, setStats] = useState<ReviewStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
-  const [sortBy, setSortBy] = useState<'helpful' | 'recent' | 'rating_high' | 'rating_low'>('helpful');
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [votedReviews, setVotedReviews] = useState<Record<string, 'helpful' | 'unhelpful' | null>>({});
-
-  useEffect(() => {
-    async function fetchReviews() {
-      setIsLoading(true);
-      try {
-        const [reviewsData, statsData] = await Promise.all([
-          productService.getProductReviews(productId, currentPage, 10, sortBy),
-          productService.getReviewStats(productId),
-        ]);
-        setReviews(reviewsData.reviews);
-        setTotalPages(reviewsData.meta.total_pages);
-        setStats(statsData);
-      } catch (error) {
-        console.error('Failed to fetch reviews:', error);
-        toast.error('Failed to load reviews');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchReviews();
-  }, [productId, currentPage, sortBy]);
-
-  const handleVote = async (reviewId: string, isHelpful: boolean) => {
-    try {
-      await productService.voteReviewHelpful(reviewId, isHelpful);
-      
-      setVotedReviews((prev) => ({
-        ...prev,
-        [reviewId]: isHelpful ? 'helpful' : 'unhelpful',
-      }));
-
-      setReviews((prev) =>
-        prev.map((review) =>
-          review.id === reviewId
-            ? {
-                ...review,
-                helpful_count: isHelpful ? review.helpful_count + 1 : review.helpful_count,
-                unhelpful_count: !isHelpful ? review.unhelpful_count + 1 : review.unhelpful_count,
-              }
-            : review
-        )
-      );
-
-      toast.success(isHelpful ? 'Marked as helpful' : 'Marked as unhelpful');
-    } catch (error) {
-      console.error('Failed to vote:', error);
-      toast.error('Failed to vote on review');
-    }
-  };
-
-  const handleReviewCreated = (newReview: ProductReview) => {
-    setReviews((prev) => [newReview, ...prev]);
-    setShowReviewForm(false);
-    toast.success('Review posted successfully!');
-  };
+  const {
+    reviews,
+    stats,
+    isLoading,
+    currentPage,
+    totalPages,
+    sortBy,
+    showReviewForm,
+    votedReviews,
+    setCurrentPage,
+    setShowReviewForm,
+    setSortBy,
+    handleVote,
+    handleReviewCreated,
+  } = useProductReviews({ productId });
 
   if (isLoading) {
     return (
@@ -167,15 +121,12 @@ export function ReviewsSection({ productId }: ReviewsSectionProps) {
       {reviews.length > 0 && (
         <div className="flex gap-2">
           <span className="text-sm text-muted-foreground">Sort by:</span>
-          {(['helpful', 'recent', 'rating_high', 'rating_low'] as const).map((option) => (
+          {REVIEW_SORT_OPTIONS.map((option) => (
             <Button
               key={option}
               variant={sortBy === option ? 'default' : 'outline'}
               size="sm"
-              onClick={() => {
-                setSortBy(option);
-                setCurrentPage(1);
-              }}
+              onClick={() => setSortBy(option)}
             >
               {option === 'helpful' && 'Most Helpful'}
               {option === 'recent' && 'Most Recent'}
@@ -239,7 +190,7 @@ export function ReviewsSection({ productId }: ReviewsSectionProps) {
                       variant="ghost"
                       size="sm"
                       className="h-auto p-1 gap-1"
-                      onClick={() => handleVote(review.id, true)}
+                      onClick={() => void handleVote(review.id, true)}
                     >
                       <ThumbsUp
                         className={`h-4 w-4 ${
@@ -254,7 +205,7 @@ export function ReviewsSection({ productId }: ReviewsSectionProps) {
                       variant="ghost"
                       size="sm"
                       className="h-auto p-1 gap-1"
-                      onClick={() => handleVote(review.id, false)}
+                      onClick={() => void handleVote(review.id, false)}
                     >
                       <ThumbsDown
                         className={`h-4 w-4 ${
