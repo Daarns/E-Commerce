@@ -3,6 +3,8 @@ package payment
 import (
 	"ecommerce-backend/internal/models"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/snap"
@@ -17,6 +19,8 @@ type SnapService struct {
 	config *PaymentGatewayConfig
 }
 
+const midtransRequestTimeout = 10 * time.Second
+
 // NewSnapService creates a new SnapService using existing PaymentGatewayConfig.
 func NewSnapService(config *PaymentGatewayConfig) *SnapService {
 	env := midtrans.Sandbox
@@ -26,6 +30,10 @@ func NewSnapService(config *PaymentGatewayConfig) *SnapService {
 
 	client := snap.Client{}
 	client.New(config.ServerKey, env)
+	client.HttpClient = &midtrans.HttpClientImplementation{
+		HttpClient: &http.Client{Timeout: midtransRequestTimeout},
+		Logger:     midtrans.GetDefaultLogger(env),
+	}
 
 	return &SnapService{
 		client: client,
@@ -136,10 +144,10 @@ func (s *SnapService) CreateRetryTransaction(order *models.Order, customerEmail 
 	for _, item := range order.Items {
 		unitPrice, _ := item.UnitPrice.Float64()
 		items = append(items, midtrans.ItemDetails{
-			ID:   item.ProductID.String(),
-			Name: truncate(item.ProductName, 50),
+			ID:    item.ProductID.String(),
+			Name:  truncate(item.ProductName, 50),
 			Price: int64(unitPrice),
-			Qty:  int32(item.Quantity),
+			Qty:   int32(item.Quantity),
 		})
 	}
 	if order.ShippingCost.GreaterThan(decimal.Zero) {

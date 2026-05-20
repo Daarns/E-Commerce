@@ -5,6 +5,7 @@ import (
 	"ecommerce-backend/internal/services/product"
 	productHandler "ecommerce-backend/internal/handlers/product"
 	"ecommerce-backend/pkg/response"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -112,6 +113,11 @@ func (h *AdminProductHandler) UpdateProduct(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "product not found" {
 			response.Error(c, http.StatusNotFound, "NOT_FOUND", err.Error())
+			return
+		}
+		var conflictErr *product.ConflictError
+		if errors.As(err, &conflictErr) {
+			response.Error(c, http.StatusConflict, "VERSION_CONFLICT", err.Error())
 			return
 		}
 		response.Error(c, http.StatusBadRequest, "UPDATE_FAILED", err.Error())

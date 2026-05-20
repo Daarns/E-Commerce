@@ -12,8 +12,15 @@ import {
   ORDER_STATUS_LABELS,
   SHOP_ORDER_STATUS_BADGE_COLORS,
 } from '@/constants/order.constants';
-import { PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
-import { toNum, formatCurrency, formatDate } from '@/utils';
+import {
+  formatCurrency,
+  formatDate,
+  getOrderItemImageUrl,
+  getPaymentExpiryLabel,
+  isOrderPaymentRetryable,
+  isOrderPaymentSyncable,
+  toNum,
+} from '@/utils';
 import { Order } from '@/types';
 
 interface OrderCardProps {
@@ -43,6 +50,9 @@ export function OrderCard({
     ? 'Pending Payment'
     : ORDER_STATUS_LABELS[order.order_status];
   const statusColor = SHOP_ORDER_STATUS_BADGE_COLORS[order.order_status];
+  const paymentExpiryLabel = getPaymentExpiryLabel(order);
+  const canRetryPayment = isOrderPaymentRetryable(order);
+  const canSyncPayment = isOrderPaymentSyncable(order);
 
   return (
     <motion.div
@@ -64,6 +74,11 @@ export function OrderCard({
               <p className="text-sm text-muted-foreground">
                 Placed on {formatDate(order.created_at)}
               </p>
+              {paymentExpiryLabel && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {paymentExpiryLabel}
+                </p>
+              )}
             </div>
             <div className="text-right">
               <p className="font-semibold text-lg">
@@ -79,31 +94,37 @@ export function OrderCard({
 
           {/* Items Preview */}
           <div className="flex flex-wrap gap-4 mb-4">
-            {order.items.slice(0, 3).map((item) => (
-              <div key={item.id} className="flex gap-3">
-                <div className="relative h-16 w-16 rounded-md overflow-hidden bg-muted flex-shrink-0">
-                  <Image
-                    src={PLACEHOLDER_PRODUCT_IMAGE}
-                    alt={item.product_name}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div>
-                  <p className="font-medium text-sm line-clamp-1">
-                    {item.product_name}
-                  </p>
-                  {(item.variant_type || item.variant_value) && (
-                    <p className="text-xs text-muted-foreground">
-                      {item.variant_type}: {item.variant_value}
+            {order.items.slice(0, 3).map((item) => {
+              const imageUrl = getOrderItemImageUrl(item);
+
+              return (
+                <div key={item.id} className="flex gap-3">
+                  <div className="relative h-16 w-16 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                    {imageUrl && (
+                      <Image
+                        src={imageUrl}
+                        alt={item.product_name}
+                        fill
+                        className="object-cover"
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm line-clamp-1">
+                      {item.product_name}
                     </p>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    Qty: {item.quantity}
-                  </p>
+                    {(item.variant_type || item.variant_value) && (
+                      <p className="text-xs text-muted-foreground">
+                        {item.variant_type}: {item.variant_value}
+                      </p>
+                    )}
+                    <p className="text-sm text-muted-foreground">
+                      Qty: {item.quantity}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {order.items.length > 3 && (
               <div className="flex items-center">
                 <span className="text-sm text-muted-foreground">
@@ -134,7 +155,7 @@ export function OrderCard({
             </Button>
 
             <div className="flex gap-2 flex-wrap">
-              {order.order_status === 'pending' && order.payment_status === 'unpaid' && (
+              {canRetryPayment && (
                 <Button
                   size="sm"
                   onClick={() => onPay(order)}
@@ -145,7 +166,7 @@ export function OrderCard({
                   {isPayingOrder ? 'Memuat...' : 'Lanjutkan Pembayaran'}
                 </Button>
               )}
-              {order.order_status === 'pending' && (
+              {canSyncPayment && (
                 <Button
                   variant="outline"
                   size="sm"

@@ -26,8 +26,9 @@ export default function ProductDetailPage() {
     error,
     selectedImage,
     setSelectedImage,
-    selectedVariant,
-    setSelectedVariant,
+    selectedOptions,
+    selectOption,
+    selectedCombination,
   } = useProductDetail(slug);
 
   const {
@@ -65,10 +66,15 @@ export default function ProductDetailPage() {
   const {
     currentPrice,
     originalPrice,
+    priceAdjustment,
+    hasDiscount,
     discountPercentage,
-  } = getProductPricing(product, selectedVariant);
+  } = getProductPricing(product, selectedCombination);
 
-  const stockQuantity = selectedVariant?.stock_quantity ?? product.stock_quantity;
+  const requiresCombination = Boolean(product.combinations?.length);
+  const stockQuantity = requiresCombination
+    ? selectedCombination?.stock_quantity ?? 0
+    : product.stock_quantity;
   const isOutOfStock = stockQuantity === 0;
 
   return (
@@ -107,11 +113,12 @@ export default function ProductDetailPage() {
           <div className="space-y-6">
             <ProductDetailInfo
               product={product}
-              selectedVariant={selectedVariant}
-              onVariantSelect={setSelectedVariant}
+              selectedOptions={selectedOptions}
+              onOptionSelect={selectOption}
               currentPrice={currentPrice}
               originalPrice={originalPrice}
-              stockQuantity={stockQuantity}
+              priceAdjustment={priceAdjustment}
+              hasDiscount={hasDiscount}
             />
 
             <ProductDetailActions
@@ -123,7 +130,7 @@ export default function ProductDetailPage() {
               isAddingToCart={isAddingToCart}
               onQuantityIncrease={() => incrementQuantity(stockQuantity)}
               onQuantityDecrease={decrementQuantity}
-              onAddToCart={() => handleAddToCart(product.id, selectedVariant?.id, product.name)}
+              onAddToCart={() => handleAddToCart(product.id, selectedCombination?.id, product.name)}
             />
           </div>
         </div>

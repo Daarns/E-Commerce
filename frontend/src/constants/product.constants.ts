@@ -2,6 +2,14 @@ import type { ProductFilter } from '@/types';
 
 export const PLACEHOLDER_PRODUCT_IMAGE = '/placeholder-product.jpg';
 
+export const PRODUCT_CARD_IMAGE_FRAME_CLASS =
+  'relative aspect-[3/4] overflow-hidden rounded-lg bg-muted';
+
+export const PRODUCT_DETAIL_IMAGE_FRAME_CLASS =
+  'relative aspect-[4/5] sm:aspect-[3/4] lg:aspect-[4/5] overflow-hidden rounded-2xl bg-muted';
+
+export const PRODUCT_IMAGE_FIT_CLASS = 'object-contain p-2';
+
 export const LOW_STOCK_THRESHOLD = 10;
 
 export const PRODUCT_STOCK_STATUS = {

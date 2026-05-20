@@ -76,7 +76,7 @@ export function ProductBasicInfoSection({
             onChange={(event) => onFieldChange('description', event.target.value)}
             className={`mt-1 ${errors.description ? 'border-red-500' : ''}`}
             placeholder="Deskripsi lengkap produk"
-            rows={4}
+            rows={3}
             disabled={isLoading}
           />
         </div>

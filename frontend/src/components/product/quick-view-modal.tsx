@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, ShoppingBag, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { OUT_OF_STOCK_LABEL } from '@/constants/product.constants';
+import { OUT_OF_STOCK_LABEL, PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { useQuickViewProduct } from '@/hooks/useQuickViewProduct';
 import { Product } from '@/types';
-import { formatCurrency } from '@/utils';
+import { getProductImageUrl } from '@/utils';
 import { AuthRequiredDialog } from '@/components/common/auth-required-dialog';
 
 interface QuickViewModalProps {
@@ -26,6 +26,10 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     authDialog,
     isWishlisted,
     discountPercentage,
+    priceLabel,
+    originalPriceLabel,
+    availableStock,
+    actionLabel,
     setCurrentImageIndex,
     setAuthDialog,
     handleNextImage,
@@ -78,7 +82,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                   <div className="relative aspect-square rounded-lg overflow-hidden bg-muted">
                     {currentImage ? (
                       <Image
-                        src={currentImage.url}
+                        src={getProductImageUrl(currentImage) ?? PLACEHOLDER_PRODUCT_IMAGE}
                         alt={product.name}
                         fill
                         className="object-cover"
@@ -137,7 +141,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                           }`}
                         >
                           <Image
-                            src={img.url}
+                            src={getProductImageUrl(img) ?? PLACEHOLDER_PRODUCT_IMAGE}
                             alt={`${product.name} ${idx + 1}`}
                             fill
                             className="object-cover"
@@ -160,27 +164,19 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
                     {/* Price */}
                     <div className="flex items-center gap-2 mb-4">
-                      {product.sale_price ? (
-                        <>
-                          <span className="text-2xl font-bold">
-                            {formatCurrency(product.sale_price)}
-                          </span>
-                          <span className="text-lg text-muted-foreground line-through">
-                            {formatCurrency(product.regular_price)}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-2xl font-bold">
-                          {formatCurrency(product.regular_price)}
+                      <span className="text-2xl font-bold">{priceLabel}</span>
+                      {originalPriceLabel && (
+                        <span className="text-lg text-muted-foreground line-through">
+                          {originalPriceLabel}
                         </span>
                       )}
                     </div>
 
                     {/* Stock Status */}
                     <div className="mb-4">
-                      {product.stock_quantity > 0 ? (
+                      {availableStock > 0 ? (
                         <p className="text-sm text-green-600">
-                          ✓ In Stock ({product.stock_quantity} available)
+                          In Stock ({availableStock} available)
                         </p>
                       ) : (
                         <p className="text-sm text-red-600">{OUT_OF_STOCK_LABEL}</p>
@@ -220,7 +216,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                       <span className="px-6 py-2 border-x">{quantity}</span>
                       <button
                         onClick={incrementQuantity}
-                        disabled={quantity >= product.stock_quantity}
+                        disabled={quantity >= availableStock}
                         className="px-3 py-2 hover:bg-muted disabled:opacity-50"
                       >
                         +
@@ -233,10 +229,10 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                     <Button
                       className="flex-1 gap-2"
                       onClick={() => void handleAddToCart()}
-                      disabled={product.stock_quantity === 0 || isAddingToCart}
+                      disabled={availableStock === 0 || isAddingToCart}
                     >
                       <ShoppingBag className="h-4 w-4" />
-                      {isAddingToCart ? 'Adding...' : 'Add to Cart'}
+                      {isAddingToCart ? 'Adding...' : actionLabel}
                     </Button>
                     <Button
                       variant={isWishlisted ? 'default' : 'outline'}

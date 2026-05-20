@@ -6,7 +6,7 @@
  *
  * Domain files:
  *   user.ts    → User, AuthResponse
- *   product.ts → Product, ProductImage, ProductVariant, Category, ProductFilter
+ *   product.ts → Product, ProductImage, ProductVariantCombination, Category, ProductFilter
  *   cart.ts    → Cart, CartItem, ValidCartItem
  *   order.ts   → Order, OrderItem, OrderStatus, PaymentStatus, Address
  *   api.ts     → ApiResponse<T>

@@ -20,19 +20,52 @@ func NewProductRepository(db *gorm.DB) *ProductRepository {
 	return &ProductRepository{db: db}
 }
 
+// RunInTransaction executes fn inside a database transaction.
+// If fn returns an error the transaction is rolled back.
+func (r *ProductRepository) RunInTransaction(fn func(tx *gorm.DB) error) error {
+	return r.db.Transaction(fn)
+}
+
+func withProductDetailPreloads(query *gorm.DB) *gorm.DB {
+	return query.
+		Preload("Category").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC")
+		}).
+		Preload("VariantTypes", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC, name ASC")
+		}).
+		Preload("VariantTypes.Options", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC, value ASC")
+		}).
+		Preload("Combinations", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sku ASC")
+		}).
+		Preload("Combinations.Options", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC, value ASC")
+		}).
+		Preload("Combinations.Options.VariantType", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC, name ASC")
+		})
+}
+
+func preloadProductImages(db *gorm.DB) *gorm.DB {
+	return db.Order("display_order ASC")
+}
+
 // ProductFilter contains filter options for product queries
 type ProductFilter struct {
-	CategoryID  *uuid.UUID
-	MinPrice    *float64
-	MaxPrice    *float64
-	Search      string
-	Status      string // active, inactive, draft
-	InStock     *bool
-	Brand       string
-	SortBy      string // name, regular_price, created_at
-	SortOrder   string // asc, desc
-	Page        int
-	Limit       int
+	CategoryID *uuid.UUID
+	MinPrice   *float64
+	MaxPrice   *float64
+	Search     string
+	Status     string // active, inactive, draft
+	InStock    *bool
+	Brand      string
+	SortBy     string // name, regular_price, created_at
+	SortOrder  string // asc, desc
+	Page       int
+	Limit      int
 }
 
 // ProductListResult contains paginated product results
@@ -50,27 +83,39 @@ func (r *ProductRepository) Create(product *models.Product) error {
 	if product.Slug == "" {
 		product.Slug = models.GenerateSlug(product.Name)
 	}
-	
+
 	// Check for slug conflict and generate unique
 	existingSlugs, err := r.GetAllSlugs()
 	if err != nil {
 		return fmt.Errorf("failed to check existing slugs: %w", err)
 	}
-	product.Slug = models.GenerateUniqueSlug(product.Slug, existingSlugs)
-	
-	return r.db.Create(product).Error
+	baseSlug := product.Slug
+	product.Slug = models.GenerateUniqueSlug(baseSlug, existingSlugs)
+
+	for attempt := 0; attempt < 3; attempt++ {
+		err := r.db.Create(product).Error
+		if err == nil {
+			return nil
+		}
+		if !isProductSlugUniqueViolation(err) {
+			return err
+		}
+
+		existingSlugs, slugErr := r.GetAllSlugs()
+		if slugErr != nil {
+			return fmt.Errorf("failed to recover from slug conflict: %w", slugErr)
+		}
+		product.Slug = models.GenerateUniqueSlug(baseSlug, existingSlugs)
+	}
+
+	return fmt.Errorf("failed to create product with unique slug after retries")
 }
 
 // GetByID retrieves a product by ID with related data
 func (r *ProductRepository) GetByID(id uuid.UUID) (*models.Product, error) {
 	var product models.Product
-	err := r.db.Preload("Category").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC")
-		}).
-		Preload("Variants").
-		First(&product, "id = ?", id).Error
-	
+	err := withProductDetailPreloads(r.db).First(&product, "id = ?", id).Error
+
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("product not found")
@@ -83,13 +128,8 @@ func (r *ProductRepository) GetByID(id uuid.UUID) (*models.Product, error) {
 // GetBySlug retrieves a product by slug
 func (r *ProductRepository) GetBySlug(slug string) (*models.Product, error) {
 	var product models.Product
-	err := r.db.Preload("Category").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC")
-		}).
-		Preload("Variants").
-		First(&product, "slug = ?", slug).Error
-	
+	err := withProductDetailPreloads(r.db).First(&product, "slug = ?", slug).Error
+
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("product not found")
@@ -111,26 +151,26 @@ func (r *ProductRepository) List(filter ProductFilter) (*ProductListResult, erro
 	if filter.Limit > 100 {
 		filter.Limit = 100
 	}
-	
+
 	query := r.db.Model(&models.Product{})
-	
+
 	// Apply filters
 	if filter.CategoryID != nil {
 		query = query.Where("category_id = ?", *filter.CategoryID)
 	}
-	
+
 	if filter.MinPrice != nil {
 		query = query.Where("regular_price >= ?", *filter.MinPrice)
 	}
-	
+
 	if filter.MaxPrice != nil {
 		query = query.Where("regular_price <= ?", *filter.MaxPrice)
 	}
-	
+
 	if filter.Status != "" {
 		query = query.Where("status = ?", filter.Status)
 	}
-	
+
 	if filter.InStock != nil && *filter.InStock {
 		query = query.Where("stock_quantity > 0")
 	}
@@ -138,7 +178,7 @@ func (r *ProductRepository) List(filter ProductFilter) (*ProductListResult, erro
 	if filter.Brand != "" {
 		query = query.Where("brand = ?", filter.Brand)
 	}
-	
+
 	// Full-text search using PostgreSQL
 	if filter.Search != "" {
 		searchTerm := "%" + strings.ToLower(filter.Search) + "%"
@@ -147,17 +187,17 @@ func (r *ProductRepository) List(filter ProductFilter) (*ProductListResult, erro
 			searchTerm, searchTerm,
 		)
 	}
-	
+
 	// Count total
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, err
 	}
-	
+
 	// Apply sorting
 	sortColumn := "created_at"
 	sortOrder := "DESC"
-	
+
 	if filter.SortBy != "" {
 		switch filter.SortBy {
 		case "name":
@@ -172,36 +212,37 @@ func (r *ProductRepository) List(filter ProductFilter) (*ProductListResult, erro
 			sortColumn = "sold_count"
 		}
 	}
-	
+
 	if filter.SortOrder != "" {
 		if strings.ToUpper(filter.SortOrder) == "ASC" {
 			sortOrder = "ASC"
 		}
 	}
-	
+
 	query = query.Order(fmt.Sprintf("%s %s", sortColumn, sortOrder))
-	
+
 	// Apply pagination
 	offset := (filter.Page - 1) * filter.Limit
 	query = query.Offset(offset).Limit(filter.Limit)
-	
+
 	// Execute query with preloads
 	var products []models.Product
 	err := query.Preload("Category").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC").Limit(1) // Only first image for list
+		Preload("Images", preloadProductImages).
+		Preload("Combinations", func(db *gorm.DB) *gorm.DB {
+			return db.Order("price_adjustment ASC")
 		}).
 		Find(&products).Error
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	totalPages := int(total) / filter.Limit
 	if int(total)%filter.Limit > 0 {
 		totalPages++
 	}
-	
+
 	return &ProductListResult{
 		Products:   products,
 		Total:      total,
@@ -218,7 +259,16 @@ func (r *ProductRepository) Update(product *models.Product) error {
 
 // UpdateWithOptimisticLock updates a product with optimistic locking
 func (r *ProductRepository) UpdateWithOptimisticLock(product *models.Product) error {
-	result := r.db.Model(product).
+	return r.updateWithOptimisticLockOn(r.db, product)
+}
+
+// UpdateWithOptimisticLockTx updates a product with optimistic locking inside an existing transaction.
+func (r *ProductRepository) UpdateWithOptimisticLockTx(tx *gorm.DB, product *models.Product) error {
+	return r.updateWithOptimisticLockOn(tx, product)
+}
+
+func (r *ProductRepository) updateWithOptimisticLockOn(db *gorm.DB, product *models.Product) error {
+	result := db.Model(product).
 		Where("id = ? AND version = ?", product.ID, product.Version).
 		Updates(map[string]interface{}{
 			"name":              product.Name,
@@ -227,21 +277,28 @@ func (r *ProductRepository) UpdateWithOptimisticLock(product *models.Product) er
 			"short_description": product.ShortDescription,
 			"regular_price":     product.RegularPrice,
 			"sale_price":        product.SalePrice,
+			"sale_start_date":   product.SaleStartDate,
+			"sale_end_date":     product.SaleEndDate,
 			"stock_quantity":    product.StockQuantity,
 			"category_id":       product.CategoryID,
 			"brand":             product.Brand,
+			"sku":               product.SKU,
 			"status":            product.Status,
+			"meta_title":        product.MetaTitle,
+			"meta_description":  product.MetaDescription,
+			"canonical_url":     product.CanonicalURL,
+			"og_image":          product.OGImage,
 			"version":           product.Version + 1,
 		})
-	
+
 	if result.Error != nil {
 		return result.Error
 	}
-	
+
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("optimistic lock conflict: product was modified by another transaction")
 	}
-	
+
 	product.Version++
 	return nil
 }
@@ -254,15 +311,15 @@ func (r *ProductRepository) UpdateStock(id uuid.UUID, quantity int, version int)
 			"stock_quantity": gorm.Expr("stock_quantity + ?", quantity),
 			"version":        gorm.Expr("version + 1"),
 		})
-	
+
 	if result.Error != nil {
 		return result.Error
 	}
-	
+
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("stock update conflict: product was modified")
 	}
-	
+
 	return nil
 }
 
@@ -296,6 +353,46 @@ func (r *ProductRepository) DeductStockWithLockTx(tx *gorm.DB, id uuid.UUID, qua
 		Update("stock_quantity", gorm.Expr("stock_quantity - ?", quantity)).Error
 }
 
+// DeductCombinationStockWithLockTx deducts stock from a variant combination inside a transaction.
+func (r *ProductRepository) DeductCombinationStockWithLockTx(tx *gorm.DB, id uuid.UUID, quantity int) error {
+	var combination models.ProductVariantCombination
+
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&combination, "id = ?", id).Error
+	if err != nil {
+		return err
+	}
+
+	if !combination.IsActive {
+		return fmt.Errorf("combination is not available")
+	}
+
+	if combination.StockQuantity < quantity {
+		return fmt.Errorf("insufficient combination stock: requested %d, available %d", quantity, combination.StockQuantity)
+	}
+
+	return tx.Model(&combination).
+		Update("stock_quantity", gorm.Expr("stock_quantity - ?", quantity)).Error
+}
+
+// RestoreStockTx returns reserved product stock inside an existing transaction.
+func (r *ProductRepository) RestoreStockTx(tx *gorm.DB, id uuid.UUID, quantity int) error {
+	return tx.Model(&models.Product{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"stock_quantity": gorm.Expr("stock_quantity + ?", quantity),
+		}).Error
+}
+
+// RestoreCombinationStockTx returns reserved combination stock inside an existing transaction.
+func (r *ProductRepository) RestoreCombinationStockTx(tx *gorm.DB, id uuid.UUID, quantity int) error {
+	return tx.Model(&models.ProductVariantCombination{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"stock_quantity": gorm.Expr("stock_quantity + ?", quantity),
+		}).Error
+}
+
 // Delete soft deletes a product
 func (r *ProductRepository) Delete(id uuid.UUID) error {
 	return r.db.Delete(&models.Product{}, "id = ?", id).Error
@@ -304,30 +401,37 @@ func (r *ProductRepository) Delete(id uuid.UUID) error {
 // GetAllSlugs retrieves all product slugs
 func (r *ProductRepository) GetAllSlugs() ([]string, error) {
 	var slugs []string
-	err := r.db.Model(&models.Product{}).Pluck("slug", &slugs).Error
+	err := r.db.Unscoped().Model(&models.Product{}).Pluck("slug", &slugs).Error
 	return slugs, err
 }
 
 // SlugExists checks if a slug already exists
 func (r *ProductRepository) SlugExists(slug string) (bool, error) {
 	var count int64
-	err := r.db.Model(&models.Product{}).Where("slug = ?", slug).Count(&count).Error
+	err := r.db.Unscoped().Model(&models.Product{}).Where("slug = ?", slug).Count(&count).Error
 	return count > 0, err
+}
+
+func isProductSlugUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	return strings.Contains(message, "products_slug_key") ||
+		strings.Contains(message, "duplicate key value violates unique constraint")
 }
 
 // GetByCategory retrieves products by category ID
 func (r *ProductRepository) GetByCategory(categoryID uuid.UUID, limit int) ([]models.Product, error) {
 	var products []models.Product
 	query := r.db.Where("category_id = ? AND status = ?", categoryID, "active").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC").Limit(1)
-		}).
+		Preload("Images", preloadProductImages).
 		Order("created_at DESC")
-	
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
-	
+
 	err := query.Find(&products).Error
 	return products, err
 }
@@ -335,6 +439,24 @@ func (r *ProductRepository) GetByCategory(categoryID uuid.UUID, limit int) ([]mo
 // AddImage adds an image to a product
 func (r *ProductRepository) AddImage(image *models.ProductImage) error {
 	return r.db.Create(image).Error
+}
+
+// GetImageByID retrieves a product image by ID.
+func (r *ProductRepository) GetImageByID(imageID uuid.UUID) (*models.ProductImage, error) {
+	var image models.ProductImage
+	if err := r.db.First(&image, "id = ?", imageID).Error; err != nil {
+		return nil, err
+	}
+	return &image, nil
+}
+
+// GetImageByURL retrieves a product image by its public image URL.
+func (r *ProductRepository) GetImageByURL(imageURL string) (*models.ProductImage, error) {
+	var image models.ProductImage
+	if err := r.db.First(&image, "image_url = ?", imageURL).Error; err != nil {
+		return nil, err
+	}
+	return &image, nil
 }
 
 // RemoveImage removes an image from a product
@@ -356,133 +478,357 @@ func (r *ProductRepository) UpdateImageDisplayOrder(productID uuid.UUID, positio
 	})
 }
 
-// AddVariant adds a variant to a product
-func (r *ProductRepository) AddVariant(variant *models.ProductVariant) error {
-	return r.db.Create(variant).Error
-}
-
-// UpdateVariant updates a product variant
-func (r *ProductRepository) UpdateVariant(variant *models.ProductVariant) error {
-	return r.db.Save(variant).Error
-}
-
-// RemoveVariant removes a variant from a product
-func (r *ProductRepository) RemoveVariant(variantID uuid.UUID) error {
-	return r.db.Delete(&models.ProductVariant{}, "id = ?", variantID).Error
-}
-
-// GetVariant retrieves a product variant by ID
-func (r *ProductRepository) GetVariant(variantID uuid.UUID) (*models.ProductVariant, error) {
-	var variant models.ProductVariant
-	err := r.db.First(&variant, "id = ?", variantID).Error
+// GetCombination retrieves a purchasable variant combination by ID.
+func (r *ProductRepository) GetCombination(combinationID uuid.UUID) (*models.ProductVariantCombination, error) {
+	var combination models.ProductVariantCombination
+	err := r.db.
+		Preload("Options", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC, value ASC")
+		}).
+		Preload("Options.VariantType", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC, name ASC")
+		}).
+		First(&combination, "id = ?", combinationID).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("variant not found")
+			return nil, fmt.Errorf("combination not found")
 		}
 		return nil, err
 	}
-	return &variant, nil
+	return &combination, nil
+}
+
+// ReplaceVariantCombinationData replaces a product's new variant-combination tree.
+func (r *ProductRepository) ReplaceVariantCombinationData(
+	productID uuid.UUID,
+	variantTypes []models.ProductVariantType,
+	combinations []models.ProductVariantCombination,
+	combinationOptions []models.ProductCombinationOption,
+) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return r.replaceVariantCombinationDataOn(tx, productID, variantTypes, combinations, combinationOptions)
+	})
+}
+
+// ReplaceVariantCombinationDataTx runs inside an existing transaction.
+func (r *ProductRepository) ReplaceVariantCombinationDataTx(
+	tx *gorm.DB,
+	productID uuid.UUID,
+	variantTypes []models.ProductVariantType,
+	combinations []models.ProductVariantCombination,
+	combinationOptions []models.ProductCombinationOption,
+) error {
+	return r.replaceVariantCombinationDataOn(tx, productID, variantTypes, combinations, combinationOptions)
+}
+
+func (r *ProductRepository) replaceVariantCombinationDataOn(
+	tx *gorm.DB,
+	productID uuid.UUID,
+	variantTypes []models.ProductVariantType,
+	combinations []models.ProductVariantCombination,
+	combinationOptions []models.ProductCombinationOption,
+) error {
+	desiredTypeIDs := make([]uuid.UUID, 0, len(variantTypes))
+	desiredOptionIDs := make([]uuid.UUID, 0)
+	desiredCombinationIDs := make([]uuid.UUID, 0, len(combinations))
+
+	for _, variantType := range variantTypes {
+		desiredTypeIDs = append(desiredTypeIDs, variantType.ID)
+		for _, option := range variantType.Options {
+			desiredOptionIDs = append(desiredOptionIDs, option.ID)
+		}
+	}
+	for _, combination := range combinations {
+		desiredCombinationIDs = append(desiredCombinationIDs, combination.ID)
+	}
+
+	// ── Step 1: Delete variant images ──
+	if err := tx.
+		Where("product_id = ? AND option_id IS NOT NULL", productID).
+		Delete(&models.ProductImage{}).Error; err != nil {
+		return err
+	}
+
+	// ── Step 2: Upsert variant types and options ──
+	for i := range variantTypes {
+		variantType := variantTypes[i]
+		options := variantType.Options
+		variantType.Options = nil
+
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"product_id",
+				"name",
+				"is_visual",
+				"display_order",
+				"updated_at",
+			}),
+		}).Create(&variantType).Error; err != nil {
+			return err
+		}
+
+		for j := range options {
+			options[j].VariantTypeID = variantType.ID
+			if err := tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "id"}},
+				DoUpdates: clause.AssignmentColumns([]string{
+					"variant_type_id",
+					"value",
+					"display_order",
+					"updated_at",
+				}),
+			}).Create(&options[j]).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	// ── Step 3: Deactivate/delete stale combinations BEFORE upserting ──
+	// This prevents SKU unique constraint violations when a stale disabled
+	// combination has the same SKU as a new/updated combination.
+	if err := deactivateOrDeleteStaleCombinations(tx, productID, desiredCombinationIDs); err != nil {
+		return err
+	}
+
+	// ── Step 4: Upsert desired combinations (now safe, stale SKUs removed) ──
+	for i := range combinations {
+		combination := combinations[i]
+		combination.Options = nil
+		combination.OptionIDs = nil
+
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"product_id",
+				"price_adjustment",
+				"stock_quantity",
+				"sku",
+				"is_active",
+				"updated_at",
+			}),
+		}).Create(&combination).Error; err != nil {
+			return err
+		}
+	}
+
+	// ── Step 5: Rebuild combination-option mappings ──
+	if len(desiredCombinationIDs) > 0 {
+		if err := tx.
+			Where("combination_id IN ?", desiredCombinationIDs).
+			Delete(&models.ProductCombinationOption{}).Error; err != nil {
+			return err
+		}
+	}
+
+	if len(combinationOptions) > 0 {
+		if err := tx.Create(&combinationOptions).Error; err != nil {
+			return err
+		}
+	}
+
+	// ── Step 6: Cleanup unused options and types ──
+	if err := deleteUnusedVariantOptions(tx, productID, desiredOptionIDs); err != nil {
+		return err
+	}
+
+	if err := deleteUnusedVariantTypes(tx, productID, desiredTypeIDs); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func deactivateOrDeleteStaleCombinations(tx *gorm.DB, productID uuid.UUID, desiredIDs []uuid.UUID) error {
+	staleQuery := tx.Model(&models.ProductVariantCombination{}).Where("product_id = ?", productID)
+	if len(desiredIDs) > 0 {
+		staleQuery = staleQuery.Where("id NOT IN ?", desiredIDs)
+	}
+
+	var staleIDs []uuid.UUID
+	if err := staleQuery.Pluck("id", &staleIDs).Error; err != nil {
+		return err
+	}
+	if len(staleIDs) == 0 {
+		return nil
+	}
+
+	var referencedIDs []uuid.UUID
+	if err := tx.Raw(`
+		SELECT DISTINCT combination_id
+		FROM (
+			SELECT combination_id FROM cart_items WHERE combination_id IN ?
+			UNION
+			SELECT combination_id FROM order_items WHERE combination_id IN ?
+			UNION
+			SELECT combination_id FROM stock_alerts WHERE combination_id IN ?
+		) refs
+		WHERE combination_id IS NOT NULL
+	`, staleIDs, staleIDs, staleIDs).Scan(&referencedIDs).Error; err != nil {
+		return err
+	}
+
+	referenced := make(map[uuid.UUID]bool, len(referencedIDs))
+	for _, id := range referencedIDs {
+		referenced[id] = true
+	}
+
+	var deletableIDs []uuid.UUID
+	var deactivatedIDs []uuid.UUID
+	for _, id := range staleIDs {
+		if referenced[id] {
+			deactivatedIDs = append(deactivatedIDs, id)
+			continue
+		}
+		deletableIDs = append(deletableIDs, id)
+	}
+
+	if len(deactivatedIDs) > 0 {
+		if err := tx.Model(&models.ProductVariantCombination{}).
+			Where("id IN ?", deactivatedIDs).
+			Updates(map[string]interface{}{
+				"is_active":      false,
+				"stock_quantity": 0,
+			}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.
+			Where("combination_id IN ?", deactivatedIDs).
+			Delete(&models.ProductCombinationOption{}).Error; err != nil {
+			return err
+		}
+	}
+
+	if len(deletableIDs) > 0 {
+		if err := tx.Where("id IN ?", deletableIDs).Delete(&models.ProductVariantCombination{}).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func deleteUnusedVariantOptions(tx *gorm.DB, productID uuid.UUID, desiredIDs []uuid.UUID) error {
+	query := tx.Where(
+		`variant_type_id IN (SELECT id FROM product_variant_types WHERE product_id = ?)
+		AND NOT EXISTS (
+			SELECT 1 FROM product_combination_options
+			WHERE product_combination_options.option_id = product_variant_options.id
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM product_images
+			WHERE product_images.option_id = product_variant_options.id
+		)`,
+		productID,
+	)
+	if len(desiredIDs) > 0 {
+		query = query.Where("id NOT IN ?", desiredIDs)
+	}
+	return query.Delete(&models.ProductVariantOption{}).Error
+}
+
+func deleteUnusedVariantTypes(tx *gorm.DB, productID uuid.UUID, desiredIDs []uuid.UUID) error {
+	query := tx.Where(
+		`product_id = ?
+		AND NOT EXISTS (
+			SELECT 1 FROM product_variant_options
+			WHERE product_variant_options.variant_type_id = product_variant_types.id
+		)`,
+		productID,
+	)
+	if len(desiredIDs) > 0 {
+		query = query.Where("id NOT IN ?", desiredIDs)
+	}
+	return query.Delete(&models.ProductVariantType{}).Error
 }
 
 // SearchProducts performs full-text search on products
 func (r *ProductRepository) SearchProducts(query string, limit int) ([]models.Product, error) {
 	var products []models.Product
-	
+
 	searchTerm := "%" + strings.ToLower(query) + "%"
-	
+
 	err := r.db.Where("status = ?", "active").
 		Where("LOWER(name) LIKE ? OR LOWER(description) LIKE ?", searchTerm, searchTerm).
 		Preload("Category").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC").Limit(1)
-		}).
+		Preload("Images", preloadProductImages).
 		Limit(limit).
 		Find(&products).Error
-	
+
 	return products, err
 }
 
 // GetFeaturedProducts retrieves featured products (most recent active products)
 func (r *ProductRepository) GetFeaturedProducts(limit int) ([]models.Product, error) {
 	var products []models.Product
-	
+
 	err := r.db.Where("status = ? AND stock_quantity > 0", "active").
 		Preload("Category").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC").Limit(1)
-		}).
+		Preload("Images", preloadProductImages).
 		Order("created_at DESC").
 		Limit(limit).
 		Find(&products).Error
-	
+
 	return products, err
 }
 
 // GetRelatedProducts retrieves related products (same category)
 func (r *ProductRepository) GetRelatedProducts(productID uuid.UUID, categoryID uuid.UUID, limit int) ([]models.Product, error) {
 	var products []models.Product
-	
+
 	err := r.db.Where("id != ? AND category_id = ? AND status = ? AND stock_quantity > 0", productID, categoryID, "active").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC").Limit(1)
-		}).
+		Preload("Images", preloadProductImages).
 		Order("RANDOM()").
 		Limit(limit).
 		Find(&products).Error
-	
+
 	return products, err
 }
 
 // GetBestSellers retrieves best selling products based on sold count in last 30 days
 func (r *ProductRepository) GetBestSellers(limit int) ([]models.Product, error) {
 	var products []models.Product
-	
+
 	err := r.db.Where("status = ? AND stock_quantity > 0", "active").
 		Preload("Category").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC").Limit(1)
-		}).
+		Preload("Images", preloadProductImages).
 		Order("sold_count DESC, created_at DESC").
 		Limit(limit).
 		Find(&products).Error
-	
+
 	return products, err
 }
 
 // GetNewArrivals retrieves recently created products
 func (r *ProductRepository) GetNewArrivals(limit int) ([]models.Product, error) {
 	var products []models.Product
-	
+
 	err := r.db.Where("status = ? AND stock_quantity > 0", "active").
 		Preload("Category").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC").Limit(1)
-		}).
+		Preload("Images", preloadProductImages).
 		Order("created_at DESC").
 		Limit(limit).
 		Find(&products).Error
-	
+
 	return products, err
 }
 
 // GetCandidatesForFeatured retrieves all active products with stock for featured scoring
 func (r *ProductRepository) GetCandidatesForFeatured() ([]models.Product, error) {
 	var products []models.Product
-	
+
 	err := r.db.Where("status = ? AND stock_quantity > 0", "active").
 		Preload("Category").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC").Limit(1)
-		}).
+		Preload("Images", preloadProductImages).
 		Find(&products).Error
-	
+
 	return products, err
 }
 
-
 type AdminProductFilter struct {
 	ProductFilter
- 
+
 	IncludeDeleted bool
 }
 
@@ -496,13 +842,13 @@ func (r *ProductRepository) AdminList(filter AdminProductFilter) (*ProductListRe
 	if filter.Limit > 100 {
 		filter.Limit = 100
 	}
- 
+
 	query := r.db.Model(&models.Product{})
- 
+
 	if filter.IncludeDeleted {
 		query = query.Unscoped()
 	}
- 
+
 	if filter.CategoryID != nil {
 		query = query.Where("category_id = ?", *filter.CategoryID)
 	}
@@ -530,12 +876,12 @@ func (r *ProductRepository) AdminList(filter AdminProductFilter) (*ProductListRe
 			searchTerm, searchTerm,
 		)
 	}
- 
+
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, err
 	}
- 
+
 	sortColumn := "created_at"
 	sortOrder := "DESC"
 	if filter.SortBy != "" {
@@ -558,26 +904,24 @@ func (r *ProductRepository) AdminList(filter AdminProductFilter) (*ProductListRe
 		sortOrder = "ASC"
 	}
 	query = query.Order(fmt.Sprintf("%s %s", sortColumn, sortOrder))
- 
+
 	offset := (filter.Page - 1) * filter.Limit
 	query = query.Offset(offset).Limit(filter.Limit)
- 
+
 	var products []models.Product
 	err := query.
 		Preload("Category").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC").Limit(1)
-		}).
+		Preload("Images", preloadProductImages).
 		Find(&products).Error
 	if err != nil {
 		return nil, err
 	}
- 
+
 	totalPages := int(total) / filter.Limit
 	if int(total)%filter.Limit > 0 {
 		totalPages++
 	}
- 
+
 	return &ProductListResult{
 		Products:   products,
 		Total:      total,
@@ -586,19 +930,15 @@ func (r *ProductRepository) AdminList(filter AdminProductFilter) (*ProductListRe
 		TotalPages: totalPages,
 	}, nil
 }
- 
+
 func (r *ProductRepository) AdminGetByID(id uuid.UUID) (*models.Product, error) {
 	var product models.Product
-	err := r.db.Unscoped().
-		Preload("Category").
+	err := withProductDetailPreloads(r.db.Unscoped()).
 		Preload("Images", func(db *gorm.DB) *gorm.DB {
 			return db.Unscoped().Order("display_order ASC")
 		}).
-		Preload("Variants", func(db *gorm.DB) *gorm.DB {
-			return db.Unscoped()
-		}).
 		First(&product, "id = ?", id).Error
- 
+
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("product not found")

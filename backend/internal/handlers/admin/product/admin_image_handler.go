@@ -22,9 +22,9 @@ import (
 // Replaces the old 3-param GCS constructor with the new SeaweedFS one.
 func newImageSvc() *storage.ImageService {
 	return storage.NewImageService(
-		os.Getenv("SEAWEEDFS_ENDPOINT"),    // e.g. "seaweedfs:8333"
-		os.Getenv("SEAWEEDFS_ACCESS_KEY"),  // e.g. "your-access-key"
-		os.Getenv("SEAWEEDFS_SECRET_KEY"),  // e.g. "your-secret-key"
+		os.Getenv("SEAWEEDFS_ENDPOINT"),   // e.g. "seaweedfs:8333"
+		os.Getenv("SEAWEEDFS_ACCESS_KEY"), // e.g. "your-access-key"
+		os.Getenv("SEAWEEDFS_SECRET_KEY"), // e.g. "your-secret-key"
 	)
 }
 
@@ -88,14 +88,14 @@ func (h *AdminProductHandler) UploadProductImage(c *gin.Context) {
 		}
 
 		// ConvertToWebP + upload to SeaweedFS (or local fallback)
-		imageURL, err := imageSvc.SaveImageToStorage(file)
+		uploadResult, err := imageSvc.SaveImageToStorageWithMetadata(file)
 		if err != nil {
 			response.Error(c, http.StatusInternalServerError, "SAVE_FAILED",
 				fmt.Sprintf("Failed to save image %d: %v", i+1, err))
 			return
 		}
 
-		productImage, err := h.useCase.AddProductImage(productID, imageURL, altText, position)
+		productImage, err := h.useCase.AddProductImageWithMetadata(productID, uploadResult.URL, altText, position, &uploadResult.Metadata)
 		if err != nil {
 			response.Error(c, http.StatusInternalServerError, "DATABASE_FAILED",
 				fmt.Sprintf("Failed to save image record %d: %v", i+1, err))
@@ -135,28 +135,38 @@ func (h *AdminProductHandler) UploadImageOnly(c *gin.Context) {
 		return
 	}
 
-	imageURL, err := imageSvc.SaveImageToStorage(file)
+	uploadResult, err := imageSvc.SaveImageToStorageWithMetadata(file)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "SAVE_FAILED", err.Error())
 		return
 	}
+	imageURL := uploadResult.URL
 
 	// Record temp upload for cleanup job (web-security: no silent failures, log warnings)
 	userID, _ := middleware.GetUserID(c)
+	width := uploadResult.Metadata.Width
+	height := uploadResult.Metadata.Height
+	aspectRatio := uploadResult.Metadata.AspectRatio
 	tempUpload := &models.TempUpload{
-		ID:        uuid.New(),
-		ImageURL:  imageURL,
-		UploadedBy: &userID,
-		ExpiresAt: time.Now().Add(2 * time.Hour),
-		Claimed:   false,
-		CreatedAt: time.Now(),
+		ID:          uuid.New(),
+		ImageURL:    imageURL,
+		UploadedBy:  &userID,
+		Width:       &width,
+		Height:      &height,
+		AspectRatio: &aspectRatio,
+		ExpiresAt:   time.Now().Add(2 * time.Hour),
+		Claimed:     false,
+		CreatedAt:   time.Now(),
 	}
 	if err := h.tempUploadRepo.Create(tempUpload); err != nil {
 		log.Printf("warning: failed to record temp upload: %v", err)
 	}
 
 	response.Created(c, gin.H{
-		"image_url": imageURL,
+		"image_url":    imageURL,
+		"width":        width,
+		"height":       height,
+		"aspect_ratio": aspectRatio,
 	})
 }
 
@@ -170,6 +180,26 @@ func (h *AdminProductHandler) DeleteProductImage(c *gin.Context) {
 	}
 
 	if err := h.useCase.RemoveProductImage(imageID); err != nil {
+		response.Error(c, http.StatusInternalServerError, "DELETE_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "Image deleted successfully"})
+}
+
+// DeleteUploadedImage removes an uploaded image by URL from temp uploads or
+// committed product images, then removes the object from SeaweedFS.
+// DELETE /api/v1/admin/products/images
+func (h *AdminProductHandler) DeleteUploadedImage(c *gin.Context) {
+	var input struct {
+		ImageURL string `json:"image_url" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	if err := h.useCase.RemoveUploadedImage(input.ImageURL); err != nil {
 		response.Error(c, http.StatusInternalServerError, "DELETE_FAILED", err.Error())
 		return
 	}

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent, RefObject } from 'react';
+import { useRouter } from 'next/navigation';
 import { animate } from 'animejs';
 import { useCartAction } from '@/hooks/useCartAction';
 import { useWishlistToggleAction } from '@/hooks/useWishlistToggleAction';
-import { getProductPricing } from '@/utils/product.utils';
+import { formatCurrency, getProductCardImages, getProductCardPricing, getProductImageUrl } from '@/utils';
 import type { Product } from '@/types';
 
 interface UseProductCardParams {
@@ -20,9 +21,14 @@ interface UseProductCardReturn {
   authDialog: 'cart' | 'wishlist' | null;
   isWishlisted: boolean;
   isToggling: boolean;
-  regularPrice: number;
-  salePrice: number | undefined;
+  priceLabel: string;
+  originalPriceLabel: string | null;
+  primaryImageUrl: string | undefined;
+  hoverImageUrl: string | undefined;
+  imagePriority: boolean;
   discountPercentage: number;
+  availableStock: number;
+  addToCartLabel: string;
   setIsHovered: (hovered: boolean) => void;
   setImageLoaded: (loaded: boolean) => void;
   setShowQuickView: (show: boolean) => void;
@@ -33,6 +39,7 @@ interface UseProductCardReturn {
 }
 
 export function useProductCard({ product, index }: UseProductCardParams): UseProductCardReturn {
+  const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [showQuickView, setShowQuickView] = useState(false);
@@ -49,7 +56,27 @@ export function useProductCard({ product, index }: UseProductCardParams): UsePro
     onAuthRequired: () => setAuthDialog('wishlist'),
   });
 
-  const { regularPrice, salePrice, discountPercentage } = getProductPricing(product);
+  const cardPricing = getProductCardPricing(product);
+  const cardImages = getProductCardImages(product.images);
+  const activeCombinations = (product.combinations ?? []).filter((combination) => combination.is_active);
+  const hasSelectableCombinations = activeCombinations.length > 0;
+  const availableStock = hasSelectableCombinations
+    ? activeCombinations.reduce((total, combination) => total + combination.stock_quantity, 0)
+    : product.stock_quantity;
+  const priceLabel = cardPricing.hasRange
+    ? `${formatCurrency(cardPricing.currentMin)} - ${formatCurrency(cardPricing.currentMax)}`
+    : formatCurrency(cardPricing.currentMin);
+  const originalPriceLabel = cardPricing.hasDiscount
+    ? formatCurrency(cardPricing.originalPrice)
+    : null;
+  const primaryImageUrl = getProductImageUrl(cardImages.primary);
+  const rawHoverImageUrl = getProductImageUrl(cardImages.hover);
+  const hoverImageUrl = rawHoverImageUrl && rawHoverImageUrl !== primaryImageUrl
+    ? rawHoverImageUrl
+    : undefined;
+  const discountPercentage = cardPricing.discountPercentage;
+  const addToCartLabel = hasSelectableCombinations ? 'View Options' : 'Add to Cart';
+  const imagePriority = index < 4;
 
   useEffect(() => {
     if (discountPercentage > 0 && cardRef.current) {
@@ -69,6 +96,11 @@ export function useProductCard({ product, index }: UseProductCardParams): UsePro
   const handleAddToCart = async (event: MouseEvent): Promise<void> => {
     event.preventDefault();
     event.stopPropagation();
+
+    if (hasSelectableCombinations) {
+      router.push(`/products/${product.slug}`);
+      return;
+    }
 
     await addProductToCart({
       productId: product.id,
@@ -101,9 +133,14 @@ export function useProductCard({ product, index }: UseProductCardParams): UsePro
     authDialog,
     isWishlisted,
     isToggling: isTogglingWishlist,
-    regularPrice,
-    salePrice,
+    priceLabel,
+    originalPriceLabel,
+    primaryImageUrl,
+    hoverImageUrl,
+    imagePriority,
     discountPercentage,
+    availableStock,
+    addToCartLabel,
     setIsHovered,
     setImageLoaded,
     setShowQuickView,

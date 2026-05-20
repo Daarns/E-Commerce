@@ -60,3 +60,10 @@ func (r *TempUploadRepository) DeleteByID(id uuid.UUID) error {
 	return nil
 }
 
+// DeleteByURL deletes a temp upload by its public image URL.
+func (r *TempUploadRepository) DeleteByURL(imageURL string) error {
+	if err := r.db.Delete(&models.TempUpload{}, "image_url = ?", imageURL).Error; err != nil {
+		return fmt.Errorf("failed to delete temp upload by URL: %w", err)
+	}
+	return nil
+}

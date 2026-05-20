@@ -90,9 +90,13 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 		return nil, fmt.Errorf("invalid webhook signature")
 	}
 
-	// Check idempotency: if webhook event already processed, return success
+	webhookEventID := buildWebhookEventID(webhook)
+
+	// Check idempotency: if this exact webhook status event was already processed, return success.
+	// Midtrans can send multiple status changes with the same transaction_id
+	// (e.g. pending -> settlement), so transaction_id alone is not a safe idempotency key.
 	if s.webhookEventRepo != nil {
-		processed, err := s.webhookEventRepo.IsProcessed(webhook.TransactionID)
+		processed, err := s.webhookEventRepo.IsProcessed(webhookEventID)
 		if err != nil {
 			fmt.Printf("Warning: failed to check webhook idempotency: %v\n", err)
 			// Continue anyway — idempotency check is not critical
@@ -128,7 +132,7 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 	case models.PaymentStatusRefunded:
 		newOrderStatus = models.OrderStatusCancelled
 	default:
-		newOrderStatus = "" // No order status change for pending/unknown
+		newOrderStatus = "" // Cleanup handles expired unpaid orders and restores stock.
 	}
 
 	// Update payment status
@@ -165,7 +169,7 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 
 	// Record webhook event for idempotency (non-fatal if it fails)
 	if s.webhookEventRepo != nil {
-		if err := s.webhookEventRepo.Record(webhook.TransactionID, webhook.TransactionStatus); err != nil {
+		if err := s.webhookEventRepo.Record(webhookEventID, webhook.TransactionStatus); err != nil {
 			fmt.Printf("Warning: failed to record webhook event: %v\n", err)
 		}
 	}
@@ -178,6 +182,15 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 	}, nil
 }
 
+func buildWebhookEventID(webhook *PaymentWebhookRequest) string {
+	return fmt.Sprintf(
+		"%s:%s:%s",
+		webhook.TransactionID,
+		webhook.StatusCode,
+		strings.ToLower(webhook.TransactionStatus),
+	)
+}
+
 // mapMidtransStatus maps Midtrans transaction status to our payment status
 func mapMidtransStatus(transactionStatus string) string {
 	switch strings.ToLower(transactionStatus) {
@@ -186,15 +199,15 @@ func mapMidtransStatus(transactionStatus string) string {
 	case "capture":
 		return models.PaymentStatusPaid
 	case "pending":
-		return models.PaymentStatusUnpaid
+		return models.PaymentStatusPendingPayment
 	case "deny":
-		return models.PaymentStatusRefunded
+		return models.PaymentStatusFailed
 	case "cancel":
-		return models.PaymentStatusRefunded
+		return models.PaymentStatusFailed
 	case "expire":
-		return models.PaymentStatusUnpaid
+		return models.PaymentStatusExpired
 	case "failure":
-		return models.PaymentStatusRefunded
+		return models.PaymentStatusFailed
 	default:
 		return models.PaymentStatusUnpaid
 	}
@@ -230,7 +243,6 @@ func lastRetryIdx(s string) int {
 	return -1
 }
 
-
 // GetPaymentWebhookStatusInfo returns human-readable payment status info
 func GetPaymentWebhookStatusInfo(status string) string {
 	infoMap := map[string]string{
@@ -263,7 +275,7 @@ func IsPaymentWebhookRetryable(err error) bool {
 	// Retryable errors: database connection issues, timeouts, etc.
 	// Non-retryable: invalid webhook, order not found (with proper error handling)
 	errMsg := err.Error()
-	
+
 	retryable := []string{
 		"connection refused",
 		"connection reset",
@@ -290,4 +302,3 @@ func SHA512Hash(data string) string {
 func MapMidtransStatusForTest(status string) string {
 	return mapMidtransStatus(status)
 }
-

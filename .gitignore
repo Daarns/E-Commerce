@@ -86,6 +86,7 @@ uploads/
 .dev-docs/
 improve-plan/
 implement-plan/
+vulnerability-assessment/
 
 roadmap/
 roadmap/SEO/
@@ -95,3 +96,5 @@ database_schema_only_20260512_131048.sql
 database_dump_20260512_130720.sql
 
 AGENTS.md
+
+v

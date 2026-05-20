@@ -1,4 +1,4 @@
-import { Product, ProductVariant } from './product';
+import { Product, ProductVariantCombination } from './product';
 
 export interface Cart {
   user_id?: string;
@@ -13,14 +13,14 @@ export interface CartItem {
   user_id?: string;
   session_id?: string;
   product_id: string;
-  variant_id?: string;
+  combination_id?: string;
   quantity: number;
   price: string | number; // snapshot price per unit (decimal string)
   created_at?: string;
   updated_at?: string;
   // Relations (populated by backend)
   product?: Product;
-  variant?: ProductVariant;
+  combination?: ProductVariantCombination;
 }
 
 // CartItem with guaranteed product (after filtering nulls)

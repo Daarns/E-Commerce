@@ -55,16 +55,17 @@ export default function AdminProductsPage() {
         className="space-y-6"
       >
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold">Products</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold">Products</h1>
+            <p className="text-muted-foreground mt-0.5 text-sm">
               Manage your product catalog
             </p>
           </div>
           <Button
             onClick={() => router.push('/admin/products/create')}
-            size="lg"
+            size="default"
+            className="w-full sm:w-auto"
           >
             <Plus className="w-4 h-4 mr-2" />
             New Product
@@ -72,28 +73,28 @@ export default function AdminProductsPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6 pb-3 sm:pb-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">{total}</p>
-                <p className="text-sm text-muted-foreground">Total Products</p>
+                <p className="text-xl sm:text-3xl font-bold">{total}</p>
+                <p className="text-[11px] sm:text-sm text-muted-foreground">Total Products</p>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6 pb-3 sm:pb-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">{stats.active}</p>
-                <p className="text-sm text-muted-foreground">Active</p>
+                <p className="text-xl sm:text-3xl font-bold">{stats.active}</p>
+                <p className="text-[11px] sm:text-sm text-muted-foreground">Active</p>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6 pb-3 sm:pb-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">{stats.outOfStock}</p>
-                <p className="text-sm text-muted-foreground">Out of Stock</p>
+                <p className="text-xl sm:text-3xl font-bold">{stats.outOfStock}</p>
+                <p className="text-[11px] sm:text-sm text-muted-foreground">Out of Stock</p>
               </div>
             </CardContent>
           </Card>
@@ -114,10 +115,10 @@ export default function AdminProductsPage() {
 
         {/* Products Table */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Products List</CardTitle>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3">
+            <CardTitle className="text-base">Products List</CardTitle>
             {!isLoading && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 Showing {(page - 1) * limit + 1}-{Math.min(page * limit, total)} of{' '}
                 {total} products
               </p>

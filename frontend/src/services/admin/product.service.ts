@@ -1,4 +1,5 @@
 import api from '@/services/api';
+import type { ProductVariantCombination, ProductVariantType } from '@/types';
 import { ApiResponse } from '@/types';
 import { AnalyticsResponse } from './analytics.service';
 
@@ -11,6 +12,8 @@ export interface CreateProductRequest {
   short_description?: string;
   regular_price: number;         // required
   sale_price?: number;
+  sale_start_date?: string;
+  sale_end_date?: string;
   stock_quantity: number;        // required, min=0
   category_id?: string;
   brand?: string;
@@ -22,6 +25,9 @@ export interface CreateProductRequest {
   og_image?: string;
   // image_urls: sent AFTER create via /admin/products/:id/images
   image_urls?: string[];
+  variant_types?: AdminVariantTypeInput[];
+  combinations?: AdminVariantCombinationInput[];
+  variant_images?: AdminVariantImageInput[];
 }
 
 // Mirrors backend UpdateProductInput (all fields are pointers = optional)
@@ -33,6 +39,8 @@ export interface UpdateProductRequest {
   short_description?: string;
   regular_price?: number;
   sale_price?: number;
+  sale_start_date?: string;
+  sale_end_date?: string;
   stock_quantity?: number;
   category_id?: string;
   brand?: string;
@@ -43,16 +51,55 @@ export interface UpdateProductRequest {
   canonical_url?: string;
   og_image?: string;
   image_urls?: string[];          // for updating product images during edit
+  variant_types?: AdminVariantTypeInput[];
+  combinations?: AdminVariantCombinationInput[];
+  variant_images?: AdminVariantImageInput[];
 }
 
-export interface CreateVariantInput {
-  variant_type: string;          // e.g. "size", "color"
-  variant_value: string;         // e.g. "M", "Red"
-  price_adjustment?: number;
+export interface AdminVariantTypeInput {
+  id?: string;
+  name: string;
+  is_visual: boolean;
+  display_order?: number;
+  options: Array<string | AdminVariantOptionInput>;
+}
+
+export interface AdminVariantOptionInput {
+  id?: string;
+  value: string;
+}
+
+export interface AdminVariantCombinationInput {
+  id?: string;
+  option_values: string[];
+  price_adjustment: number;
   stock_quantity: number;
-  sku_suffix?: string;
-  image_url?: string;
+  sku?: string;
   is_active?: boolean;
+}
+
+export interface AdminVariantImageInput {
+  option_value: string;
+  image_url: string;
+}
+
+export interface UploadedProductImage {
+  image_url: string;
+  width?: number;
+  height?: number;
+  aspect_ratio?: number;
+}
+
+interface AdminProductImage {
+  id: string;
+  url?: string;
+  image_url?: string;
+  option_id?: string;
+  is_primary: boolean;
+  display_order: number;
+  width?: number;
+  height?: number;
+  aspect_ratio?: number;
 }
 
 // AdminProduct mirrors the backend models.Product JSON shape
@@ -67,6 +114,8 @@ export interface AdminProduct {
   // Go decimal.Decimal serialized as string e.g. "150000.00"
   regular_price: string | number;
   sale_price?: string | number;
+  sale_start_date?: string;
+  sale_end_date?: string;
   discount_percentage?: number;
   stock_quantity: number;
   status: string;
@@ -77,8 +126,11 @@ export interface AdminProduct {
   category_name?: string;
   subcategory_id?: string;
   subcategory_name?: string;
-  images?: Array<{ id: string; url: string; is_primary: boolean; display_order: number }>;
+  images?: AdminProductImage[];
+  variant_types?: ProductVariantType[];
+  combinations?: ProductVariantCombination[];
   image_urls?: string[];
+  variant_image_urls?: string[];   // variant images for unified gallery display
   price: string | number;        // alias for regular_price (used by product-table)
   rating?: number;
   review_count?: number;
@@ -107,6 +159,16 @@ interface BackendProductListResult {
   total_pages: number;
 }
 
+interface BackendProductDetailResult {
+  product: AdminProduct;
+  audit?: {
+    version?: number;
+    created_at?: string;
+    updated_at?: string;
+    deleted_at?: string | null;
+  };
+}
+
 export interface ProductFilters {
   search?: string;
   category_id?: string;
@@ -116,6 +178,33 @@ export interface ProductFilters {
   is_active?: boolean;
   sort_by?: 'name' | 'price' | 'stock' | 'created_at';
   sort_order?: 'asc' | 'desc';
+}
+
+function getProductImageUrl(image: AdminProductImage): string | undefined {
+  return image.url ?? image.image_url;
+}
+
+function normalizeAdminProduct(product: AdminProduct): AdminProduct {
+  const allImages = product.images ?? [];
+  const defaultImages = allImages.filter((img) => !img.option_id);
+  const variantImages = allImages.filter((img) => !!img.option_id);
+  return {
+    ...product,
+    price: product.regular_price ?? product.price ?? 0,
+    category_name: product.category?.name ?? product.category_name ?? '',
+    category_id: product.category_id ?? product.category?.id,
+    is_active: product.is_active ?? (product.status === 'active'),
+    // Only include general product images (no option_id).
+    // Variant images (with option_id) are handled via variant_images payload
+    // to avoid syncProductImages inserting duplicates with option_id=NULL.
+    image_urls: defaultImages
+      .map(getProductImageUrl)
+      .filter((url): url is string => typeof url === 'string' && url.trim().length > 0),
+    // Variant images for unified gallery display (read-only in image section)
+    variant_image_urls: variantImages
+      .map(getProductImageUrl)
+      .filter((url): url is string => typeof url === 'string' && url.trim().length > 0),
+  };
 }
 
 // ─── Admin Product Service ────────────────────────────────────────────────────
@@ -144,13 +233,7 @@ export const adminProductService = {
     const raw = response.data.data;
 
     // Map backend models.Product → AdminProduct (flatten nested fields)
-    const products: AdminProduct[] = (raw?.products ?? []).map((p) => ({
-      ...p,
-      price: p.regular_price ?? p.price ?? 0,
-      category_name: p.category?.name ?? p.category_name ?? '',
-      is_active: p.is_active ?? (p.status === 'active'),
-      image_urls: (p.images ?? []).map((img) => img.url),
-    }));
+    const products: AdminProduct[] = (raw?.products ?? []).map(normalizeAdminProduct);
 
     return {
       data: {
@@ -164,45 +247,55 @@ export const adminProductService = {
   },
 
   async getProduct(id: string): Promise<AnalyticsResponse<AdminProduct>> {
-    const response = await api.get<AnalyticsResponse<AdminProduct>>(`/admin/products/${id}`);
-    return response.data;
+    const response = await api.get<ApiResponse<BackendProductDetailResult>>(`/admin/products/${id}`);
+    const product = response.data.data?.product;
+    if (!product) {
+      throw new Error('Product response is missing product data');
+    }
+
+    return {
+      data: normalizeAdminProduct(product),
+      timestamp: new Date().toISOString(),
+    };
   },
 
   async createProduct(data: CreateProductRequest): Promise<AdminProduct> {
-    const { image_urls, ...payload } = data;
-    void image_urls; // images attached separately after creation
-    const response = await api.post<ApiResponse<AdminProduct>>('/admin/products', payload);
-    return response.data.data!;
+    const response = await api.post<ApiResponse<AdminProduct>>('/admin/products', data);
+    const product = response.data.data;
+    if (!product) {
+      throw new Error('Product response is missing product data');
+    }
+    return normalizeAdminProduct(product);
   },
 
   async updateProduct(id: string, data: UpdateProductRequest): Promise<AdminProduct> {
     const { id: _id, ...payload } = data;
     void _id;
     const response = await api.put<ApiResponse<AdminProduct>>(`/admin/products/${id}`, payload);
-    return response.data.data!;
+    const product = response.data.data;
+    if (!product) {
+      throw new Error('Product response is missing product data');
+    }
+    return normalizeAdminProduct(product);
   },
 
   async deleteProduct(id: string): Promise<void> {
     await api.delete(`/admin/products/${id}`);
   },
 
-  async addProductVariant(productId: string, data: CreateVariantInput): Promise<unknown> {
-    const response = await api.post<ApiResponse<unknown>>(
-      `/admin/products/${productId}/variants`,
-      data
-    );
-    return response.data.data;
-  },
-
-  async uploadProductImage(file: File): Promise<AnalyticsResponse<{ image_url: string }>> {
+  async uploadProductImage(file: File): Promise<AnalyticsResponse<UploadedProductImage>> {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await api.post<AnalyticsResponse<{ image_url: string }>>(
+    const response = await api.post<AnalyticsResponse<UploadedProductImage>>(
       '/admin/products/upload-image',
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
     return response.data;
+  },
+
+  async deleteUploadedImage(imageUrl: string): Promise<void> {
+    await api.delete('/admin/product-images', { data: { image_url: imageUrl } });
   },
 
   async bulkDeleteProducts(ids: string[]): Promise<{ success: boolean; deleted_count: number }> {

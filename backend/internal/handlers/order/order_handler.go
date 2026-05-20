@@ -1,8 +1,8 @@
 package order
 
 import (
-	"ecommerce-backend/internal/services/order"
 	"ecommerce-backend/internal/middleware"
+	"ecommerce-backend/internal/services/order"
 	paymentSvc "ecommerce-backend/internal/services/payment"
 	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
@@ -166,7 +166,6 @@ func (h *OrderHandler) ValidatePromoCode(c *gin.Context) {
 	})
 }
 
-
 // ===== HELPER METHODS =====
 
 // PayOrder returns a Snap token for an existing unpaid order.
@@ -204,6 +203,9 @@ func (h *OrderHandler) PayOrder(c *gin.Context) {
 		} else if msg == "order is already paid" {
 			statusCode = http.StatusConflict
 			code = "ALREADY_PAID"
+		} else if msg == "payment window expired" {
+			statusCode = http.StatusConflict
+			code = "PAYMENT_EXPIRED"
 		}
 		response.Error(c, statusCode, code, msg)
 		return
@@ -254,9 +256,11 @@ func (h *OrderHandler) SyncPaymentStatus(c *gin.Context) {
 		statusCode := http.StatusInternalServerError
 		code := "SYNC_FAILED"
 		if msg == "order not found" {
-			statusCode = http.StatusNotFound; code = "NOT_FOUND"
+			statusCode = http.StatusNotFound
+			code = "NOT_FOUND"
 		} else if msg == "forbidden" {
-			statusCode = http.StatusForbidden; code = "FORBIDDEN"
+			statusCode = http.StatusForbidden
+			code = "FORBIDDEN"
 		}
 		response.Error(c, statusCode, code, msg)
 		return
@@ -264,5 +268,3 @@ func (h *OrderHandler) SyncPaymentStatus(c *gin.Context) {
 
 	response.SuccessWithMessage(c, http.StatusOK, "Payment status synced", result)
 }
-
-

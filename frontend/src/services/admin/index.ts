@@ -16,7 +16,16 @@
 // ─── Re-export all domain types ───────────────────────────────────────────────
 export type { RevenueMetrics, OrderMetrics, CustomerMetrics, RevenueTrend, ProductPerformance, AnalyticsResponse } from './analytics.service';
 export type { DashboardSummary } from './dashboard.service';
-export type { CreateProductRequest, UpdateProductRequest, CreateVariantInput, AdminProduct, ProductsResponse, ProductFilters } from './product.service';
+export type {
+  AdminProduct,
+  AdminVariantCombinationInput,
+  AdminVariantImageInput,
+  AdminVariantTypeInput,
+  CreateProductRequest,
+  ProductFilters,
+  ProductsResponse,
+  UpdateProductRequest,
+} from './product.service';
 export type { AdminOrder, UpdateOrderStatusRequest, ProcessRefundRequest, OrderFilters, AdminOrderMetrics } from './order.service';
 export type { AdminUser, UserActivityLog, UserMetrics, UserFilters, UpdateUserRoleRequest, UpdateUserStatusRequest } from './user.service';
 export type { PromoCode, PromoListResult, PromoListFilters, CreatePromoInput, UpdatePromoInput } from './promo.service';
@@ -59,7 +68,6 @@ export const adminService = {
   createProduct: adminProductService.createProduct.bind(adminProductService),
   updateProduct: adminProductService.updateProduct.bind(adminProductService),
   deleteProduct: adminProductService.deleteProduct.bind(adminProductService),
-  addProductVariant: adminProductService.addProductVariant.bind(adminProductService),
   uploadProductImage: adminProductService.uploadProductImage.bind(adminProductService),
   bulkDeleteProducts: adminProductService.bulkDeleteProducts.bind(adminProductService),
   bulkUpdateStock: adminProductService.bulkUpdateStock.bind(adminProductService),

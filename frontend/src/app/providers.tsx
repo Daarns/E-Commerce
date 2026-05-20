@@ -16,13 +16,20 @@ const queryClient = new QueryClient({
 });
 
 function AuthInitializer({ children }: { children: React.ReactNode }) {
-  const { checkAuth } = useAuthStore();
+  const { checkAuth, isAuthenticated } = useAuthStore();
   const { fetchCart } = useCartStore();
 
+  // Step 1: Check auth on mount
   useEffect(() => {
     checkAuth();
-    fetchCart();
-  }, [checkAuth, fetchCart]);
+  }, [checkAuth]);
+
+  // Step 2: Fetch cart only after auth is resolved and user is logged in
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchCart();
+    }
+  }, [isAuthenticated, fetchCart]);
 
   return (
     <>

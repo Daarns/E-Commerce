@@ -60,24 +60,27 @@ export default function EditProductPage() {
         className="space-y-6"
       >
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => router.back()}
+              className="flex-shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
-            <div>
-              <h1 className="text-3xl font-bold">Edit Product</h1>
-              <p className="text-muted-foreground mt-1">{product.name}</p>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-3xl font-bold">Edit Product</h1>
+              <p className="text-muted-foreground text-sm truncate">{product.name}</p>
             </div>
           </div>
 
           <Button
             variant="destructive"
             onClick={() => setShowDeleteConfirm(true)}
+            className="w-full sm:w-auto"
+            size="sm"
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Delete Product

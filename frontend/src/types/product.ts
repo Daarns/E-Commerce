@@ -19,27 +19,52 @@ export interface Product {
   canonical_url?: string;
   og_image?: string;
   images: ProductImage[];
-  variants: ProductVariant[];
+  variant_types?: ProductVariantType[];
+  combinations?: ProductVariantCombination[];
+  effective_price?: string | number;
   created_at: string;
   updated_at: string;
 }
 
 export interface ProductImage {
   id: string;
-  url: string;
+  option_id?: string;
+  url?: string;
+  image_url?: string;
   alt_text?: string;
   is_primary: boolean;
   sort_order: number;
+  display_order?: number;
+  width?: number;
+  height?: number;
+  aspect_ratio?: number;
 }
 
-export interface ProductVariant {
+export interface ProductVariantType {
   id: string;
-  variant_type: string;
-  variant_value: string;
-  price_adjustment: number;
+  product_id: string;
+  name: string;
+  is_visual: boolean;
+  display_order: number;
+  options: ProductVariantOption[];
+}
+
+export interface ProductVariantOption {
+  id: string;
+  variant_type_id: string;
+  value: string;
+  display_order: number;
+  variant_type?: ProductVariantType;
+}
+
+export interface ProductVariantCombination {
+  id: string;
+  product_id: string;
+  option_ids?: string[];
+  options?: ProductVariantOption[];
+  price_adjustment: string | number;
   stock_quantity: number;
-  sku_suffix: string;
-  image_url?: string;
+  sku: string;
   is_active: boolean;
 }
 

@@ -1,6 +1,8 @@
 'use client';
 
+import { Loader2, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
 import { NewCategoryModal } from '@/components/admin/product/NewCategoryModal';
 import { ProductBasicInfoSection } from '@/components/admin/product/ProductBasicInfoSection';
 import { ProductImagesSection } from '@/components/admin/product/ProductImagesSection';
@@ -28,7 +30,7 @@ export function ProductForm(props: ProductFormProps) {
         onSubmit={(event) => void form.handleSubmit(event)}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="space-y-5"
+        className="space-y-5 pb-20 lg:pb-0"
       >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2 space-y-5">
@@ -47,19 +49,27 @@ export function ProductForm(props: ProductFormProps) {
               isEdit={form.isEdit}
               isLoading={isLoading}
               uploadedImages={form.uploadedImages}
+              variantImageUrls={props.product?.variant_image_urls}
               errors={form.errors}
               onImagesUpload={form.addUploadedImages}
               onRemoveImage={form.removeUploadedImage}
             />
 
             <ProductVariantsSection
-              variants={form.variants}
+              variantTypes={form.variantTypes}
+              combinations={form.combinations}
+              stockQuantity={form.formData.stock_quantity}
               variantsOpen={form.variantsOpen}
               errors={form.errors}
               onToggleOpen={() => form.setVariantsOpen((open) => !open)}
-              onAddVariant={form.addVariant}
-              onRemoveVariant={form.removeVariant}
-              onUpdateVariant={form.updateVariant}
+              onAddVariantType={form.addVariantType}
+              onRemoveVariantType={form.removeVariantType}
+              onUpdateVariantType={form.updateVariantType}
+              onAddVariantOption={form.addVariantOption}
+              onRemoveVariantOption={form.removeVariantOption}
+              onUpdateVariantOption={form.updateVariantOption}
+              onRemoveVariantOptionImage={form.removeVariantOptionImage}
+              onUpdateCombination={form.updateCombination}
             />
           </div>
 
@@ -69,8 +79,27 @@ export function ProductForm(props: ProductFormProps) {
             isEdit={form.isEdit}
             isLoading={isLoading}
             selectClassName={SELECT_CLASS_NAME}
+            discountPercent={form.discountPercent}
             onFieldChange={form.setField}
+            onDiscountPercentChange={form.setDiscountPercent}
           />
+        </div>
+
+        {/* Sticky mobile submit bar */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur px-4 py-3 lg:hidden">
+          <Button type="submit" disabled={isLoading} size="default" className="w-full">
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {form.isEdit ? 'Menyimpan...' : 'Membuat...'}
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4 mr-2" />
+                {form.isEdit ? 'Simpan Perubahan' : 'Buat Produk'}
+              </>
+            )}
+          </Button>
         </div>
       </motion.form>
     </>

@@ -8,7 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
-import { toNum, formatCurrency } from '@/utils';
+import {
+  toNum,
+  formatCurrency,
+  getProductImageForCombination,
+  getProductImageUrl,
+} from '@/utils';
 import { ValidCartItem } from '@/types';
 
 interface CartItemProps {
@@ -27,7 +32,10 @@ export function CartItem({
   onRemove,
 }: CartItemProps) {
   const itemPrice = toNum(item.price);
-  const maxStock = item.variant?.stock_quantity ?? item.product.stock_quantity;
+  const maxStock = item.combination?.stock_quantity ?? item.product.stock_quantity;
+  const combinationLabel = item.combination?.options?.map((option) => option.value).join(' / ');
+  const itemImage = getProductImageForCombination(item.product.images, item.combination);
+  const itemImageUrl = getProductImageUrl(itemImage);
 
   return (
     <motion.div
@@ -47,7 +55,7 @@ export function CartItem({
               className="relative w-24 h-24 flex-shrink-0 bg-muted rounded-lg overflow-hidden group"
             >
               <Image
-                src={item.product.images?.[0]?.url || PLACEHOLDER_PRODUCT_IMAGE}
+                src={itemImageUrl ?? PLACEHOLDER_PRODUCT_IMAGE}
                 alt={item.product.name}
                 fill
                 className="object-cover group-hover:scale-110 transition-transform duration-300"
@@ -68,9 +76,9 @@ export function CartItem({
                   {item.product.brand && (
                     <p className="text-sm text-muted-foreground">{item.product.brand}</p>
                   )}
-                  {item.variant && (
+                  {combinationLabel && (
                     <Badge variant="secondary" className="mt-1">
-                      {item.variant.variant_type}: {item.variant.variant_value}
+                      {combinationLabel}
                     </Badge>
                   )}
                 </div>

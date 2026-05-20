@@ -3,8 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { OUT_OF_STOCK_LABEL, PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
+import {
+  OUT_OF_STOCK_LABEL,
+  PLACEHOLDER_PRODUCT_IMAGE,
+  PRODUCT_DETAIL_IMAGE_FRAME_CLASS,
+  PRODUCT_IMAGE_FIT_CLASS,
+} from '@/constants/product.constants';
 import { ProductImage } from '@/types';
+import { getProductGalleryImages, getProductImageUrl } from '@/utils';
 
 interface ProductDetailGalleryProps {
   images: ProductImage[];
@@ -23,18 +29,37 @@ export function ProductDetailGallery({
   discountPercentage,
   isOutOfStock,
 }: ProductDetailGalleryProps) {
+  const galleryImages = getProductGalleryImages(images);
+  const selectedImageUrl = getProductImageUrl(images[selectedImageIndex]);
+
   const handlePrevious = () => {
-    onImageSelect(selectedImageIndex === 0 ? images.length - 1 : selectedImageIndex - 1);
+    const selectedGalleryIndex = galleryImages.findIndex((entry) => (
+      getProductImageUrl(entry.image) === selectedImageUrl
+    ));
+    const currentGalleryIndex = selectedGalleryIndex >= 0 ? selectedGalleryIndex : 0;
+    const previousGalleryIndex = currentGalleryIndex === 0
+      ? galleryImages.length - 1
+      : currentGalleryIndex - 1;
+    const previousImage = galleryImages[previousGalleryIndex];
+    if (previousImage) onImageSelect(previousImage.originalIndex);
   };
 
   const handleNext = () => {
-    onImageSelect(selectedImageIndex === images.length - 1 ? 0 : selectedImageIndex + 1);
+    const selectedGalleryIndex = galleryImages.findIndex((entry) => (
+      getProductImageUrl(entry.image) === selectedImageUrl
+    ));
+    const currentGalleryIndex = selectedGalleryIndex >= 0 ? selectedGalleryIndex : 0;
+    const nextGalleryIndex = currentGalleryIndex === galleryImages.length - 1
+      ? 0
+      : currentGalleryIndex + 1;
+    const nextImage = galleryImages[nextGalleryIndex];
+    if (nextImage) onImageSelect(nextImage.originalIndex);
   };
 
   return (
     <div className="space-y-4">
       {/* Main Image */}
-      <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
+      <div className={PRODUCT_DETAIL_IMAGE_FRAME_CLASS}>
         <AnimatePresence mode="wait">
           <motion.div
             key={selectedImageIndex}
@@ -45,10 +70,10 @@ export function ProductDetailGallery({
             className="absolute inset-0"
           >
             <Image
-              src={images[selectedImageIndex]?.url || PLACEHOLDER_PRODUCT_IMAGE}
+              src={getProductImageUrl(images[selectedImageIndex]) ?? PLACEHOLDER_PRODUCT_IMAGE}
               alt={images[selectedImageIndex]?.alt_text || productName}
               fill
-              className="object-cover"
+              className={PRODUCT_IMAGE_FIT_CLASS}
               priority
               sizes="(max-width: 1024px) 100vw, 50vw"
             />
@@ -56,7 +81,7 @@ export function ProductDetailGallery({
         </AnimatePresence>
 
         {/* Navigation Arrows */}
-        {images.length > 1 && (
+        {galleryImages.length > 1 && (
           <>
             <Button
               variant="secondary"
@@ -89,27 +114,32 @@ export function ProductDetailGallery({
       </div>
 
       {/* Thumbnails */}
-      {images.length > 1 && (
+      {galleryImages.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-2">
-          {images.map((image, index) => (
+          {galleryImages.map(({ image, originalIndex }, index) => {
+            const imageUrl = getProductImageUrl(image);
+            const isSelected = selectedImageIndex === originalIndex || imageUrl === selectedImageUrl;
+
+            return (
             <motion.button
-              key={index}
+              key={`${imageUrl ?? image.id}-${originalIndex}`}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => onImageSelect(index)}
+              onClick={() => onImageSelect(originalIndex)}
               className={`relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-colors ${
-                selectedImageIndex === index ? 'border-primary' : 'border-transparent'
+                isSelected ? 'border-primary' : 'border-transparent'
               }`}
             >
               <Image
-                src={image.url}
+                src={getProductImageUrl(image) ?? PLACEHOLDER_PRODUCT_IMAGE}
                 alt={image.alt_text || `${productName} thumbnail ${index + 1}`}
                 fill
-                className="object-cover"
+                className={PRODUCT_IMAGE_FIT_CLASS}
                 sizes="80px"
               />
             </motion.button>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

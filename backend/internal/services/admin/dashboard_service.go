@@ -30,7 +30,7 @@ func NewDashboardService(
 // GetDashboardSummary retrieves the complete dashboard overview
 func (s *DashboardService) GetDashboardSummary() (*models.DashboardSummary, error) {
 	summary := &models.DashboardSummary{
-		Overview: make(map[string]interface{}),
+		Overview:  make(map[string]interface{}),
 		Timestamp: time.Now(),
 	}
 
@@ -80,7 +80,7 @@ func (s *DashboardService) GetDashboardSummary() (*models.DashboardSummary, erro
 	for rows.Next() {
 		var order models.Order
 		var userName string
-		var total interface{}
+		var total decimal.Decimal
 
 		if err := rows.Scan(
 			&order.ID, &order.OrderNumber, &order.UserID, &total,
@@ -89,12 +89,7 @@ func (s *DashboardService) GetDashboardSummary() (*models.DashboardSummary, erro
 			return nil, err
 		}
 
-		// Convert total to decimal.Decimal
-		if total != nil {
-			if totalFloat, ok := total.(float64); ok {
-				order.Total = decimal.NewFromFloat(totalFloat)
-			}
-		}
+		order.Total = total
 
 		summary.RecentOrders = append(summary.RecentOrders, order)
 	}
@@ -129,16 +124,15 @@ func (s *DashboardService) GetDashboardSummary() (*models.DashboardSummary, erro
 
 	// Build overview summary
 	summary.Overview = map[string]interface{}{
-		"total_revenue":        summary.RevenueMetrics.TotalRevenue,
-		"total_orders":         summary.OrderAnalytics.TotalOrders,
-		"total_customers":      summary.CustomerAnalytics.TotalCustomers,
-		"pending_orders":       summary.PendingOrders,
-		"unfulfilled_orders":   summary.UnfulfishedOrders,
-		"avg_order_value":      summary.RevenueMetrics.AverageOrderValue,
-		"active_customers":     summary.CustomerAnalytics.ActiveCustomers,
-		"low_stock_products":   len(summary.LowStockProducts),
+		"total_revenue":      summary.RevenueMetrics.TotalRevenue,
+		"total_orders":       summary.OrderAnalytics.TotalOrders,
+		"total_customers":    summary.CustomerAnalytics.TotalCustomers,
+		"pending_orders":     summary.PendingOrders,
+		"unfulfilled_orders": summary.UnfulfishedOrders,
+		"avg_order_value":    summary.RevenueMetrics.AverageOrderValue,
+		"active_customers":   summary.CustomerAnalytics.ActiveCustomers,
+		"low_stock_products": len(summary.LowStockProducts),
 	}
 
 	return summary, nil
 }
-

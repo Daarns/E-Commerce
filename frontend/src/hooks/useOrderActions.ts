@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { orderService } from '@/services/order';
 import { Order } from '@/types';
 import { toast } from 'sonner';
-import api from '@/services/api';
 
 export function useOrderActions() {
   const [isCancelling, setIsCancelling] = useState<string | null>(null);
@@ -27,16 +26,17 @@ export function useOrderActions() {
   const payOrder = async (
     order: Order,
     userEmail: string
-  ): Promise<{ snapToken?: string; error?: string }> => {
+  ): Promise<{ snapToken?: string; redirectUrl?: string; paymentExpiresAt?: string; error?: string }> => {
     setIsPayingOrder(order.id);
     try {
-      const res = await api.post<{ data: { snap_token: string } }>(
-        `/orders/${order.id}/pay`,
-        { customer_email: userEmail }
-      );
-      const snapToken = res.data.data?.snap_token;
+      const result = await orderService.payOrder(order.id, userEmail);
+      const snapToken = result.snap_token;
       if (!snapToken) throw new Error('Token tidak tersedia');
-      return { snapToken };
+      return {
+        snapToken,
+        redirectUrl: result.redirect_url,
+        paymentExpiresAt: result.payment_expires_at,
+      };
     } catch (err) {
       toast.error('Gagal memuat pembayaran. Silakan coba lagi.');
       return { error: err instanceof Error ? err.message : 'Unknown error' };

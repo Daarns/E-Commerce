@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { productService } from '@/services/product';
-import { Product, ProductVariant } from '@/types';
+import { Product } from '@/types';
+import {
+  buildSelectedOptionsFromCombination,
+  findMatchingCombination,
+  getAvailableOptionIdsForType,
+} from '@/utils';
 
 export function useProductDetail(slug: string) {
   const [product, setProduct] = useState<Product | null>(null);
@@ -8,7 +13,7 @@ export function useProductDetail(slug: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function fetchProduct() {
@@ -18,8 +23,14 @@ export function useProductDetail(slug: string) {
         const productData = await productService.getProduct(slug);
         setProduct(productData);
 
-        if (productData.variants && productData.variants.length > 0) {
-          setSelectedVariant(productData.variants[0]);
+        const firstAvailableCombination = productData.combinations?.find((combination) => (
+          combination.is_active && combination.stock_quantity > 0
+        ));
+
+        if (firstAvailableCombination) {
+          setSelectedOptions(buildSelectedOptionsFromCombination(productData, firstAvailableCombination));
+        } else {
+          setSelectedOptions({});
         }
 
         const related = await productService.getRelatedProducts(productData.id);
@@ -37,6 +48,57 @@ export function useProductDetail(slug: string) {
     }
   }, [slug]);
 
+  const selectedCombination = findMatchingCombination(
+    product?.combinations,
+    selectedOptions,
+    product?.variant_types?.length ?? 0
+  );
+
+  const selectOption = (typeId: string, optionId: string): void => {
+    if (!product) return;
+
+    setSelectedOptions((previous) => {
+      const next = { ...previous, [typeId]: optionId };
+
+      product.variant_types?.forEach((variantType) => {
+        const selectedOptionId = next[variantType.id];
+        if (!selectedOptionId || variantType.id === typeId) return;
+
+        const availableOptionIds = getAvailableOptionIdsForType(
+          variantType.id,
+          next,
+          product.combinations
+        );
+        if (!availableOptionIds.has(selectedOptionId)) {
+          delete next[variantType.id];
+        }
+      });
+
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (!product?.images?.length || !product.variant_types?.length) return;
+
+    const visualOptionIds = product.variant_types
+      .filter((variantType) => variantType.is_visual)
+      .map((variantType) => selectedOptions[variantType.id])
+      .filter(Boolean);
+
+    const defaultImageIndex = product.images.findIndex((image) => !image.option_id);
+
+    if (visualOptionIds.length === 0) {
+      setSelectedImage(defaultImageIndex >= 0 ? defaultImageIndex : 0);
+      return;
+    }
+
+    const imageIndex = product.images.findIndex((image) => (
+      image.option_id !== undefined && visualOptionIds.includes(image.option_id)
+    ));
+    setSelectedImage(imageIndex >= 0 ? imageIndex : defaultImageIndex >= 0 ? defaultImageIndex : 0);
+  }, [product, selectedOptions]);
+
   return {
     product,
     relatedProducts,
@@ -44,7 +106,8 @@ export function useProductDetail(slug: string) {
     error,
     selectedImage,
     setSelectedImage,
-    selectedVariant,
-    setSelectedVariant,
+    selectedOptions,
+    selectOption,
+    selectedCombination,
   };
 }

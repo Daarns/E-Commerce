@@ -6,7 +6,7 @@ import { useCartStore } from '@/stores/cart-store';
 interface AddProductToCartParams {
   productId: string;
   quantity: number;
-  variantId?: string;
+  combinationId?: string;
   productName?: string;
   toastDescription?: string;
   onAuthRequired?: () => void;
@@ -26,7 +26,7 @@ export function useCartAction(): UseCartActionReturn {
   const addProductToCart = async ({
     productId,
     quantity,
-    variantId,
+    combinationId,
     productName,
     toastDescription,
     onAuthRequired,
@@ -38,7 +38,7 @@ export function useCartAction(): UseCartActionReturn {
 
     setIsAddingToCart(true);
     try {
-      await addToCart(productId, quantity, variantId);
+      await addToCart(productId, quantity, combinationId);
       toast.success('Added to cart', {
         description: toastDescription ?? (productName ? `${quantity} x ${productName}` : undefined),
       });

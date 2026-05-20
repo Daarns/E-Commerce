@@ -83,20 +83,22 @@ func (s *DashboardService) GetOrderAnalytics() (*models.OrderAnalytics, error) {
 		analytics.StatusBreakdown[status] = count
 		analytics.TotalOrders += count
 
-		// Categorize by status
+		// Categorize by dashboard buckets. A paid order with payment_confirmed is
+		// ready for fulfillment, so it belongs in the processing bucket instead of
+		// pending payment.
 		switch status {
 		case "pending":
-			analytics.PendingOrders = count
-		case "payment_confirmed":
 			analytics.PendingOrders += count
+		case "payment_confirmed":
+			analytics.ProcessingOrders += count
 		case "processing":
-			analytics.ProcessingOrders = count
+			analytics.ProcessingOrders += count
 		case "shipped":
-			analytics.ShippedOrders = count
+			analytics.ShippedOrders += count
 		case "delivered":
-			analytics.DeliveredOrders = count
+			analytics.DeliveredOrders += count
 		case "cancelled":
-			analytics.CancelledOrders = count
+			analytics.CancelledOrders += count
 		}
 	}
 

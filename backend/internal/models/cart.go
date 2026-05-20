@@ -10,17 +10,17 @@ import (
 
 // CartItem represents an item in a shopping cart
 type CartItem struct {
-	ID        uuid.UUID       `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	UserID    *uuid.UUID      `gorm:"type:uuid" json:"user_id"`
-	SessionID string          `gorm:"size:255" json:"session_id"` // for guest users
-	ProductID uuid.UUID       `gorm:"type:uuid;not null" json:"product_id"`
-	Product   *Product        `gorm:"foreignKey:ProductID" json:"product,omitempty"`
-	VariantID *uuid.UUID      `gorm:"type:uuid" json:"variant_id"`
-	Variant   *ProductVariant `gorm:"foreignKey:VariantID" json:"variant,omitempty"`
-	Quantity  int             `gorm:"not null;default:1" json:"quantity"`
-	Price     decimal.Decimal `gorm:"type:numeric(12,2);not null" json:"price"` // snapshot price
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID            uuid.UUID                  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	UserID        *uuid.UUID                 `gorm:"type:uuid" json:"user_id"`
+	SessionID     string                     `gorm:"size:255" json:"session_id"` // for guest users
+	ProductID     uuid.UUID                  `gorm:"type:uuid;not null" json:"product_id"`
+	Product       *Product                   `gorm:"foreignKey:ProductID" json:"product,omitempty"`
+	CombinationID *uuid.UUID                 `gorm:"type:uuid" json:"combination_id"`
+	Combination   *ProductVariantCombination `gorm:"foreignKey:CombinationID" json:"combination,omitempty"`
+	Quantity      int                        `gorm:"not null;default:1" json:"quantity"`
+	Price         decimal.Decimal            `gorm:"type:numeric(12,2);not null" json:"price"` // snapshot price
+	CreatedAt     time.Time                  `json:"created_at"`
+	UpdatedAt     time.Time                  `json:"updated_at"`
 }
 
 // TableName sets the table name

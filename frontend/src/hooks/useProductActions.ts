@@ -8,7 +8,7 @@ interface UseProductActionsReturn {
   showAuthDialog: boolean;
   setShowAuthDialog: (show: boolean) => void;
   isAuthenticated: boolean;
-  handleAddToCart: (productId: string, variantId?: string, productName?: string) => Promise<void>;
+  handleAddToCart: (productId: string, combinationId?: string, productName?: string) => Promise<void>;
   incrementQuantity: (maxStock: number) => void;
   decrementQuantity: () => void;
 }
@@ -20,13 +20,13 @@ export function useProductActions(): UseProductActionsReturn {
 
   const handleAddToCart = async (
     productId: string,
-    variantId?: string,
+    combinationId?: string,
     productName?: string
   ): Promise<void> => {
     await addProductToCart({
       productId,
       quantity,
-      variantId,
+      combinationId,
       productName,
       toastDescription: `${quantity}x ${productName || 'Product'}`,
       onAuthRequired: () => setShowAuthDialog(true),

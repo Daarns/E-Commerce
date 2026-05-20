@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { PAYMENT_STATUS_BADGE_COLORS, PAYMENT_STATUS_LABELS } from '@/constants/order.constants';
 import { PaymentStatus } from '@/types';
 
 interface PaymentInfoSectionProps {
@@ -20,14 +21,8 @@ export function PaymentInfoSection({ method, status }: PaymentInfoSectionProps) 
         </div>
         <div>
           <p className="text-gray-600">Status</p>
-          <Badge
-            className={
-              status === 'paid'
-                ? 'bg-green-100 text-green-800'
-                : 'bg-yellow-100 text-yellow-800'
-            }
-          >
-            {status.toUpperCase()}
+          <Badge className={PAYMENT_STATUS_BADGE_COLORS[status]}>
+            {PAYMENT_STATUS_LABELS[status]}
           </Badge>
         </div>
       </div>

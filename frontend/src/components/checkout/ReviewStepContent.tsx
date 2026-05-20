@@ -7,7 +7,12 @@ import { CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { formatCurrency } from '@/utils';
+import {
+  formatCurrency,
+  getProductImageForCombination,
+  getProductImageUrl,
+  toNum,
+} from '@/utils';
 import { Address, CartItem } from '@/types';
 import { ShippingMethod, formatEstimate } from '@/services/shipping';
 
@@ -115,32 +120,36 @@ export function ReviewStepContent({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {items.map((item) => (
-              <div key={`${item.product_id}-${item.variant_id}`} className="flex gap-4">
-                <div className="relative h-16 w-16 rounded-md overflow-hidden bg-muted">
-                  {item.product?.images?.[0] && (
-                    <Image
-                      src={item.product.images[0].url}
-                      alt={item.product.name}
-                      fill
-                      className="object-cover"
-                    />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-sm">{item.product?.name}</p>
-                  {item.variant && (
-                    <p className="text-xs text-muted-foreground">
-                      {item.variant.variant_type}: {item.variant.variant_value}
+            {items.map((item) => {
+              const itemImage = getProductImageForCombination(item.product?.images, item.combination);
+              const itemImageUrl = getProductImageUrl(itemImage);
+
+              return (
+                <div key={`${item.product_id}-${item.combination_id ?? item.id}`} className="flex gap-4">
+                  <div className="relative h-16 w-16 rounded-md overflow-hidden bg-muted">
+                    {itemImageUrl && (
+                      <Image
+                        src={itemImageUrl}
+                        alt={item.product?.name ?? 'Product image'}
+                        fill
+                        className="object-cover"
+                      />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{item.product?.name}</p>
+                    {Boolean(item.combination?.options?.length) && (
+                      <p className="text-xs text-muted-foreground">
+                        {item.combination?.options?.map((option) => option.value).join(' / ')}
+                      </p>
+                    )}
+                    <p className="text-sm">
+                      {formatCurrency(toNum(item.price))} x {item.quantity}
                     </p>
-                  )}
-                  <p className="text-sm">
-                    {formatCurrency(item.product?.sale_price || item.product?.regular_price || 0)} x{' '}
-                    {item.quantity}
-                  </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>

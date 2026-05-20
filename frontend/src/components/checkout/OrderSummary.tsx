@@ -3,7 +3,12 @@
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { formatCurrency } from '@/utils';
+import {
+  formatCurrency,
+  getProductImageForCombination,
+  getProductImageUrl,
+  toNum,
+} from '@/utils';
 import { CartItem } from '@/types';
 import { PromoCode } from './PromoCode';
 
@@ -40,28 +45,33 @@ export function OrderSummary({
       <CardContent className="space-y-4">
         {/* Items */}
         <div className="space-y-2">
-          {items.slice(0, 3).map((item) => (
-            <div key={`${item.product_id}-${item.variant_id}`} className="flex gap-3">
-              {item.product?.images?.[0] && (
-                <div className="relative h-12 w-12 rounded-md overflow-hidden bg-muted flex-shrink-0">
-                  <Image
-                    src={item.product.images[0].url}
-                    alt={item.product.name}
-                    fill
-                    className="object-cover"
-                  />
+          {items.slice(0, 3).map((item) => {
+            const itemImage = getProductImageForCombination(item.product?.images, item.combination);
+            const itemImageUrl = getProductImageUrl(itemImage);
+
+            return (
+              <div key={`${item.product_id}-${item.combination_id ?? item.id}`} className="flex gap-3">
+                {itemImageUrl && (
+                  <div className="relative h-12 w-12 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                    <Image
+                      src={itemImageUrl}
+                      alt={item.product?.name ?? 'Product image'}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-muted-foreground truncate max-w-[180px]">
+                    {item.product?.name} x {item.quantity}
+                  </p>
+                  <p className="text-sm font-medium">
+                    {formatCurrency(toNum(item.price) * item.quantity)}
+                  </p>
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-muted-foreground truncate max-w-[180px]">
-                  {item.product?.name} x {item.quantity}
-                </p>
-                <p className="text-sm font-medium">
-                  {formatCurrency(Number(item.product?.sale_price || item.product?.regular_price || 0) * item.quantity)}
-                </p>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {items.length > 3 && (
             <p className="text-sm text-muted-foreground">
               +{items.length - 3} more items

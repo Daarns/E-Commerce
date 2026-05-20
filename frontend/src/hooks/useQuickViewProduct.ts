@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useCartAction } from '@/hooks/useCartAction';
 import { useWishlistToggleAction } from '@/hooks/useWishlistToggleAction';
-import { getProductPricing } from '@/utils/product.utils';
+import { formatCurrency, getProductCardPricing } from '@/utils';
 import type { Product } from '@/types';
 
 interface UseQuickViewProductParams {
@@ -16,6 +17,10 @@ interface UseQuickViewProductReturn {
   authDialog: 'cart' | 'wishlist' | null;
   isWishlisted: boolean;
   discountPercentage: number;
+  priceLabel: string;
+  originalPriceLabel: string | null;
+  availableStock: number;
+  actionLabel: string;
   setCurrentImageIndex: (index: number) => void;
   setAuthDialog: (dialog: 'cart' | 'wishlist' | null) => void;
   handleNextImage: () => void;
@@ -27,6 +32,7 @@ interface UseQuickViewProductReturn {
 }
 
 export function useQuickViewProduct({ product }: UseQuickViewProductParams): UseQuickViewProductReturn {
+  const router = useRouter();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [authDialog, setAuthDialog] = useState<'cart' | 'wishlist' | null>(null);
@@ -43,7 +49,20 @@ export function useQuickViewProduct({ product }: UseQuickViewProductParams): Use
     onAuthRequired: () => setAuthDialog('wishlist'),
   });
 
-  const discountPercentage = product ? getProductPricing(product).discountPercentage : 0;
+  const pricing = product ? getProductCardPricing(product) : null;
+  const activeCombinations = product?.combinations?.filter((combination) => combination.is_active) ?? [];
+  const requiresOptions = activeCombinations.length > 0;
+  const availableStock = requiresOptions
+    ? activeCombinations.reduce((total, combination) => total + combination.stock_quantity, 0)
+    : product?.stock_quantity ?? 0;
+  const discountPercentage = pricing?.discountPercentage ?? 0;
+  const priceLabel = pricing
+    ? formatCurrency(pricing.currentMin)
+    : formatCurrency(0);
+  const originalPriceLabel = pricing?.hasDiscount
+    ? formatCurrency(pricing.originalPrice)
+    : null;
+  const actionLabel = requiresOptions ? 'View Options' : 'Add to Cart';
 
   const handleNextImage = (): void => {
     if (images.length === 0) return;
@@ -57,7 +76,7 @@ export function useQuickViewProduct({ product }: UseQuickViewProductParams): Use
 
   const incrementQuantity = (): void => {
     if (!product) return;
-    setQuantity((previous) => Math.min(product.stock_quantity, previous + 1));
+    setQuantity((previous) => Math.min(availableStock, previous + 1));
   };
 
   const decrementQuantity = (): void => {
@@ -66,6 +85,10 @@ export function useQuickViewProduct({ product }: UseQuickViewProductParams): Use
 
   const handleAddToCart = async (): Promise<void> => {
     if (!product) return;
+    if (requiresOptions) {
+      router.push(`/products/${product.slug}`);
+      return;
+    }
 
     await addProductToCart({
       productId: product.id,
@@ -89,6 +112,10 @@ export function useQuickViewProduct({ product }: UseQuickViewProductParams): Use
     authDialog,
     isWishlisted,
     discountPercentage,
+    priceLabel,
+    originalPriceLabel,
+    availableStock,
+    actionLabel,
     setCurrentImageIndex,
     setAuthDialog,
     handleNextImage,

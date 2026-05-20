@@ -3,7 +3,7 @@
 import { Order } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Phone, FileText, RotateCcw, Trash2 } from 'lucide-react';
+import { CreditCard, FileText, Phone, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
 import { useOrderDetailActions } from '@/hooks/useOrderDetailActions';
 
 interface OrderActionsProps {
@@ -21,7 +21,11 @@ export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
     setOpenRefundDialog,
     canCancel,
     canRequestRefund,
+    canRetryPayment,
+    canSyncPayment,
     handleCancelOrder,
+    handleRetryPayment,
+    handleSyncPayment,
     handleContactSupport,
     handleViewInvoice,
     handleRequestRefund,
@@ -38,6 +42,29 @@ export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {canRetryPayment && (
+          <Button
+            onClick={() => void handleRetryPayment()}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            <CreditCard className="w-4 h-4" />
+            {isLoading ? 'Loading...' : 'Retry Payment'}
+          </Button>
+        )}
+
+        {canSyncPayment && (
+          <Button
+            variant="outline"
+            onClick={() => void handleSyncPayment()}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Sync Payment
+          </Button>
+        )}
+
         {/* Contact Support */}
         <Button
           variant="outline"

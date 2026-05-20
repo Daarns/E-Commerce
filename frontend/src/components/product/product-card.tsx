@@ -11,11 +11,12 @@ import {
   LOW_STOCK_THRESHOLD,
   OUT_OF_STOCK_LABEL,
   PLACEHOLDER_PRODUCT_IMAGE,
+  PRODUCT_CARD_IMAGE_FRAME_CLASS,
+  PRODUCT_IMAGE_FIT_CLASS,
   PRODUCT_STOCK_STATUS,
 } from '@/constants/product.constants';
 import { useProductCard } from '@/hooks/useProductCard';
 import { Product } from '@/types';
-import { formatCurrency } from '@/utils';
 import { QuickViewModal } from '@/components/product/quick-view-modal';
 import { AuthRequiredDialog } from '@/components/common/auth-required-dialog';
 
@@ -32,9 +33,14 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
     showQuickView,
     isAddingToCart,
     authDialog,
-    regularPrice,
-    salePrice,
+    priceLabel,
+    originalPriceLabel,
+    primaryImageUrl,
+    hoverImageUrl,
+    imagePriority,
     discountPercentage,
+    availableStock,
+    addToCartLabel,
     isWishlisted,
     isToggling,
     setIsHovered,
@@ -62,29 +68,32 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
           >
             <CardContent className="p-0">
               {/* Image Container */}
-              <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
+              <div className={PRODUCT_CARD_IMAGE_FRAME_CLASS}>
                 {/* Main Image */}
                 <Image
-                  src={product.images?.[0]?.url || PLACEHOLDER_PRODUCT_IMAGE}
+                  src={primaryImageUrl ?? PLACEHOLDER_PRODUCT_IMAGE}
                   alt={product.name}
                   fill
-                  className={`object-cover transition-all duration-500 ${
+                  className={`${PRODUCT_IMAGE_FIT_CLASS} transition-all duration-500 ${
                     isHovered ? 'scale-110' : 'scale-100'
                   } ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={() => setImageLoaded(true)}
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  priority={imagePriority}
+                  unoptimized={primaryImageUrl?.startsWith('http://localhost') ?? false}
                 />
 
                 {/* Hover Image (if available) */}
-                {product.images?.[1] && (
+                {hoverImageUrl && (
                   <Image
-                    src={product.images[1].url}
+                    src={hoverImageUrl}
                     alt={product.name}
                     fill
-                    className={`object-cover absolute inset-0 transition-opacity duration-500 ${
+                    className={`${PRODUCT_IMAGE_FIT_CLASS} absolute inset-0 transition-opacity duration-500 ${
                       isHovered ? 'opacity-100' : 'opacity-0'
                     }`}
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                    unoptimized={hoverImageUrl.startsWith('http://localhost')}
                   />
                 )}
 
@@ -95,12 +104,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                       -{discountPercentage}%
                     </Badge>
                   )}
-                  {product.stock_quantity < LOW_STOCK_THRESHOLD && product.stock_quantity > 0 && (
+                  {availableStock < LOW_STOCK_THRESHOLD && availableStock > 0 && (
                     <Badge variant="secondary" className="text-xs">
                       {PRODUCT_STOCK_STATUS.lowStock.label}
                     </Badge>
                   )}
-                  {product.stock_quantity === 0 && (
+                  {availableStock === 0 && (
                     <Badge variant="outline" className="text-xs bg-background">
                       {OUT_OF_STOCK_LABEL}
                     </Badge>
@@ -149,10 +158,10 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                   <Button
                     className="w-full gap-2"
                     onClick={(event) => void handleAddToCart(event)}
-                    disabled={isAddingToCart || product.stock_quantity === 0}
+                    disabled={isAddingToCart || availableStock === 0}
                   >
                     <ShoppingBag className="h-4 w-4" />
-                    Add to Cart
+                    {addToCartLabel}
                   </Button>
                 </motion.div>
               </div>
@@ -169,13 +178,13 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                 </div>
 
                 {/* Price */}
-                <div className="flex items-baseline gap-2">
+                <div className="space-y-0.5">
                   <span className="text-sm font-bold">
-                    {formatCurrency(salePrice ?? regularPrice)}
+                    {priceLabel}
                   </span>
-                  {salePrice && (
-                    <span className="text-xs text-muted-foreground line-through">
-                      {formatCurrency(regularPrice)}
+                  {originalPriceLabel && (
+                    <span className="block text-xs text-muted-foreground line-through">
+                      {originalPriceLabel}
                     </span>
                   )}
                 </div>

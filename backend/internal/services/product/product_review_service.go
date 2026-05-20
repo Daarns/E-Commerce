@@ -11,9 +11,9 @@ import (
 
 // ProductReviewService handles product review business logic
 type ProductReviewService struct {
-	reviewRepo *repositories.ProductReviewRepository
-	userRepo   *repositories.UserRepository
-	orderRepo  *repositories.OrderRepository
+	reviewRepo  *repositories.ProductReviewRepository
+	userRepo    *repositories.UserRepository
+	orderRepo   *repositories.OrderRepository
 	productRepo *repositories.ProductRepository
 }
 
@@ -25,9 +25,9 @@ func NewProductReviewService(
 	productRepo *repositories.ProductRepository,
 ) *ProductReviewService {
 	return &ProductReviewService{
-		reviewRepo: reviewRepo,
-		userRepo: userRepo,
-		orderRepo: orderRepo,
+		reviewRepo:  reviewRepo,
+		userRepo:    userRepo,
+		orderRepo:   orderRepo,
 		productRepo: productRepo,
 	}
 }
@@ -72,12 +72,14 @@ func (s *ProductReviewService) CreateReview(productID, userID uuid.UUID, req *mo
 
 	// Create review
 	review := &models.ProductReview{
-		ProductID:  productID,
-		UserID:     userID,
-		OrderID:    &order.ID,
-		Rating:     req.Rating,
-		Title:      req.Title,
-		ReviewText: req.ReviewText,
+		ProductID:          productID,
+		UserID:             userID,
+		OrderID:            &order.ID,
+		Rating:             req.Rating,
+		Title:              req.Title,
+		ReviewText:         req.ReviewText,
+		IsVerifiedPurchase: true,
+		Status:             "approved",
 	}
 
 	if err := s.reviewRepo.Create(review); err != nil {
@@ -132,17 +134,19 @@ func (s *ProductReviewService) GetProductReviews(productID uuid.UUID, page, page
 	reviewResponses := make([]models.ProductReviewResponse, 0, len(reviews))
 	for _, review := range reviews {
 		resp := models.ProductReviewResponse{
-			ID:             review.ID,
-			ProductID:      review.ProductID,
-			UserID:         review.UserID,
-			UserName:       review.User.Name,
-			Rating:         review.Rating,
-			Title:          review.Title,
-			ReviewText:     review.ReviewText,
-			HelpfulCount:   review.HelpfulCount,
-			UnhelpfulCount: review.UnhelpfulCount,
-			CreatedAt:      review.CreatedAt,
-			UpdatedAt:      review.UpdatedAt,
+			ID:                 review.ID,
+			ProductID:          review.ProductID,
+			UserID:             review.UserID,
+			UserName:           review.User.Name,
+			Rating:             review.Rating,
+			Title:              review.Title,
+			ReviewText:         review.ReviewText,
+			HelpfulCount:       review.HelpfulCount,
+			UnhelpfulCount:     review.UnhelpfulCount,
+			IsVerifiedPurchase: review.IsVerifiedPurchase,
+			Status:             review.Status,
+			CreatedAt:          review.CreatedAt,
+			UpdatedAt:          review.UpdatedAt,
 		}
 		reviewResponses = append(reviewResponses, resp)
 	}
@@ -345,4 +349,3 @@ func (s *ProductReviewService) updateProductRating(productID uuid.UUID) error {
 
 	return s.productRepo.Update(product)
 }
-

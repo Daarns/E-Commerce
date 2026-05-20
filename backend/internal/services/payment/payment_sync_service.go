@@ -3,6 +3,7 @@ package payment
 import (
 	"ecommerce-backend/internal/models"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
@@ -39,6 +40,10 @@ func NewPaymentSyncService(
 	}
 	client := coreapi.Client{}
 	client.New(config.ServerKey, env)
+	client.HttpClient = &midtrans.HttpClientImplementation{
+		HttpClient: &http.Client{Timeout: midtransRequestTimeout},
+		Logger:     midtrans.GetDefaultLogger(env),
+	}
 
 	return &PaymentSyncService{
 		coreClient: client,
@@ -61,9 +66,9 @@ func (s *PaymentSyncService) SyncOrderPayment(orderID uuid.UUID, userID uuid.UUI
 	}
 	if order.PaymentStatus == models.PaymentStatusPaid {
 		return &SyncPaymentStatusResult{
-			OrderID:     order.ID.String(),
+			OrderID:       order.ID.String(),
 			PaymentStatus: order.PaymentStatus,
-			Updated:     false,
+			Updated:       false,
 		}, nil
 	}
 
@@ -225,9 +230,12 @@ func syncMapTxStatus(txStatus string) string {
 	case "settlement", "capture":
 		return models.PaymentStatusPaid
 	case "pending":
-		return models.PaymentStatusUnpaid
+		return models.PaymentStatusPendingPayment
 	case "deny", "cancel", "failure", "expire":
-		return models.PaymentStatusRefunded
+		if txStatus == "expire" {
+			return models.PaymentStatusExpired
+		}
+		return models.PaymentStatusFailed
 	default:
 		return models.PaymentStatusUnpaid
 	}

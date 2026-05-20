@@ -1,3 +1,5 @@
+import type { Product, ProductVariantCombination } from './product';
+
 // ─── Status Enums ─────────────────────────────────────────────────────────────
 
 export type OrderStatus =
@@ -11,6 +13,7 @@ export type OrderStatus =
 
 export type PaymentStatus =
   | 'unpaid'
+  | 'pending_payment'
   | 'paid'
   | 'failed'
   | 'refunded'
@@ -63,6 +66,8 @@ export interface Order {
   admin_notes?: string;
   // Timestamps
   paid_at?: string;
+  snap_token_created_at?: string;
+  payment_expires_at?: string;
   shipped_at?: string;
   delivered_at?: string;
   cancelled_at?: string;
@@ -78,11 +83,13 @@ export interface OrderItem {
   id: string;
   order_id?: string;
   product_id: string;
-  variant_id?: string;
+  combination_id?: string;
   // Snapshot data from backend
   product_name: string;
   product_sku?: string;
   product_image?: string;
+  product?: Product;
+  combination?: ProductVariantCombination;
   variant_type?: string;
   variant_value?: string;
   quantity: number;

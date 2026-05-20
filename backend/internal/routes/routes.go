@@ -23,11 +23,11 @@ import (
 )
 
 type Config struct {
-	Router         *gin.Engine
-	RedisClient    *redis.Client
-	JWTManager     *jwt.Manager
-	WebhookSvc     *paymentService.PaymentWebhookService
-	NewsletterSvc  *newsletterService.NewsletterService
+	Router        *gin.Engine
+	RedisClient   *redis.Client
+	JWTManager    *jwt.Manager
+	WebhookSvc    *paymentService.PaymentWebhookService
+	NewsletterSvc *newsletterService.NewsletterService
 
 	AuthH          *authHandler.AuthHandler
 	DashboardH     *adminHandler.DashboardHandler
@@ -191,7 +191,7 @@ func Setup(c Config) {
 				orderRoutes.GET("", c.OrderH.GetOrders)
 				orderRoutes.GET("/:id", c.OrderH.GetOrder)
 				orderRoutes.POST("/:id/cancel", c.OrderH.CancelOrder)
-				orderRoutes.POST("/:id/pay", c.OrderH.PayOrder)            // Resume payment for pending orders
+				orderRoutes.POST("/:id/pay", c.OrderH.PayOrder)                   // Resume payment for pending orders
 				orderRoutes.POST("/:id/sync-payment", c.OrderH.SyncPaymentStatus) // Sync status from Midtrans API
 			}
 
@@ -256,15 +256,21 @@ func Setup(c Config) {
 					uploadRoutes.POST("/:id/images", c.AdminProductH.UploadProductImage)
 				}
 
-				adminProducts.GET("/:id", c.AdminProductH.AdminGetProduct)
 				adminProducts.POST("", c.AdminProductH.CreateProduct)
+
+				adminProducts.GET("/:id", c.AdminProductH.AdminGetProduct)
 				adminProducts.PUT("/:id", c.AdminProductH.UpdateProduct)
 				adminProducts.DELETE("/:id", c.AdminProductH.DeleteProduct)
 				adminProducts.PUT("/:id/images/reorder", c.AdminProductH.ReorderProductImages)
-				adminProducts.DELETE("/images/:imageId", c.AdminProductH.DeleteProductImage)
-				adminProducts.POST("/:id/variants", c.AdminProductH.AddVariant)
-				adminProducts.PUT("/variants/:variantId", c.AdminProductH.UpdateVariant)
-				adminProducts.DELETE("/variants/:variantId", c.AdminProductH.DeleteVariant)
+			}
+
+			// Image management routes — separate group to avoid httprouter
+			// conflict between static "/images" and param "/:id" on DELETE.
+			adminProductImages := admin.Group("/product-images")
+			adminProductImages.Use(middleware.ImageUploadRateLimit(c.RedisClient))
+			{
+				adminProductImages.DELETE("", c.AdminProductH.DeleteUploadedImage)
+				adminProductImages.DELETE("/:imageId", c.AdminProductH.DeleteProductImage)
 			}
 
 			// Admin Category routes

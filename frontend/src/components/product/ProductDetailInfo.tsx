@@ -1,26 +1,30 @@
 import { Star } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { VariantSelector } from '@/components/product/variant-selector';
-import { Product, ProductVariant } from '@/types';
+import { Product } from '@/types';
 import { formatCurrency } from '@/utils';
 
 interface ProductDetailInfoProps {
   product: Product;
-  selectedVariant: ProductVariant | null;
-  onVariantSelect: (variant: ProductVariant) => void;
+  selectedOptions: Record<string, string>;
+  onOptionSelect: (typeId: string, optionId: string) => void;
   currentPrice: number;
   originalPrice: number;
-  stockQuantity: number;
+  priceAdjustment: number;
+  hasDiscount: boolean;
 }
 
 export function ProductDetailInfo({
   product,
-  selectedVariant,
-  onVariantSelect,
+  selectedOptions,
+  onOptionSelect,
   currentPrice,
   originalPrice,
-  stockQuantity,
+  priceAdjustment,
+  hasDiscount,
 }: ProductDetailInfoProps) {
+  const hasVariantAdjustment = priceAdjustment > 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -45,12 +49,19 @@ export function ProductDetailInfo({
       </div>
 
       {/* Price */}
-      <div className="flex items-baseline gap-3">
-        <span className="text-3xl font-bold">{formatCurrency(currentPrice)}</span>
-        {product.sale_price && (
-          <span className="text-xl text-muted-foreground line-through">
-            {formatCurrency(originalPrice)}
-          </span>
+      <div className="space-y-1">
+        <div className="flex items-baseline gap-3">
+          <span className="text-3xl font-bold">{formatCurrency(currentPrice)}</span>
+          {hasDiscount && originalPrice > currentPrice && (
+            <span className="text-xl text-muted-foreground line-through">
+              {formatCurrency(originalPrice)}
+            </span>
+          )}
+        </div>
+        {hasVariantAdjustment && (
+          <p className="text-sm text-muted-foreground">
+            Includes variant adjustment +{formatCurrency(priceAdjustment)}
+          </p>
         )}
       </div>
 
@@ -62,32 +73,12 @@ export function ProductDetailInfo({
       <Separator />
 
       {/* Variants */}
-      {product.variants && product.variants.length > 0 && (
+      {product.variant_types && product.variant_types.length > 0 && product.combinations && product.combinations.length > 0 && (
         <VariantSelector
-          variants={product.variants.map((v) => ({
-            id: v.id,
-            type: v.variant_type,
-            value: v.variant_value,
-            price_adjustment: v.price_adjustment,
-            stock_quantity: v.stock_quantity,
-            image_url: v.image_url,
-          }))}
-          selectedVariant={
-            selectedVariant
-              ? {
-                  id: selectedVariant.id,
-                  type: selectedVariant.variant_type,
-                  value: selectedVariant.variant_value,
-                  price_adjustment: selectedVariant.price_adjustment,
-                  stock_quantity: selectedVariant.stock_quantity,
-                  image_url: selectedVariant.image_url,
-                }
-              : null
-          }
-          onSelect={(v) => {
-            const variant = product.variants?.find((pv) => pv.id === v.id);
-            if (variant) onVariantSelect(variant);
-          }}
+          variantTypes={product.variant_types}
+          combinations={product.combinations}
+          selectedOptions={selectedOptions}
+          onSelect={onOptionSelect}
         />
       )}
 

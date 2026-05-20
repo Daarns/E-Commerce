@@ -104,19 +104,26 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 		subtotal = subtotal.Add(itemSubtotal)
 
 		orderItem := models.OrderItem{
-			ProductID:   item.ProductID,
-			VariantID:   item.VariantID,
-			ProductName: item.Product.Name,
-			ProductSKU:  item.Product.SKU,
-			Quantity:    item.Quantity,
-			UnitPrice:   item.Price,
-			Subtotal:    itemSubtotal,
+			ProductID:     item.ProductID,
+			CombinationID: item.CombinationID,
+			ProductName:   item.Product.Name,
+			ProductSKU:    item.Product.SKU,
+			Quantity:      item.Quantity,
+			UnitPrice:     item.Price,
+			Subtotal:      itemSubtotal,
 		}
 
-		// Add variant info if present
-		if item.Variant != nil {
-			orderItem.VariantType = item.Variant.VariantType
-			orderItem.VariantValue = item.Variant.VariantValue
+		// Build variant label from combination options
+		if item.Combination != nil && len(item.Combination.Options) > 0 {
+			var typeLabels, valueLabels []string
+			for _, opt := range item.Combination.Options {
+				if opt.VariantType != nil {
+					typeLabels = append(typeLabels, opt.VariantType.Name)
+				}
+				valueLabels = append(valueLabels, opt.Value)
+			}
+			orderItem.VariantType = strings.Join(typeLabels, " / ")
+			orderItem.VariantValue = strings.Join(valueLabels, " / ")
 		}
 
 		orderItems = append(orderItems, orderItem)

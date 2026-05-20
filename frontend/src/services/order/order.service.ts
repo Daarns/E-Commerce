@@ -15,11 +15,20 @@ interface CheckoutResult {
   order: Order;
   snap_token?: string;     // Midtrans Snap token — pass to window.snap.pay()
   redirect_url?: string;   // Midtrans redirect URL — fallback if Snap.js not loaded
+  payment_expires_at?: string;
+}
+
+interface PayOrderResult {
+  snap_token: string;
+  redirect_url?: string;
+  payment_expires_at?: string;
 }
 
 export const orderService = {
   async checkout(input: CheckoutInput): Promise<CheckoutResult> {
-    const response = await api.post<ApiResponse<CheckoutResult>>('/checkout', input);
+    const response = await api.post<ApiResponse<CheckoutResult>>('/checkout', input, {
+      timeout: 30000,
+    });
     return response.data.data!;
   },
 
@@ -44,6 +53,15 @@ export const orderService = {
     return response.data.data!;
   },
 
+  async payOrder(orderId: string, customerEmail?: string): Promise<PayOrderResult> {
+    const response = await api.post<ApiResponse<PayOrderResult>>(
+      `/orders/${orderId}/pay`,
+      customerEmail ? { customer_email: customerEmail } : {},
+      { timeout: 30000 }
+    );
+    return response.data.data!;
+  },
+
   async syncPayment(orderId: string, midtransOrderId?: string): Promise<{
     order_id: string;
     transaction_status: string;
@@ -55,7 +73,11 @@ export const orderService = {
       transaction_status: string;
       payment_status: string;
       updated: boolean;
-    }>>(`/orders/${orderId}/sync-payment`, midtransOrderId ? { midtrans_order_id: midtransOrderId } : {});
+    }>>(
+      `/orders/${orderId}/sync-payment`,
+      midtransOrderId ? { midtrans_order_id: midtransOrderId } : {},
+      { timeout: 30000 }
+    );
     return response.data.data!;
   },
 };

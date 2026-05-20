@@ -1,4 +1,5 @@
 import { Order, OrderItem } from '@/types';
+import { getProductImageForCombination, getProductImageUrl } from './product.utils';
 
 /**
  * Converts flat address fields to nested address object
@@ -63,4 +64,14 @@ export function normalizeOrder(order: Order): Order {
  */
 export function normalizeOrderItems(items: OrderItem[]): OrderItem[] {
   return items.map(normalizeOrderItem);
+}
+
+export function getOrderItemImageUrl(item: OrderItem): string | undefined {
+  if (item.product_image) {
+    return item.product_image;
+  }
+
+  return getProductImageUrl(
+    getProductImageForCombination(item.product?.images, item.combination)
+  );
 }

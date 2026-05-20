@@ -36,11 +36,19 @@ type ImageService struct {
 
 // ImageUploadResult represents the result of an image upload.
 type ImageUploadResult struct {
-	ID           uuid.UUID `json:"id"`
-	URL          string    `json:"url"`
-	AltText      string    `json:"alt_text"`
-	IsPrimary    bool      `json:"is_primary"`
-	DisplayOrder int       `json:"display_order"`
+	ID           uuid.UUID     `json:"id"`
+	URL          string        `json:"url"`
+	AltText      string        `json:"alt_text"`
+	IsPrimary    bool          `json:"is_primary"`
+	DisplayOrder int           `json:"display_order"`
+	Metadata     ImageMetadata `json:"metadata"`
+}
+
+// ImageMetadata contains display metadata derived from the uploaded image.
+type ImageMetadata struct {
+	Width       int     `json:"width"`
+	Height      int     `json:"height"`
+	AspectRatio float64 `json:"aspect_ratio"`
 }
 
 // NewImageService creates an ImageService backed by SeaweedFS (S3-compatible).
@@ -159,6 +167,28 @@ func (s *ImageService) ConvertToWebP(file *multipart.FileHeader, quality float32
 	return buf.Bytes(), nil
 }
 
+// ExtractImageMetadata reads intrinsic dimensions from an uploaded image.
+func (s *ImageService) ExtractImageMetadata(file *multipart.FileHeader) (ImageMetadata, error) {
+	f, err := file.Open()
+	if err != nil {
+		return ImageMetadata{}, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer f.Close()
+
+	config, _, err := image.DecodeConfig(f)
+	if err != nil {
+		return ImageMetadata{}, fmt.Errorf("failed to decode image metadata: %w", err)
+	}
+	metadata := ImageMetadata{
+		Width:  config.Width,
+		Height: config.Height,
+	}
+	if config.Width > 0 && config.Height > 0 {
+		metadata.AspectRatio = float64(config.Width) / float64(config.Height)
+	}
+	return metadata, nil
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Storage
 // ─────────────────────────────────────────────────────────────────────────────
@@ -166,9 +196,23 @@ func (s *ImageService) ConvertToWebP(file *multipart.FileHeader, quality float32
 // SaveImageToStorage converts the image to WebP and saves it.
 // Returns the public URL of the saved image.
 func (s *ImageService) SaveImageToStorage(file *multipart.FileHeader) (string, error) {
+	result, err := s.SaveImageToStorageWithMetadata(file)
+	if err != nil {
+		return "", err
+	}
+	return result.URL, nil
+}
+
+// SaveImageToStorageWithMetadata converts the image to WebP, saves it, and returns image metadata.
+func (s *ImageService) SaveImageToStorageWithMetadata(file *multipart.FileHeader) (*ImageUploadResult, error) {
+	metadata, err := s.ExtractImageMetadata(file)
+	if err != nil {
+		return nil, err
+	}
+
 	webpData, err := s.ConvertToWebP(file, 85)
 	if err != nil {
-		return "", fmt.Errorf("image conversion failed: %w", err)
+		return nil, fmt.Errorf("image conversion failed: %w", err)
 	}
 
 	// Build unique filename
@@ -177,38 +221,48 @@ func (s *ImageService) SaveImageToStorage(file *multipart.FileHeader) (string, e
 	uniqueName := fmt.Sprintf("%d_%s_%s.webp", timestamp, uuid.New().String()[:8], base)
 	objectPath := "products/" + uniqueName
 
+	var imageURL string
 	if s.useSeaweedFS {
-		return s.uploadToSeaweedFS(webpData, objectPath)
+		imageURL, err = s.uploadToSeaweedFS(webpData, objectPath)
+	} else {
+		imageURL, err = s.saveLocally(webpData, uniqueName)
 	}
-	return s.saveLocally(webpData, uniqueName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ImageUploadResult{
+		URL:      imageURL,
+		Metadata: metadata,
+	}, nil
 }
 
 // uploadToSeaweedFS uploads data to SeaweedFS via S3-compatible API.
 // Returns the public URL of the uploaded object.
 func (s *ImageService) uploadToSeaweedFS(data []byte, objectPath string) (string, error) {
-    client, err := minio.New(s.endpoint, &minio.Options{
-        Creds:  credentials.NewStaticV4(s.accessKeyID, s.secretAccessKey, ""),
-        Secure: false,
-    })
-    if err != nil {
-        return "", fmt.Errorf("SeaweedFS client error: %w", err)
-    }
+	client, err := minio.New(s.endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(s.accessKeyID, s.secretAccessKey, ""),
+		Secure: false,
+	})
+	if err != nil {
+		return "", fmt.Errorf("SeaweedFS client error: %w", err)
+	}
 
-    ctx := context.Background()
+	ctx := context.Background()
 
-    // Buat bucket jika belum ada
-    exists, err := client.BucketExists(ctx, s.bucketName)
-    if err != nil {
-        return "", fmt.Errorf("bucket check error: %w", err)
-    }
-    if !exists {
-        if err := client.MakeBucket(ctx, s.bucketName, minio.MakeBucketOptions{}); err != nil {
-            return "", fmt.Errorf("failed to create bucket: %w", err)
-        }
-    }
+	// Buat bucket jika belum ada
+	exists, err := client.BucketExists(ctx, s.bucketName)
+	if err != nil {
+		return "", fmt.Errorf("bucket check error: %w", err)
+	}
+	if !exists {
+		if err := client.MakeBucket(ctx, s.bucketName, minio.MakeBucketOptions{}); err != nil {
+			return "", fmt.Errorf("failed to create bucket: %w", err)
+		}
+	}
 
-    // Selalu set public policy setiap kali — idempotent, aman dipanggil berulang
-    policy := fmt.Sprintf(`{
+	// Selalu set public policy setiap kali — idempotent, aman dipanggil berulang
+	policy := fmt.Sprintf(`{
     "Version":"2012-10-17",
     "Statement":[{
         "Effect":"Allow",
@@ -218,30 +272,31 @@ func (s *ImageService) uploadToSeaweedFS(data []byte, objectPath string) (string
     }]
 }`, s.bucketName)
 
-    if err := client.SetBucketPolicy(ctx, s.bucketName, policy); err != nil {
-        log.Printf("warning: failed to set bucket policy: %v\n", err)
-    }
+	if err := client.SetBucketPolicy(ctx, s.bucketName, policy); err != nil {
+		log.Printf("warning: failed to set bucket policy: %v\n", err)
+	}
 
-    // Upload file
-    _, err = client.PutObject(ctx, s.bucketName, objectPath, bytes.NewReader(data), int64(len(data)),
-        minio.PutObjectOptions{
-            ContentType:  "image/webp",
-            CacheControl: "public, max-age=31536000",
-        },
-    )
-    if err != nil {
-        return "", fmt.Errorf("SeaweedFS upload error: %w", err)
-    }
+	// Upload file
+	_, err = client.PutObject(ctx, s.bucketName, objectPath, bytes.NewReader(data), int64(len(data)),
+		minio.PutObjectOptions{
+			ContentType:  "image/webp",
+			CacheControl: "public, max-age=31536000",
+		},
+	)
+	if err != nil {
+		return "", fmt.Errorf("SeaweedFS upload error: %w", err)
+	}
 
-    return fmt.Sprintf("%s/%s/%s", strings.TrimRight(s.publicBaseURL, "/"), s.bucketName, objectPath), nil
+	return fmt.Sprintf("%s/%s/%s", strings.TrimRight(s.publicBaseURL, "/"), s.bucketName, objectPath), nil
 }
-// CommitImage marks a temp upload as committed in the database
-// db should be *gorm.DB instance
+
+// CommitImage removes a temp upload record after the image is attached to a product.
+// Once product_images owns the URL, temp_uploads should only keep abandoned uploads.
 func (s *ImageService) CommitImage(db *gorm.DB, imageURL string) error {
 	if db == nil {
 		return fmt.Errorf("database connection required to commit image")
 	}
-	return db.Exec("UPDATE upload_temp SET is_committed = true WHERE image_url = ?", imageURL).Error
+	return db.Exec("DELETE FROM temp_uploads WHERE image_url = ?", imageURL).Error
 }
 
 // DeleteFromSeaweedFS removes an object from SeaweedFS given its full public URL.

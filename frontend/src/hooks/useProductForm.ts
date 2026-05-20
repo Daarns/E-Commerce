@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import {
   adminProductService,
   CreateProductRequest,
-  CreateVariantInput,
   UpdateProductRequest,
   AdminProduct,
 } from '@/services/admin';
@@ -12,10 +11,7 @@ import { handleError } from '@/utils/error-handler';
 
 interface UseProductFormReturn {
   isLoading: boolean;
-  handleSubmit: (
-    data: CreateProductRequest | UpdateProductRequest,
-    variants?: CreateVariantInput[]
-  ) => Promise<void>;
+  handleSubmit: (data: CreateProductRequest | UpdateProductRequest) => Promise<void>;
 }
 
 export function useProductForm(mode: 'create' | 'edit'): UseProductFormReturn {
@@ -23,10 +19,7 @@ export function useProductForm(mode: 'create' | 'edit'): UseProductFormReturn {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = useCallback(
-    async (
-      data: CreateProductRequest | UpdateProductRequest,
-      variants: CreateVariantInput[] = []
-    ): Promise<void> => {
+    async (data: CreateProductRequest | UpdateProductRequest): Promise<void> => {
       try {
         setIsLoading(true);
 
@@ -36,9 +29,6 @@ export function useProductForm(mode: 'create' | 'edit'): UseProductFormReturn {
             throw new Error('Invalid product create payload');
           }
           response = await adminProductService.createProduct(data);
-          await Promise.all(
-            variants.map((variant) => adminProductService.addProductVariant(response.id, variant))
-          );
         } else {
           if (!isUpdateProductRequest(data)) {
             throw new Error('Invalid product update payload');

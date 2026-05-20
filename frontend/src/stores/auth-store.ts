@@ -40,11 +40,16 @@ export const useAuthStore = create<AuthState>()(
         
         set({ user: response.user, isAuthenticated: true, isEmailVerified: response.user.is_verified });
         
-        // Merge guest cart after login
-        try {
-          await cartService.mergeGuestCart();
-        } catch {
-          // Ignore merge errors
+        // Merge guest cart after login (only if there was a guest session)
+        const guestSession = Cookies.get('session_id');
+        if (guestSession) {
+          try {
+            await cartService.mergeGuestCart();
+          } catch {
+            // Ignore merge errors — guest cart may be empty or expired
+          } finally {
+            Cookies.remove('session_id');
+          }
         }
       },
 

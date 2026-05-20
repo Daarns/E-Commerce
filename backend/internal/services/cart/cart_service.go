@@ -27,11 +27,11 @@ func NewCartService(cartRepo *repositories.CartRepository, addressRepo *reposito
 
 // AddToCartInput represents add to cart input
 type AddToCartInput struct {
-	UserID    *uuid.UUID `json:"user_id"`
-	SessionID string     `json:"session_id"`
-	ProductID uuid.UUID  `json:"product_id" binding:"required"`
-	VariantID *uuid.UUID `json:"variant_id"`
-	Quantity  int        `json:"quantity" binding:"required,min=1"`
+	UserID        *uuid.UUID `json:"user_id"`
+	SessionID     string     `json:"session_id"`
+	ProductID     uuid.UUID  `json:"product_id" binding:"required"`
+	CombinationID *uuid.UUID `json:"combination_id"`
+	Quantity      int        `json:"quantity" binding:"required,min=1"`
 }
 
 // ===== CART OPERATIONS =====
@@ -54,32 +54,30 @@ func (uc *CartService) AddToCart(input AddToCartInput) (*models.Cart, error) {
 	if err != nil {
 		return nil, fmt.Errorf("product not found")
 	}
-	
+
 	if product.Status != "active" {
 		return nil, fmt.Errorf("product is not available")
 	}
 
 	// Get price
 	price := product.GetCurrentPrice()
-	
-	// If variant specified, validate and get variant price
-	if input.VariantID != nil {
-		variant, err := uc.productRepo.GetVariant(*input.VariantID)
+
+	if input.CombinationID != nil {
+		combination, err := uc.productRepo.GetCombination(*input.CombinationID)
 		if err != nil {
-			return nil, fmt.Errorf("variant not found")
+			return nil, fmt.Errorf("combination not found")
 		}
-		if variant.ProductID != input.ProductID {
-			return nil, fmt.Errorf("variant does not belong to this product")
+		if combination.ProductID != input.ProductID {
+			return nil, fmt.Errorf("combination does not belong to this product")
 		}
-		if !variant.IsActive {
-			return nil, fmt.Errorf("variant is not available")
+		if !combination.IsActive {
+			return nil, fmt.Errorf("combination is not available")
 		}
-		// Add price adjustment
-		price = price.Add(variant.PriceAdjustment)
+		price = price.Add(combination.PriceAdjustment)
 	}
 
 	// Check if item already in cart
-	existingItem, err := uc.cartRepo.FindCartItem(input.UserID, input.SessionID, input.ProductID, input.VariantID)
+	existingItem, err := uc.cartRepo.FindCartItem(input.UserID, input.SessionID, input.ProductID, input.CombinationID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,31 +85,31 @@ func (uc *CartService) AddToCart(input AddToCartInput) (*models.Cart, error) {
 	if existingItem != nil {
 		// Update quantity
 		newQty := existingItem.Quantity + input.Quantity
-		
+
 		// Check stock
-		if err := uc.validateStock(product, input.VariantID, newQty); err != nil {
+		if err := uc.validateStock(product, input.CombinationID, newQty); err != nil {
 			return nil, err
 		}
-		
+
 		if err := uc.cartRepo.UpdateItemQuantity(existingItem.ID, newQty); err != nil {
 			return nil, fmt.Errorf("failed to update cart: %w", err)
 		}
 	} else {
 		// Check stock
-		if err := uc.validateStock(product, input.VariantID, input.Quantity); err != nil {
+		if err := uc.validateStock(product, input.CombinationID, input.Quantity); err != nil {
 			return nil, err
 		}
-		
+
 		// Add new item
 		item := &models.CartItem{
-			UserID:    input.UserID,
-			SessionID: input.SessionID,
-			ProductID: input.ProductID,
-			VariantID: input.VariantID,
-			Quantity:  input.Quantity,
-			Price:     price,
+			UserID:        input.UserID,
+			SessionID:     input.SessionID,
+			ProductID:     input.ProductID,
+			CombinationID: input.CombinationID,
+			Quantity:      input.Quantity,
+			Price:         price,
 		}
-		
+
 		if err := uc.cartRepo.AddItem(item); err != nil {
 			return nil, fmt.Errorf("failed to add to cart: %w", err)
 		}
@@ -121,11 +119,11 @@ func (uc *CartService) AddToCart(input AddToCartInput) (*models.Cart, error) {
 }
 
 // validateStock checks if requested quantity is available
-func (uc *CartService) validateStock(product *models.Product, variantID *uuid.UUID, quantity int) error {
-	if variantID != nil {
-		variant, _ := uc.productRepo.GetVariant(*variantID)
-		if variant != nil && !variant.HasSufficientStock(quantity) {
-			return fmt.Errorf("insufficient stock: only %d available", variant.StockQuantity)
+func (uc *CartService) validateStock(product *models.Product, combinationID *uuid.UUID, quantity int) error {
+	if combinationID != nil {
+		combination, _ := uc.productRepo.GetCombination(*combinationID)
+		if combination != nil && !combination.HasSufficientStock(quantity) {
+			return fmt.Errorf("insufficient stock: only %d available", combination.StockQuantity)
 		}
 	} else {
 		if !product.HasSufficientStock(quantity) {
@@ -158,11 +156,11 @@ func (uc *CartService) UpdateCartItem(itemID uuid.UUID, quantity int, userID *uu
 		if err != nil {
 			return nil, err
 		}
-		
-		if err := uc.validateStock(product, item.VariantID, quantity); err != nil {
+
+		if err := uc.validateStock(product, item.CombinationID, quantity); err != nil {
 			return nil, err
 		}
-		
+
 		if err := uc.cartRepo.UpdateItemQuantity(itemID, quantity); err != nil {
 			return nil, fmt.Errorf("failed to update quantity: %w", err)
 		}
@@ -206,11 +204,11 @@ func (uc *CartService) MergeGuestCart(userID uuid.UUID, sessionID string) (*mode
 	if sessionID == "" {
 		return uc.GetCart(&userID, "")
 	}
-	
+
 	if err := uc.cartRepo.MergeGuestCart(userID, sessionID); err != nil {
 		return nil, fmt.Errorf("failed to merge cart: %w", err)
 	}
-	
+
 	return uc.GetCart(&userID, "")
 }
 
@@ -226,15 +224,15 @@ func (uc *CartService) RefreshCartPrices(userID *uuid.UUID, sessionID string) (*
 		if err != nil {
 			continue // Skip unavailable products
 		}
-		
+
 		currentPrice := product.GetCurrentPrice()
-		if item.VariantID != nil {
-			variant, _ := uc.productRepo.GetVariant(*item.VariantID)
-			if variant != nil {
-				currentPrice = currentPrice.Add(variant.PriceAdjustment)
+		if item.CombinationID != nil {
+			combination, _ := uc.productRepo.GetCombination(*item.CombinationID)
+			if combination != nil {
+				currentPrice = currentPrice.Add(combination.PriceAdjustment)
 			}
 		}
-		
+
 		if !item.Price.Equal(currentPrice) {
 			uc.cartRepo.UpdateItemPrice(item.ID, currentPrice)
 		}
@@ -254,7 +252,7 @@ func (uc *CartService) GetCartSummary(userID *uuid.UUID, sessionID string) (*Car
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &CartSummary{
 		ItemCount: cart.ItemCount,
 		Subtotal:  cart.Subtotal,
@@ -271,6 +269,3 @@ func (uc *CartService) verifyCartOwnership(item *models.CartItem, userID *uuid.U
 	}
 	return false
 }
-
-
-

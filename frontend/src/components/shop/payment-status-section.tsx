@@ -5,18 +5,15 @@ import {
   PAYMENT_STATUS_PANEL_COLORS,
 } from '@/constants/order.constants';
 import { Order, PaymentStatus } from '@/types';
+import { formatCurrency, getPaymentExpiryLabel, toNum } from '@/utils';
 import { AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react';
-
-const formatPrice = (price: string | number | undefined): number => {
-  if (typeof price === 'number') return price;
-  return parseFloat(String(price || 0)) || 0;
-};
 
 function getPaymentStatusIcon(status: PaymentStatus) {
   switch (status) {
     case 'paid':
       return <CheckCircle className="w-5 h-5 text-green-500" />;
     case 'unpaid':
+    case 'pending_payment':
       return <Clock className="w-5 h-5 text-yellow-500" />;
     case 'failed':
       return <XCircle className="w-5 h-5 text-red-500" />;
@@ -34,6 +31,8 @@ function getPaymentStatusColor(status: PaymentStatus): string {
 }
 
 export function PaymentStatusSection({ order }: { order: Order }) {
+  const paymentExpiryLabel = getPaymentExpiryLabel(order);
+
   return (
     <div className={`rounded-lg border p-6 ${getPaymentStatusColor(order.payment_status)}`}>
       <div className="flex items-start justify-between">
@@ -60,8 +59,15 @@ export function PaymentStatusSection({ order }: { order: Order }) {
               <div>
                 <p className="text-sm text-gray-600">Total Amount Paid</p>
                 <p className="font-medium text-lg">
-                  Rp {(typeof (order.total_amount || order.total) === 'number' ? (order.total_amount || order.total) : parseFloat(String(order.total_amount || order.total || 0))).toLocaleString('id-ID')}
+                  {formatCurrency(toNum(order.total_amount ?? order.total))}
                 </p>
+              </div>
+            )}
+
+            {paymentExpiryLabel && (
+              <div>
+                <p className="text-sm text-gray-600">Payment Expiry</p>
+                <p className="font-medium">{paymentExpiryLabel}</p>
               </div>
             )}
           </div>
@@ -73,27 +79,27 @@ export function PaymentStatusSection({ order }: { order: Order }) {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">Subtotal</span>
-              <span>Rp {formatPrice(order.subtotal).toLocaleString('id-ID')}</span>
+              <span>{formatCurrency(toNum(order.subtotal))}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Shipping</span>
-              <span>Rp {formatPrice(order.shipping_cost).toLocaleString('id-ID')}</span>
+              <span>{formatCurrency(toNum(order.shipping_cost))}</span>
             </div>
-            {formatPrice(order.discount_amount) > 0 && (
+            {toNum(order.discount_amount) > 0 && (
               <div className="flex justify-between text-green-600">
                 <span>Discount</span>
-                <span>-Rp {formatPrice(order.discount_amount).toLocaleString('id-ID')}</span>
+                <span>-{formatCurrency(toNum(order.discount_amount))}</span>
               </div>
             )}
-            {formatPrice(order.tax_amount) > 0 && (
+            {toNum(order.tax_amount) > 0 && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Tax</span>
-                <span>Rp {formatPrice(order.tax_amount).toLocaleString('id-ID')}</span>
+                <span>{formatCurrency(toNum(order.tax_amount))}</span>
               </div>
             )}
             <div className="border-t pt-2 flex justify-between font-semibold">
               <span>Total</span>
-              <span>Rp {formatPrice(order.total_amount || order.total).toLocaleString('id-ID')}</span>
+              <span>{formatCurrency(toNum(order.total_amount ?? order.total))}</span>
             </div>
           </div>
         </div>

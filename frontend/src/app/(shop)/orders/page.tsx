@@ -33,7 +33,7 @@ function OrdersPageContent() {
 
   const ordersList = useOrdersList(isAuthenticated);
   const orderActions = useOrderActions();
-  const { pay: payWithMidtrans } = useMidtransPaymentModal();
+  const { pay: payWithMidtrans, snapLoadError } = useMidtransPaymentModal();
 
   const handlePayOrder = async (order: Order) => {
     if (!user?.email) return;
@@ -51,9 +51,12 @@ function OrdersPageContent() {
           setSelectedOrder(null);
         },
         onError: () => toast.error('Pembayaran gagal. Silakan coba lagi.'),
+        onClose: () => toast.info('Popup pembayaran ditutup. Anda masih bisa melanjutkan pembayaran dari halaman order.'),
       });
-      if (!success) {
-        toast.error('Gagal membuka Midtrans Snap');
+      if (!success && result.redirectUrl) {
+        window.location.href = result.redirectUrl;
+      } else if (!success) {
+        toast.error(snapLoadError ?? 'Gagal membuka Midtrans Snap');
       }
     }
   };

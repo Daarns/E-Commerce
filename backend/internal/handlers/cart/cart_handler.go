@@ -26,7 +26,7 @@ func NewCartHandler(useCase *cart.CartService) *CartHandler {
 // GET /api/v1/cart
 func (h *CartHandler) GetCart(c *gin.Context) {
 	userID, sessionID := h.getCartIdentifiers(c)
-	
+
 	result, err := h.useCase.GetCart(userID, sessionID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "GET_CART_FAILED", err.Error())
@@ -42,21 +42,23 @@ func (h *CartHandler) AddToCart(c *gin.Context) {
 	userID, sessionID := h.getCartIdentifiers(c)
 
 	var input struct {
-		ProductID uuid.UUID  `json:"product_id" binding:"required"`
-		VariantID *uuid.UUID `json:"variant_id"`
-		Quantity  int        `json:"quantity" binding:"required,min=1"`
+		ProductID     uuid.UUID  `json:"product_id" binding:"required"`
+		CombinationID *uuid.UUID `json:"combination_id"`
+		Quantity      int        `json:"quantity" binding:"required,min=1"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return
 	}
 
+	combinationID := input.CombinationID
+
 	addInput := cart.AddToCartInput{
-		UserID:    userID,
-		SessionID: sessionID,
-		ProductID: input.ProductID,
-		VariantID: input.VariantID,
-		Quantity:  input.Quantity,
+		UserID:        userID,
+		SessionID:     sessionID,
+		ProductID:     input.ProductID,
+		CombinationID: combinationID,
+		Quantity:      input.Quantity,
 	}
 
 	result, err := h.useCase.AddToCart(addInput)
@@ -185,8 +187,6 @@ func (h *CartHandler) RefreshCartPrices(c *gin.Context) {
 	response.Success(c, result)
 }
 
-
-
 // ===== HELPER METHODS =====
 
 // getCartIdentifiers extracts user ID or session ID from context
@@ -216,4 +216,3 @@ func getIntQuery(c *gin.Context, key string, defaultValue int) int {
 	}
 	return defaultValue
 }
-

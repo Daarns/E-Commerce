@@ -1,7 +1,7 @@
 'use client';
 
-import { PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { Order } from '@/types';
+import { getOrderItemImageUrl } from '@/utils';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -18,47 +18,53 @@ export function OrderItemsList({ order }: { order: Order }) {
       </div>
 
       <div className="divide-y">
-        {order.items.map((item) => (
-          <div key={item.id} className="p-6 flex gap-4">
-            {/* Product Image */}
-            <div className="relative w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-              <Image
-                src={item.product_image || PLACEHOLDER_PRODUCT_IMAGE}
-                alt={item.product_name}
-                fill
-                className="object-cover"
-              />
-            </div>
+        {order.items.map((item) => {
+          const imageUrl = getOrderItemImageUrl(item);
 
-            {/* Product Details */}
-            <div className="flex-1">
-              <Link
-                href={`/products/${item.product_id}`}
-                className="font-medium text-gray-900 hover:text-blue-600 transition-colors"
-              >
-                {item.product_name}
-              </Link>
-              
-              <p className="text-sm text-gray-500 mt-1">
-                Quantity: <span className="font-medium">{item.quantity}</span>
-              </p>
-              
-              <p className="text-sm text-gray-500 mt-1">
-                Unit Price: <span className="font-medium">Rp {formatPrice(item.unit_price).toLocaleString('id-ID')}</span>
-              </p>
-            </div>
+          return (
+            <div key={item.id} className="p-6 flex gap-4">
+              {/* Product Image */}
+              <div className="relative w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                {imageUrl && (
+                  <Image
+                    src={imageUrl}
+                    alt={item.product_name}
+                    fill
+                    className="object-cover"
+                  />
+                )}
+              </div>
 
-            {/* Price */}
-            <div className="text-right">
-              <p className="font-medium text-gray-900">
-                Rp {formatPrice(item.total_price).toLocaleString('id-ID')}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {item.quantity} × Rp {formatPrice(item.unit_price).toLocaleString('id-ID')}
-              </p>
+              {/* Product Details */}
+              <div className="flex-1">
+                <Link
+                  href={`/products/${item.product_id}`}
+                  className="font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                >
+                  {item.product_name}
+                </Link>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  Quantity: <span className="font-medium">{item.quantity}</span>
+                </p>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  Unit Price: <span className="font-medium">Rp {formatPrice(item.unit_price).toLocaleString('id-ID')}</span>
+                </p>
+              </div>
+
+              {/* Price */}
+              <div className="text-right">
+                <p className="font-medium text-gray-900">
+                  Rp {formatPrice(item.total_price).toLocaleString('id-ID')}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {item.quantity} × Rp {formatPrice(item.unit_price).toLocaleString('id-ID')}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Items Summary */}

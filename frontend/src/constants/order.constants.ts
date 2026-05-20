@@ -75,6 +75,7 @@ export const SHOP_ORDER_STATUS_BADGE_COLORS: Record<OrderStatus, string> = {
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   paid: 'Paid',
   unpaid: 'Unpaid',
+  pending_payment: 'Pending Payment',
   failed: 'Failed',
   refunded: 'Refunded',
   expired: 'Expired',
@@ -83,6 +84,7 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
 export const PAYMENT_STATUS_BADGE_COLORS: Record<PaymentStatus, string> = {
   paid: 'bg-green-100 text-green-800',
   unpaid: 'bg-yellow-100 text-yellow-800',
+  pending_payment: 'bg-yellow-100 text-yellow-800',
   failed: 'bg-red-100 text-red-800',
   refunded: 'bg-blue-100 text-blue-800',
   expired: 'bg-red-100 text-red-800',
@@ -91,6 +93,7 @@ export const PAYMENT_STATUS_BADGE_COLORS: Record<PaymentStatus, string> = {
 export const PAYMENT_STATUS_PANEL_COLORS: Record<PaymentStatus, string> = {
   paid: 'bg-green-50 border-green-200',
   unpaid: 'bg-yellow-50 border-yellow-200',
+  pending_payment: 'bg-yellow-50 border-yellow-200',
   failed: 'bg-red-50 border-red-200',
   refunded: 'bg-blue-50 border-blue-200',
   expired: 'bg-red-50 border-red-200',
@@ -109,6 +112,7 @@ export const ADMIN_ORDER_STATUS_FILTER_OPTIONS = [
 export const ADMIN_PAYMENT_STATUS_FILTER_OPTIONS = [
   { value: 'paid', label: PAYMENT_STATUS_LABELS.paid },
   { value: 'unpaid', label: PAYMENT_STATUS_LABELS.unpaid },
+  { value: 'pending_payment', label: PAYMENT_STATUS_LABELS.pending_payment },
   { value: 'failed', label: PAYMENT_STATUS_LABELS.failed },
   { value: 'refunded', label: PAYMENT_STATUS_LABELS.refunded },
   { value: 'expired', label: PAYMENT_STATUS_LABELS.expired },

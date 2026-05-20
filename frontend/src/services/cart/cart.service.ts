@@ -3,7 +3,7 @@ import { ApiResponse, Cart, CartItem } from '@/types';
 
 interface AddToCartInput {
   product_id: string;
-  variant_id?: string;
+  combination_id?: string;
   quantity: number;
 }
 

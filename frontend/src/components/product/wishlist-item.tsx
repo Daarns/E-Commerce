@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { OUT_OF_STOCK_LABEL, PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { useWishlistItem } from '@/hooks/useWishlistItem';
 import { Product } from '@/types';
-import { formatCurrency } from '@/utils';
+import { formatCurrency, getProductImageUrl } from '@/utils';
 
 interface WishlistItemProps {
   wishlistId: string;
@@ -43,7 +43,7 @@ export function WishlistItem({ wishlistId, product, index = 0 }: WishlistItemPro
             <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
               {/* Main Image */}
               <Image
-                src={product.images?.[0]?.url || PLACEHOLDER_PRODUCT_IMAGE}
+                src={getProductImageUrl(product.images?.[0]) ?? PLACEHOLDER_PRODUCT_IMAGE}
                 alt={product.name}
                 fill
                 className={`object-cover transition-all duration-500 ${

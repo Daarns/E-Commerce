@@ -10,6 +10,8 @@ import {
   ChevronUp,
   ChevronDown,
   Loader2,
+  MoreVertical,
+  Package,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -30,6 +32,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { AdminProduct, ProductFilters } from '@/services/admin';
 import { LOW_STOCK_THRESHOLD, PRODUCT_STOCK_STATUS } from '@/constants/product.constants';
 import { formatCurrency } from '@/utils';
@@ -49,6 +57,10 @@ const getStockStatus = (stock: number): { label: string; variant: 'default' | 's
   if (stock === 0) return PRODUCT_STOCK_STATUS.outOfStock;
   if (stock < LOW_STOCK_THRESHOLD) return PRODUCT_STOCK_STATUS.lowStock;
   return PRODUCT_STOCK_STATUS.inStock;
+};
+
+const getFirstImageUrl = (imageUrls?: string[]): string | null => {
+  return imageUrls?.find((url) => typeof url === 'string' && url.trim().length > 0) ?? null;
 };
 
 export function ProductTable({
@@ -127,6 +139,7 @@ export function ProductTable({
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
+          <Package className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
           <p className="text-muted-foreground">No products found</p>
           <p className="text-sm text-muted-foreground mt-1">Try adjusting your filters</p>
         </div>
@@ -136,7 +149,8 @@ export function ProductTable({
 
   return (
     <>
-      <div className="border rounded-lg overflow-hidden">
+      {/* ── Desktop Table (hidden on mobile) ── */}
+      <div className="hidden md:block border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -179,6 +193,7 @@ export function ProductTable({
             {products.map((product, idx) => {
               const stockStatus = getStockStatus(product.stock_quantity);
               const isSelected = selectedIds.has(product.id);
+              const imageUrl = getFirstImageUrl(product.image_urls);
 
               return (
                 <motion.tr
@@ -196,16 +211,15 @@ export function ProductTable({
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      {product.image_urls && product.image_urls.length > 0 && (
+                      {imageUrl ? (
                         <Image
-                          src={product.image_urls[0]}
+                          src={imageUrl}
                           alt={product.name}
                           width={40}
                           height={40}
                           className="w-10 h-10 rounded object-cover"
                         />
-                      )}
-                      {(!product.image_urls || product.image_urls.length === 0) && (
+                      ) : (
                         <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
                           <span className="text-xs text-muted-foreground">No image</span>
                         </div>
@@ -282,6 +296,96 @@ export function ProductTable({
             })}
           </TableBody>
         </Table>
+      </div>
+
+      {/* ── Mobile Card Layout (hidden on desktop) ── */}
+      <div className="md:hidden space-y-3">
+        {products.map((product, idx) => {
+          const stockStatus = getStockStatus(product.stock_quantity);
+          const imageUrl = getFirstImageUrl(product.image_urls);
+
+          return (
+            <motion.div
+              key={product.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.03 }}
+              className="border rounded-lg p-3 space-y-3"
+            >
+              {/* Top row: image + name + actions */}
+              <div className="flex items-start gap-3">
+                {imageUrl ? (
+                  <Image
+                    src={imageUrl}
+                    alt={product.name}
+                    width={56}
+                    height={56}
+                    className="w-14 h-14 rounded-md object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                    <Package className="w-5 h-5 text-muted-foreground/50" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm line-clamp-2">{product.name}</p>
+                  {product.sku && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{product.sku}</p>
+                  )}
+                  {product.category_name && (
+                    <p className="text-xs text-muted-foreground">{product.category_name}</p>
+                  )}
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onView(product)}>
+                      <Eye className="w-4 h-4 mr-2" />
+                      View
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onEdit(product)}>
+                      <Edit2 className="w-4 h-4 mr-2" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setDeleteConfirm(product.id)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Bottom row: price + stock + status */}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t">
+                <div>
+                  <p className="font-semibold text-sm">{formatCurrency(product.price)}</p>
+                  {(product.discount_percentage ?? 0) > 0 && (
+                    <span className="text-xs text-amber-600">-{product.discount_percentage}%</span>
+                  )}
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium">{product.stock_quantity}</p>
+                  <p className="text-[10px] text-muted-foreground">stock</p>
+                </div>
+                <div className="flex gap-1">
+                  <Badge variant={product.is_active ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
+                    {product.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                  <Badge variant={stockStatus.variant} className="text-[10px] px-1.5 py-0">
+                    {stockStatus.label}
+                  </Badge>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
       {/* Bulk Actions Bar */}
