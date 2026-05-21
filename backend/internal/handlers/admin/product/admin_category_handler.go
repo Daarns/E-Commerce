@@ -1,9 +1,11 @@
 package product
 
 import (
+	"ecommerce-backend/internal/repositories"
 	"ecommerce-backend/internal/services/product"
 	"ecommerce-backend/pkg/response"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -17,6 +19,24 @@ type AdminCategoryHandler struct {
 // NewAdminCategoryHandler creates a new admin category handler
 func NewAdminCategoryHandler(useCase *product.CategoryService) *AdminCategoryHandler {
 	return &AdminCategoryHandler{useCase: useCase}
+}
+
+func (h *AdminCategoryHandler) ListCategories(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	status := c.DefaultQuery("status", "all")
+
+	result, err := h.useCase.ListAdminCategories(repositories.CategoryListFilter{
+		Status: status,
+		Page:   page,
+		Limit:  limit,
+	})
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "LIST_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, result)
 }
 
 // CreateCategory handles category creation

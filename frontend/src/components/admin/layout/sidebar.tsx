@@ -4,13 +4,17 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useCallback, createContext, useContext } from 'react';
 import {
+  ChevronDown,
   LayoutDashboard,
+  List,
   Package,
+  PlusCircle,
   ShoppingCart,
   Users,
   BarChart3,
   Settings,
   Ticket,
+  FolderTree,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -104,7 +108,16 @@ export function BurgerButton({ className }: { className?: string }) {
 // ─── Nav items ────────────────────────────────────────────────────────────────
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-  { label: 'Products', href: '/admin/products', icon: Package },
+  {
+    label: 'Catalog',
+    href: '/admin/products',
+    icon: Package,
+    children: [
+      { label: 'All Products', href: '/admin/products', icon: List },
+      { label: 'Add Product', href: '/admin/products/create', icon: PlusCircle },
+      { label: 'Categories', href: '/admin/products/categories', icon: FolderTree },
+    ],
+  },
   { label: 'Orders', href: '/admin/orders', icon: ShoppingCart },
   { label: 'Users', href: '/admin/users', icon: Users },
   { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
@@ -112,10 +125,29 @@ const navItems = [
   { label: 'Settings', href: '/admin/settings', icon: Settings },
 ];
 
+function getActiveChildHref(
+  pathname: string,
+  children: Array<{ href: string }>
+): string | null {
+  const exactMatch = children.find((child) => pathname === child.href);
+  if (exactMatch) return exactMatch.href;
+
+  const prefixMatches = children
+    .filter((child) => pathname.startsWith(child.href + '/'))
+    .sort((first, second) => second.href.length - first.href.length);
+
+  return prefixMatches[0]?.href ?? null;
+}
+
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 export function AdminSidebar() {
   const pathname = usePathname();
   const { isCollapsed, isMobileOpen, closeMobile } = useSidebar();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ Catalog: true });
+
+  const toggleGroup = useCallback((label: string): void => {
+    setOpenGroups((previous) => ({ ...previous, [label]: !previous[label] }));
+  }, []);
 
   return (
     <>
@@ -172,10 +204,90 @@ export function AdminSidebar() {
         <nav className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
+            const children = 'children' in item ? item.children : undefined;
+            const hasChildren = Array.isArray(children) && children.length > 0;
+            const activeChildHref = hasChildren ? getActiveChildHref(pathname, children) : null;
             const isActive =
               item.href === '/admin'
                 ? pathname === '/admin'
-                : pathname === item.href || pathname.startsWith(item.href + '/');
+                : hasChildren
+                  ? activeChildHref !== null
+                  : pathname === item.href || pathname.startsWith(item.href + '/');
+            const isOpen = hasChildren && openGroups[item.label] !== false;
+
+            if (hasChildren) {
+              return (
+                <div key={item.href} className="space-y-0.5">
+                  <button
+                    type="button"
+                    title={isCollapsed ? item.label : undefined}
+                    onClick={() => (isCollapsed ? closeMobile() : toggleGroup(item.label))}
+                    className={cn(
+                      'group relative flex w-full items-center rounded-md',
+                      isCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5',
+                      isActive
+                        ? 'bg-primary/10 text-foreground'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                      'transition-colors duration-150'
+                    )}
+                  >
+                    {isActive && (
+                      <span className="absolute left-0 inset-y-[20%] w-[3px] rounded-r-full bg-primary" />
+                    )}
+                    <Icon className="h-[18px] w-[18px] shrink-0" />
+                    <span className={cn(
+                      'text-sm font-medium whitespace-nowrap overflow-hidden leading-none',
+                      'transition-[max-width,opacity] duration-200 ease-in-out',
+                      isCollapsed ? 'max-w-0 opacity-0' : 'max-w-[130px] opacity-100'
+                    )}>
+                      {item.label}
+                    </span>
+                    {!isCollapsed && (
+                      <ChevronDown className={cn(
+                        'ml-auto h-4 w-4 transition-transform',
+                        isOpen && 'rotate-180'
+                      )} />
+                    )}
+                    {isCollapsed && (
+                      <span className={cn(
+                        'pointer-events-none absolute left-full ml-2 z-50 hidden md:block',
+                        'rounded-md bg-popover text-popover-foreground border border-border',
+                        'px-2.5 py-1 text-xs font-medium shadow-md whitespace-nowrap',
+                        'opacity-0 group-hover:opacity-100 transition-opacity duration-150'
+                      )}>
+                        {item.label}
+                      </span>
+                    )}
+                  </button>
+
+                  {!isCollapsed && isOpen && (
+                    <div className="ml-4 border-l border-border/70 pl-2 space-y-0.5">
+                      {children.map((child) => {
+                        const ChildIcon = child.icon;
+                        const childActive = activeChildHref === child.href;
+
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            onClick={closeMobile}
+                            className={cn(
+                              'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                              childActive
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                            )}
+                          >
+                            <ChildIcon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
             return (
               <Link

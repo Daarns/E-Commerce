@@ -34,11 +34,11 @@ type CreateCategoryInput struct {
 
 // UpdateCategoryInput represents category update input
 type UpdateCategoryInput struct {
-	Name        *string    `json:"name,omitempty"`
-	Description *string    `json:"description,omitempty"`
-	ParentID    *uuid.UUID `json:"parent_id,omitempty"`
-	ImageURL    *string    `json:"image_url,omitempty"`
-	IsActive    *bool      `json:"is_active,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	ParentID    *string `json:"parent_id,omitempty"`
+	ImageURL    *string `json:"image_url,omitempty"`
+	IsActive    *bool   `json:"is_active,omitempty"`
 }
 
 // CreateCategory creates a new category
@@ -81,6 +81,10 @@ func (uc *CategoryService) ListCategories() ([]models.Category, error) {
 	return uc.categoryRepo.GetAll()
 }
 
+func (uc *CategoryService) ListAdminCategories(filter repositories.CategoryListFilter) (*repositories.CategoryListResult, error) {
+	return uc.categoryRepo.ListAdmin(filter)
+}
+
 // GetRootCategories retrieves root categories
 func (uc *CategoryService) GetRootCategories() ([]models.Category, error) {
 	return uc.categoryRepo.GetRootCategories()
@@ -116,26 +120,34 @@ func (uc *CategoryService) UpdateCategory(id uuid.UUID, input UpdateCategoryInpu
 		}
 		category.Slug = models.GenerateUniqueSlug(category.Slug, filteredSlugs)
 	}
-	
+
 	if input.Description != nil {
 		category.Description = strings.TrimSpace(*input.Description)
 	}
-	
+
 	if input.ParentID != nil {
-		// Validate parent
-		if *input.ParentID != uuid.Nil {
-			_, err := uc.categoryRepo.GetByID(*input.ParentID)
-			if err != nil {
+		parentID := strings.TrimSpace(*input.ParentID)
+		if parentID == "" {
+			category.ParentID = nil
+		} else {
+			parsedParentID, parseErr := uuid.Parse(parentID)
+			if parseErr != nil {
+				return nil, fmt.Errorf("invalid parent category id")
+			}
+			if parsedParentID == id {
+				return nil, fmt.Errorf("category cannot be its own parent")
+			}
+			if _, err := uc.categoryRepo.GetByID(parsedParentID); err != nil {
 				return nil, fmt.Errorf("invalid parent category: %w", err)
 			}
+			category.ParentID = &parsedParentID
 		}
-		category.ParentID = input.ParentID
 	}
-	
+
 	if input.ImageURL != nil {
 		category.ImageURL = *input.ImageURL
 	}
-	
+
 	if input.IsActive != nil {
 		category.IsActive = *input.IsActive
 	}
@@ -157,10 +169,10 @@ func (uc *CategoryService) DeleteCategory(id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if result.Total > 0 {
 		return fmt.Errorf("cannot delete category with %d products", result.Total)
 	}
-	
+
 	return uc.categoryRepo.Delete(id)
 }

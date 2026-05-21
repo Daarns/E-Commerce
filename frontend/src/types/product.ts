@@ -75,8 +75,11 @@ export interface Category {
   description?: string;
   image_url?: string;
   parent_id?: string;
+  is_active?: boolean;
   children?: Category[];
   product_count?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ProductFilter {

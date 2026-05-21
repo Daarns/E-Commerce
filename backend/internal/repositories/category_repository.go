@@ -13,6 +13,28 @@ type CategoryRepository struct {
 	db *gorm.DB
 }
 
+type CategoryListFilter struct {
+	Status string
+	Page   int
+	Limit  int
+}
+
+type CategoryStats struct {
+	Total    int64 `json:"total"`
+	Active   int64 `json:"active"`
+	Inactive int64 `json:"inactive"`
+	Root     int64 `json:"root"`
+}
+
+type CategoryListResult struct {
+	Categories []models.Category `json:"categories"`
+	Total      int64             `json:"total"`
+	Page       int               `json:"page"`
+	Limit      int               `json:"limit"`
+	TotalPages int               `json:"total_pages"`
+	Stats      CategoryStats     `json:"stats"`
+}
+
 // NewCategoryRepository creates a new category repository
 func NewCategoryRepository(db *gorm.DB) *CategoryRepository {
 	return &CategoryRepository{db: db}
@@ -24,14 +46,14 @@ func (r *CategoryRepository) Create(category *models.Category) error {
 	if category.Slug == "" {
 		category.Slug = models.GenerateSlug(category.Name)
 	}
-	
+
 	// Check for slug conflict
 	existingSlugs, err := r.GetAllSlugs()
 	if err != nil {
 		return fmt.Errorf("failed to check existing slugs: %w", err)
 	}
 	category.Slug = models.GenerateUniqueSlug(category.Slug, existingSlugs)
-	
+
 	return r.db.Create(category).Error
 }
 
@@ -68,6 +90,81 @@ func (r *CategoryRepository) GetAll() ([]models.Category, error) {
 	return categories, err
 }
 
+func (r *CategoryRepository) ListAdmin(filter CategoryListFilter) (*CategoryListResult, error) {
+	page := filter.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := filter.Limit
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	query := r.db.Model(&models.Category{})
+	switch filter.Status {
+	case "active":
+		query = query.Where("is_active = ?", true)
+	case "inactive":
+		query = query.Where("is_active = ?", false)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var categories []models.Category
+	if err := query.
+		Order("parent_id NULLS FIRST").
+		Order("name ASC").
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Find(&categories).Error; err != nil {
+		return nil, err
+	}
+
+	stats, err := r.GetAdminStats()
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = int((total + int64(limit) - 1) / int64(limit))
+	}
+
+	return &CategoryListResult{
+		Categories: categories,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+		Stats:      stats,
+	}, nil
+}
+
+func (r *CategoryRepository) GetAdminStats() (CategoryStats, error) {
+	var stats CategoryStats
+
+	if err := r.db.Model(&models.Category{}).Count(&stats.Total).Error; err != nil {
+		return stats, err
+	}
+	if err := r.db.Model(&models.Category{}).Where("is_active = ?", true).Count(&stats.Active).Error; err != nil {
+		return stats, err
+	}
+	if err := r.db.Model(&models.Category{}).Where("is_active = ?", false).Count(&stats.Inactive).Error; err != nil {
+		return stats, err
+	}
+	if err := r.db.Model(&models.Category{}).Where("parent_id IS NULL").Count(&stats.Root).Error; err != nil {
+		return stats, err
+	}
+
+	return stats, nil
+}
+
 // GetRootCategories retrieves all root categories (no parent)
 func (r *CategoryRepository) GetRootCategories() ([]models.Category, error) {
 	var categories []models.Category
@@ -88,12 +185,12 @@ func (r *CategoryRepository) GetWithChildren(id uuid.UUID) (*models.Category, []
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	children, err := r.GetChildren(id)
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	return category, children, nil
 }
 
@@ -128,20 +225,20 @@ func (r *CategoryRepository) GetCategoryTree() ([]CategoryTreeNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return buildCategoryTree(categories, nil), nil
 }
 
 // CategoryTreeNode represents a category with nested children
 type CategoryTreeNode struct {
-	Category models.Category     `json:"category"`
+	Category models.Category    `json:"category"`
 	Children []CategoryTreeNode `json:"children,omitempty"`
 }
 
 // buildCategoryTree recursively builds category tree
 func buildCategoryTree(categories []models.Category, parentID *uuid.UUID) []CategoryTreeNode {
 	var tree []CategoryTreeNode
-	
+
 	for _, cat := range categories {
 		// Check if this category belongs to current parent
 		if (parentID == nil && cat.ParentID == nil) ||
@@ -153,6 +250,6 @@ func buildCategoryTree(categories []models.Category, parentID *uuid.UUID) []Cate
 			tree = append(tree, node)
 		}
 	}
-	
+
 	return tree
 }

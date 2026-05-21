@@ -4,6 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import type { CreateProductRequest } from '@/services/admin';
 import type { ProductFormErrors } from '@/hooks/useAdminProductForm';
@@ -15,7 +22,6 @@ interface ProductSidebarSectionProps {
   errors: ProductFormErrors;
   isEdit: boolean;
   isLoading: boolean;
-  selectClassName: string;
   discountPercent: number;
   onFieldChange: <K extends keyof CreateProductRequest>(field: K, value: CreateProductRequest[K]) => void;
   onDiscountPercentChange: (value: number) => void;
@@ -26,14 +32,13 @@ export function ProductSidebarSection({
   errors,
   isEdit,
   isLoading,
-  selectClassName,
   discountPercent,
   onFieldChange,
   onDiscountPercentChange,
 }: ProductSidebarSectionProps) {
   const [seoOpen, setSeoOpen] = useState(false);
 
-  const handleStatusChange = (value: string): void => {
+  const handleStatusChange = (value: string | null): void => {
     switch (value) {
       case 'active':
       case 'draft':
@@ -182,17 +187,24 @@ export function ProductSidebarSection({
                 <Label htmlFor="status" className="text-xs">
                   Status
                 </Label>
-                <select
-                  id="status"
+                <Select
                   value={formData.status ?? 'active'}
-                  onChange={(event) => handleStatusChange(event.target.value)}
+                  onValueChange={handleStatusChange}
                   disabled={isLoading}
-                  className={`${selectClassName} mt-1 h-9 text-sm border-input`}
                 >
-                  <option value="active">Aktif</option>
-                  <option value="draft">Draft</option>
-                  <option value="archived">Arsip</option>
-                </select>
+                  <SelectTrigger
+                    id="status"
+                    size="sm"
+                    className="mt-1 h-9 w-full rounded-xl bg-background px-3 shadow-sm hover:bg-muted/30"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start" className="rounded-xl p-1 shadow-lg">
+                    <SelectItem value="active" className="rounded-lg py-2">Aktif</SelectItem>
+                    <SelectItem value="draft" className="rounded-lg py-2">Draft</SelectItem>
+                    <SelectItem value="archived" className="rounded-lg py-2">Arsip</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

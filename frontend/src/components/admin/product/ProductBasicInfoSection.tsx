@@ -2,6 +2,13 @@ import { Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import type { CreateProductRequest } from '@/services/admin';
 import type { Category } from '@/types';
@@ -13,7 +20,6 @@ interface ProductBasicInfoSectionProps {
   categories: Category[];
   categoriesLoading: boolean;
   isLoading: boolean;
-  selectClassName: string;
   onFieldChange: <K extends keyof CreateProductRequest>(field: K, value: CreateProductRequest[K]) => void;
   onOpenCategoryModal: () => void;
 }
@@ -24,7 +30,6 @@ export function ProductBasicInfoSection({
   categories,
   categoriesLoading,
   isLoading,
-  selectClassName,
   onFieldChange,
   onOpenCategoryModal,
 }: ProductBasicInfoSectionProps) {
@@ -95,20 +100,28 @@ export function ProductBasicInfoSection({
                 <Plus className="h-3 w-3" /> Kategori Baru
               </button>
             </div>
-            <select
-              id="category_id"
+            <Select
               value={formData.category_id ?? ''}
-              onChange={(event) => onFieldChange('category_id', event.target.value || undefined)}
+              onValueChange={(value) => onFieldChange('category_id', value || undefined)}
               disabled={isLoading || categoriesLoading}
-              className={`${selectClassName} ${errors.category_id ? 'border-red-500' : 'border-input'}`}
             >
-              <option value="">{categoriesLoading ? 'Loading...' : 'Pilih kategori'}</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                id="category_id"
+                className={`mt-1 h-11 w-full rounded-xl bg-background px-3 shadow-sm transition-colors hover:bg-muted/30 ${
+                  errors.category_id ? 'border-red-500' : 'border-input'
+                }`}
+              >
+                <SelectValue placeholder={categoriesLoading ? 'Loading...' : 'Pilih kategori'} />
+              </SelectTrigger>
+              <SelectContent align="start" className="rounded-xl p-1 shadow-lg">
+                <SelectItem value="">{categoriesLoading ? 'Loading...' : 'Pilih kategori'}</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id} className="rounded-lg py-2">
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {errors.category_id && <p className="text-xs text-red-500 mt-1">{errors.category_id}</p>}
           </div>
 

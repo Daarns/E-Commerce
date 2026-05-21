@@ -276,6 +276,7 @@ func Setup(c Config) {
 			// Admin Category routes
 			adminCategories := admin.Group("/categories")
 			{
+				adminCategories.GET("", c.AdminCategoryH.ListCategories)
 				adminCategories.POST("", c.AdminCategoryH.CreateCategory)
 				adminCategories.PUT("/:id", c.AdminCategoryH.UpdateCategory)
 				adminCategories.DELETE("/:id", c.AdminCategoryH.DeleteCategory)

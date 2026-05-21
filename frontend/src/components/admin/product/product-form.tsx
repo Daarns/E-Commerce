@@ -10,10 +10,6 @@ import { ProductSidebarSection } from '@/components/admin/product/ProductSidebar
 import { ProductVariantsSection } from '@/components/admin/product/ProductVariantsSection';
 import { useAdminProductForm, type ProductFormProps } from '@/hooks/useAdminProductForm';
 
-const SELECT_CLASS_NAME = `mt-1 flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm
-  ring-offset-background focus-visible:outline-none focus-visible:ring-2
-  focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`;
-
 export function ProductForm(props: ProductFormProps) {
   const { isLoading = false } = props;
   const form = useAdminProductForm(props);
@@ -40,7 +36,6 @@ export function ProductForm(props: ProductFormProps) {
               categories={form.categories}
               categoriesLoading={form.categoriesLoading}
               isLoading={isLoading}
-              selectClassName={SELECT_CLASS_NAME}
               onFieldChange={form.setField}
               onOpenCategoryModal={() => form.setCategoryModalOpen(true)}
             />
@@ -78,7 +73,6 @@ export function ProductForm(props: ProductFormProps) {
             errors={form.errors}
             isEdit={form.isEdit}
             isLoading={isLoading}
-            selectClassName={SELECT_CLASS_NAME}
             discountPercent={form.discountPercent}
             onFieldChange={form.setField}
             onDiscountPercentChange={form.setDiscountPercent}

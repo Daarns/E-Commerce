@@ -10,7 +10,7 @@
  *   order.service.ts     → admin order list, get, status update, refund
  *   user.service.ts      → admin user list, get, role/status management
  *   promo.service.ts     → promo code CRUD (admin)
- *   category.service.ts  → admin category creation
+ *   category.service.ts  → admin category CRUD
  */
 
 // ─── Re-export all domain types ───────────────────────────────────────────────
@@ -29,7 +29,13 @@ export type {
 export type { AdminOrder, UpdateOrderStatusRequest, ProcessRefundRequest, OrderFilters, AdminOrderMetrics } from './order.service';
 export type { AdminUser, UserActivityLog, UserMetrics, UserFilters, UpdateUserRoleRequest, UpdateUserStatusRequest } from './user.service';
 export type { PromoCode, PromoListResult, PromoListFilters, CreatePromoInput, UpdatePromoInput } from './promo.service';
-export type { CreateAdminCategoryRequest } from './category.service';
+export type {
+  AdminCategoryListResult,
+  AdminCategoryStats,
+  AdminCategoryStatusFilter,
+  CreateAdminCategoryRequest,
+  UpdateAdminCategoryRequest,
+} from './category.service';
 
 // ─── Re-export all domain services ───────────────────────────────────────────
 export { analyticsService } from './analytics.service';
@@ -91,7 +97,10 @@ export const adminService = {
   getUserMetrics: adminUserService.getUserMetrics.bind(adminUserService),
 
   // Categories
+  listCategories: adminCategoryService.listCategories.bind(adminCategoryService),
   createCategory: adminCategoryService.createCategory.bind(adminCategoryService),
+  updateCategory: adminCategoryService.updateCategory.bind(adminCategoryService),
+  deleteCategory: adminCategoryService.deleteCategory.bind(adminCategoryService),
 };
 
 // Legacy alias — promoAdminService was the old name in admin.ts
