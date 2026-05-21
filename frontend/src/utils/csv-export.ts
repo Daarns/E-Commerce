@@ -1,6 +1,7 @@
 /**
  * CSV Export utility functions
  */
+import type { AdminUser } from '@/services/admin';
 
 export interface CSVExportOptions {
   filename?: string;
@@ -10,7 +11,7 @@ export interface CSVExportOptions {
 /**
  * Convert array of objects to CSV string
  */
-export function arrayToCSV<T extends Record<string, any>>(
+export function arrayToCSV<T extends object>(
   data: T[],
   columns: (keyof T)[],
   columnLabels?: Record<string, string>
@@ -59,7 +60,7 @@ function escapeCSVField(field: string): string {
 /**
  * Format value for CSV (handle dates, numbers, etc)
  */
-function formatCSVValue(value: any): string {
+function formatCSVValue(value: unknown): string {
   if (value === null || value === undefined) {
     return '';
   }
@@ -106,10 +107,10 @@ export function downloadCSV(
  * Export users to CSV
  */
 export function exportUsersToCSV(
-  users: any[],
+  users: AdminUser[],
   filename: string = `users-${new Date().toISOString().split('T')[0]}.csv`
 ): void {
-  const columns: (keyof typeof users[0])[] = [
+  const columns: (keyof AdminUser)[] = [
     'name',
     'email',
     'role',

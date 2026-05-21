@@ -18,6 +18,11 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
+// GetDB returns the underlying gorm.DB instance for custom queries
+func (r *UserRepository) GetDB() *gorm.DB {
+	return r.db
+}
+
 // Create creates a new user
 func (r *UserRepository) Create(user *models.User) error {
 	if err := r.db.Create(user).Error; err != nil {
@@ -56,6 +61,14 @@ func (r *UserRepository) GetByEmail(email string) (*models.User, error) {
 func (r *UserRepository) Update(user *models.User) error {
 	if err := r.db.Save(user).Error; err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
+	}
+	return nil
+}
+
+// UpdateFields updates specific fields of a user by ID
+func (r *UserRepository) UpdateFields(userID uuid.UUID, updates map[string]interface{}) error {
+	if err := r.db.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("failed to update user fields: %w", err)
 	}
 	return nil
 }
@@ -182,4 +195,102 @@ func (r *UserRepository) GetUserCount() (int64, error) {
 		return 0, fmt.Errorf("failed to count users: %w", err)
 	}
 	return count, nil
+}
+
+// GetUsersWithFilters retrieves users with search, role, and status filters
+func (r *UserRepository) GetUsersWithFilters(page, pageSize int, search, role, status string, sortBy, sortOrder string) ([]models.User, int64, error) {
+	var users []models.User
+	var total int64
+
+	query := r.db.Where("deleted_at IS NULL")
+
+	// Apply search filter (name or email)
+	if search != "" {
+		query = query.Where("name ILIKE ? OR email ILIKE ?", "%"+search+"%", "%"+search+"%")
+	}
+
+	// Apply role filter
+	if role != "" {
+		query = query.Where("role = ?", role)
+	}
+
+	// Apply status filter
+	if status != "" {
+		switch status {
+		case "active":
+			query = query.Where("is_active = true AND is_verified = true")
+		case "inactive":
+			query = query.Where("is_active = false")
+		case "unverified":
+			query = query.Where("is_verified = false")
+		}
+	}
+
+	// Get total count with filters applied
+	if err := query.Model(&models.User{}).Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	// Apply sorting
+	if sortBy == "" {
+		sortBy = "created_at"
+	}
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+	sortClause := fmt.Sprintf("%s %s", sortBy, sortOrder)
+
+	// Apply pagination
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+
+	offset := (page - 1) * pageSize
+
+	// Get users
+	err := query.
+		Order(sortClause).
+		Offset(offset).
+		Limit(pageSize).
+		Find(&users).Error
+
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get users: %w", err)
+	}
+
+	return users, total, nil
+}
+
+// GetUserMetrics returns user statistics
+func (r *UserRepository) GetUserMetrics() (map[string]interface{}, error) {
+	metrics := make(map[string]interface{})
+
+	// Total users
+	var totalUsers int64
+	if err := r.db.Model(&models.User{}).Where("deleted_at IS NULL").Count(&totalUsers).Error; err != nil {
+		return nil, fmt.Errorf("failed to count total users: %w", err)
+	}
+	metrics["total_users"] = totalUsers
+
+	// Active users
+	var activeUsers int64
+	if err := r.db.Model(&models.User{}).Where("is_active = true AND deleted_at IS NULL").Count(&activeUsers).Error; err != nil {
+		return nil, fmt.Errorf("failed to count active users: %w", err)
+	}
+	metrics["active_users"] = activeUsers
+
+	// Suspended users
+	var suspendedUsers int64
+	if err := r.db.Model(&models.User{}).Where("is_active = false AND deleted_at IS NULL").Count(&suspendedUsers).Error; err != nil {
+		return nil, fmt.Errorf("failed to count suspended users: %w", err)
+	}
+	metrics["suspended_users"] = suspendedUsers
+
+	// Banned users (we can use a field or count is_active=false as banned for now)
+	metrics["banned_users"] = int64(0) // Placeholder - add a "ban_status" field if needed
+
+	return metrics, nil
 }

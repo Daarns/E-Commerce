@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, TrendingUp } from 'lucide-react';
-import { productService } from '@/services/product';
-import { Product } from '@/types';
+import { Loader2 } from 'lucide-react';
 import { ProductGrid } from '@/components/product/product-grid';
+import {
+  useDiscoveryProducts,
+  type DiscoverySectionType,
+} from '@/hooks/useDiscoveryProducts';
 
 interface DiscoverySectionProps {
   title?: string;
-  section?: 'trending' | 'new' | 'bestsellers';
+  section?: DiscoverySectionType;
   limit?: number;
   columns?: 2 | 3 | 4;
 }
@@ -20,38 +21,7 @@ export function DiscoverySection({
   limit = 8,
   columns = 4,
 }: DiscoverySectionProps) {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadProducts() {
-      setIsLoading(true);
-      try {
-        if (section === 'trending') {
-          const data = await productService.getTrendingProducts('week', limit);
-          setProducts(data);
-        } else if (section === 'new') {
-          const response = await productService.getProducts({
-            limit,
-            sort_by: 'newest',
-          });
-          setProducts(response.products);
-        } else if (section === 'bestsellers') {
-          const response = await productService.getProducts({
-            limit,
-            sort_by: 'popular',
-          });
-          setProducts(response.products);
-        }
-      } catch (error) {
-        console.error(`Failed to load ${section} products:`, error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadProducts();
-  }, [section, limit]);
+  const { products, isLoading } = useDiscoveryProducts({ section, limit });
 
   const defaultTitles = {
     trending: '🔥 Trending This Week',

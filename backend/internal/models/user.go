@@ -18,7 +18,10 @@ type User struct {
 	IsVerified                bool       `json:"is_verified" gorm:"default:false"`
 	IsActive                  bool       `json:"is_active" gorm:"default:true"`
 	EmailVerificationToken    *string    `json:"-"`
+	EmailVerificationCode     *string    `json:"-"`
 	EmailVerificationExpiresAt *time.Time `json:"-"`
+	EmailVerificationAttempts int        `json:"-" gorm:"default:0"`
+	LastCodeSentAt           *time.Time `json:"-"`
 	PasswordResetToken        *string    `json:"-"`
 	PasswordResetExpiresAt    *time.Time `json:"-"`
 	LastLoginAt               *time.Time `json:"last_login_at,omitempty"`
@@ -44,7 +47,7 @@ func (u *User) IsCustomer() bool {
 
 // CanLogin checks if user is allowed to login
 func (u *User) CanLogin() bool {
-	return u.IsActive && u.DeletedAt == nil
+	return u.IsVerified && u.IsActive && u.DeletedAt == nil
 }
 
 // RefreshToken represents a refresh token

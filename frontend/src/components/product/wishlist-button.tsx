@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Heart, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useWishlistStore } from '@/stores/wishlist-store';
-import { useAuthStore } from '@/stores/auth-store';
-import { toast } from 'sonner';
+import { useWishlistButton } from '@/hooks/useWishlistButton';
+import { AuthRequiredDialog } from '@/components/common/auth-required-dialog';
 
 interface WishlistButtonProps {
   productId: string;
@@ -20,65 +18,47 @@ export function WishlistButton({
   variant = 'outline',
   showLabel = false,
 }: WishlistButtonProps) {
-  const user = useAuthStore((state) => state.user);
-  const { isInWishlist, addToWishlist, removeFromWishlist, items } = useWishlistStore();
-  const [isLoading, setIsLoading] = useState(false);
-  const [inWishlist, setInWishlist] = useState(false);
-  const [wishlistId, setWishlistId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const item = items.find((i) => i.product_id === productId);
-    setInWishlist(!!item);
-    setWishlistId(item?.id || null);
-  }, [items, productId]);
-
-  const handleClick = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!user) {
-      toast.error('Please log in to manage wishlist');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      if (inWishlist && wishlistId) {
-        await removeFromWishlist(wishlistId);
-      } else {
-        await addToWishlist(productId);
-      }
-    } catch (error) {
-      console.error('Error updating wishlist:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    inWishlist,
+    isLoading,
+    showAuthDialog,
+    setShowAuthDialog,
+    handleClick,
+  } = useWishlistButton({ productId });
 
   return (
-    <Button
-      variant={variant}
-      size={size}
-      onClick={handleClick}
-      disabled={isLoading}
-      title={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
-    >
-      {isLoading ? (
-        <Loader2 className="h-5 w-5 animate-spin" />
-      ) : (
-        <>
-          <Heart
-            className={`h-5 w-5 ${
-              inWishlist ? 'fill-red-500 text-red-500' : ''
-            }`}
-          />
-          {showLabel && (
-            <span className="ml-2 text-sm">
-              {inWishlist ? 'Saved' : 'Save'}
-            </span>
-          )}
-        </>
-      )}
-    </Button>
+    <>
+      <Button
+        variant={inWishlist ? 'default' : variant}
+        size={size}
+        onClick={(event) => void handleClick(event)}
+        disabled={isLoading}
+        title={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
+        className={inWishlist ? 'bg-red-500 hover:bg-red-600' : ''}
+      >
+        {isLoading ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <>
+            <Heart
+              className={`h-5 w-5 ${
+                inWishlist ? 'fill-white text-white' : ''
+              }`}
+            />
+            {showLabel && (
+              <span className="ml-2 text-sm">
+                {inWishlist ? 'Saved' : 'Save'}
+              </span>
+            )}
+          </>
+        )}
+      </Button>
+
+      <AuthRequiredDialog
+        open={showAuthDialog}
+        onClose={() => setShowAuthDialog(false)}
+        feature="wishlist"
+      />
+    </>
   );
 }

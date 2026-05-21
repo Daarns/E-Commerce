@@ -19,18 +19,29 @@ func NewCartRepository(db *gorm.DB) *CartRepository {
 	return &CartRepository{db: db}
 }
 
+func withCartItemPreloads(query *gorm.DB) *gorm.DB {
+	return query.
+		Preload("Product").
+		Preload("Product.Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC")
+		}).
+		Preload("Combination").
+		Preload("Combination.Options").
+		Preload("Combination.Options.VariantType")
+}
+
 // GetCartByUserID retrieves cart items for a logged-in user
 func (r *CartRepository) GetCartByUserID(userID uuid.UUID) (*models.Cart, error) {
 	var items []models.CartItem
-	err := r.db.Preload("Product").
-		Preload("Variant").
+	err := withCartItemPreloads(r.db).
 		Where("user_id = ?", userID).
 		Order("created_at ASC").
 		Find(&items).Error
-	
+
 	if err != nil {
 		return nil, err
 	}
+	hydrateCartCombinationOptionIDs(items)
 
 	cart := &models.Cart{
 		UserID: &userID,
@@ -43,15 +54,15 @@ func (r *CartRepository) GetCartByUserID(userID uuid.UUID) (*models.Cart, error)
 // GetCartBySessionID retrieves cart items for a guest user
 func (r *CartRepository) GetCartBySessionID(sessionID string) (*models.Cart, error) {
 	var items []models.CartItem
-	err := r.db.Preload("Product").
-		Preload("Variant").
+	err := withCartItemPreloads(r.db).
 		Where("session_id = ?", sessionID).
 		Order("created_at ASC").
 		Find(&items).Error
-	
+
 	if err != nil {
 		return nil, err
 	}
+	hydrateCartCombinationOptionIDs(items)
 
 	cart := &models.Cart{
 		SessionID: sessionID,
@@ -64,36 +75,51 @@ func (r *CartRepository) GetCartBySessionID(sessionID string) (*models.Cart, err
 // GetCartItem retrieves a specific cart item
 func (r *CartRepository) GetCartItem(id uuid.UUID) (*models.CartItem, error) {
 	var item models.CartItem
-	err := r.db.Preload("Product").
-		Preload("Variant").
+	err := withCartItemPreloads(r.db).
 		First(&item, "id = ?", id).Error
-	
+
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("cart item not found")
 		}
 		return nil, err
 	}
+	hydrateCartCombinationOptionIDs([]models.CartItem{item})
 	return &item, nil
 }
 
-// FindCartItem finds existing cart item by user/session, product, and variant
-func (r *CartRepository) FindCartItem(userID *uuid.UUID, sessionID string, productID uuid.UUID, variantID *uuid.UUID) (*models.CartItem, error) {
+func hydrateCartCombinationOptionIDs(items []models.CartItem) {
+	for itemIndex := range items {
+		combination := items[itemIndex].Combination
+		if combination == nil {
+			continue
+		}
+
+		optionIDs := make([]uuid.UUID, 0, len(combination.Options))
+		for _, option := range combination.Options {
+			optionIDs = append(optionIDs, option.ID)
+		}
+		combination.OptionIDs = optionIDs
+	}
+}
+
+// FindCartItem finds existing cart item by user/session, product, and combination
+func (r *CartRepository) FindCartItem(userID *uuid.UUID, sessionID string, productID uuid.UUID, combinationID *uuid.UUID) (*models.CartItem, error) {
 	query := r.db.Model(&models.CartItem{}).
 		Where("product_id = ?", productID)
-	
+
 	if userID != nil {
 		query = query.Where("user_id = ?", *userID)
 	} else {
 		query = query.Where("session_id = ?", sessionID)
 	}
-	
-	if variantID != nil {
-		query = query.Where("variant_id = ?", *variantID)
+
+	if combinationID != nil {
+		query = query.Where("combination_id = ?", *combinationID)
 	} else {
-		query = query.Where("variant_id IS NULL")
+		query = query.Where("combination_id IS NULL")
 	}
-	
+
 	var item models.CartItem
 	err := query.First(&item).Error
 	if err != nil {
@@ -147,17 +173,17 @@ func (r *CartRepository) MergeGuestCart(userID uuid.UUID, sessionID string) erro
 		if err := tx.Where("session_id = ?", sessionID).Find(&guestItems).Error; err != nil {
 			return err
 		}
-		
+
 		for _, guestItem := range guestItems {
-			// Check if user already has this product+variant
+			// Check if user already has this product+combination
 			var existingItem models.CartItem
 			query := tx.Where("user_id = ? AND product_id = ?", userID, guestItem.ProductID)
-			if guestItem.VariantID != nil {
-				query = query.Where("variant_id = ?", *guestItem.VariantID)
+			if guestItem.CombinationID != nil {
+				query = query.Where("combination_id = ?", *guestItem.CombinationID)
 			} else {
-				query = query.Where("variant_id IS NULL")
+				query = query.Where("combination_id IS NULL")
 			}
-			
+
 			err := query.First(&existingItem).Error
 			if err == nil {
 				// Item exists, update quantity
@@ -189,111 +215,13 @@ func (r *CartRepository) MergeGuestCart(userID uuid.UUID, sessionID string) erro
 func (r *CartRepository) CountCartItems(userID *uuid.UUID, sessionID string) (int64, error) {
 	var count int64
 	query := r.db.Model(&models.CartItem{})
-	
+
 	if userID != nil {
 		query = query.Where("user_id = ?", *userID)
 	} else {
 		query = query.Where("session_id = ?", sessionID)
 	}
-	
+
 	err := query.Count(&count).Error
 	return count, err
-}
-
-// ===== ADDRESS OPERATIONS =====
-
-// AddressRepository handles address operations
-type AddressRepository struct {
-	db *gorm.DB
-}
-
-// NewAddressRepository creates a new address repository
-func NewAddressRepository(db *gorm.DB) *AddressRepository {
-	return &AddressRepository{db: db}
-}
-
-// GetUserAddresses retrieves all addresses for a user
-func (r *AddressRepository) GetUserAddresses(userID uuid.UUID) ([]models.Address, error) {
-	var addresses []models.Address
-	err := r.db.Where("user_id = ?", userID).
-		Order("is_default DESC, created_at ASC").
-		Find(&addresses).Error
-	return addresses, err
-}
-
-// GetByID retrieves an address by ID
-func (r *AddressRepository) GetByID(id uuid.UUID) (*models.Address, error) {
-	var address models.Address
-	err := r.db.First(&address, "id = ?", id).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("address not found")
-		}
-		return nil, err
-	}
-	return &address, nil
-}
-
-// GetDefaultAddress retrieves user's default address
-func (r *AddressRepository) GetDefaultAddress(userID uuid.UUID) (*models.Address, error) {
-	var address models.Address
-	err := r.db.Where("user_id = ? AND is_default = true", userID).First(&address).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, nil // No default address is not an error
-		}
-		return nil, err
-	}
-	return &address, nil
-}
-
-// Create creates a new address
-func (r *AddressRepository) Create(address *models.Address) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// If this is default, unset other defaults
-		if address.IsDefault {
-			if err := tx.Model(&models.Address{}).
-				Where("user_id = ? AND is_default = true", address.UserID).
-				Update("is_default", false).Error; err != nil {
-				return err
-			}
-		}
-		return tx.Create(address).Error
-	})
-}
-
-// Update updates an address
-func (r *AddressRepository) Update(address *models.Address) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// If setting as default, unset other defaults
-		if address.IsDefault {
-			if err := tx.Model(&models.Address{}).
-				Where("user_id = ? AND id != ? AND is_default = true", address.UserID, address.ID).
-				Update("is_default", false).Error; err != nil {
-				return err
-			}
-		}
-		return tx.Save(address).Error
-	})
-}
-
-// Delete soft deletes an address
-func (r *AddressRepository) Delete(id uuid.UUID) error {
-	return r.db.Delete(&models.Address{}, "id = ?", id).Error
-}
-
-// SetDefault sets an address as default
-func (r *AddressRepository) SetDefault(userID uuid.UUID, addressID uuid.UUID) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Unset all defaults
-		if err := tx.Model(&models.Address{}).
-			Where("user_id = ?", userID).
-			Update("is_default", false).Error; err != nil {
-			return err
-		}
-		// Set new default
-		return tx.Model(&models.Address{}).
-			Where("id = ? AND user_id = ?", addressID, userID).
-			Update("is_default", true).Error
-	})
 }

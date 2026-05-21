@@ -22,9 +22,12 @@ const (
 
 // Payment status constants
 const (
-	PaymentStatusUnpaid   = "unpaid"
-	PaymentStatusPaid     = "paid"
-	PaymentStatusRefunded = "refunded"
+	PaymentStatusUnpaid         = "unpaid"
+	PaymentStatusPendingPayment = "pending_payment"
+	PaymentStatusPaid           = "paid"
+	PaymentStatusFailed         = "failed"
+	PaymentStatusRefunded       = "refunded"
+	PaymentStatusExpired        = "expired"
 )
 
 // Order represents a customer order
@@ -35,13 +38,13 @@ type Order struct {
 	User        *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
 
 	// Shipping address (snapshot)
-	ShippingName        string `gorm:"column:shipping_name;size:255;not null" json:"shipping_name"`
-	ShippingPhone       string `gorm:"column:shipping_phone;size:20;not null" json:"shipping_phone"`
+	ShippingName         string `gorm:"column:shipping_name;size:255;not null" json:"shipping_name"`
+	ShippingPhone        string `gorm:"column:shipping_phone;size:20;not null" json:"shipping_phone"`
 	ShippingAddressLine1 string `gorm:"column:shipping_address_line1;size:255;not null" json:"shipping_address_line1"`
 	ShippingAddressLine2 string `gorm:"column:shipping_address_line2;size:255" json:"shipping_address_line2"`
-	ShippingCity        string `gorm:"column:shipping_city;size:100;not null" json:"shipping_city"`
-	ShippingProvince    string `gorm:"column:shipping_province;size:100;not null" json:"shipping_province"`
-	ShippingPostalCode  string `gorm:"column:shipping_postal_code;size:10;not null" json:"shipping_postal_code"`
+	ShippingCity         string `gorm:"column:shipping_city;size:100;not null" json:"shipping_city"`
+	ShippingProvince     string `gorm:"column:shipping_province;size:100;not null" json:"shipping_province"`
+	ShippingPostalCode   string `gorm:"column:shipping_postal_code;size:10;not null" json:"shipping_postal_code"`
 
 	// Pricing
 	Subtotal       decimal.Decimal `gorm:"type:numeric(12,2);not null" json:"subtotal"`
@@ -63,6 +66,10 @@ type Order struct {
 	PaymentProvider      string     `gorm:"column:payment_provider;size:50" json:"payment_provider"`
 	PaymentTransactionID string     `gorm:"column:payment_transaction_id;size:255" json:"payment_transaction_id"`
 	PaidAt               *time.Time `gorm:"column:paid_at" json:"paid_at"`
+	SnapToken            string     `gorm:"column:snap_token;size:512" json:"snap_token,omitempty"` // Midtrans token, valid 24h
+	SnapTokenCreatedAt   *time.Time `gorm:"column:snap_token_created_at" json:"snap_token_created_at,omitempty"`
+	PaymentExpiresAt     *time.Time `gorm:"column:payment_expires_at" json:"payment_expires_at,omitempty"`
+	CustomerEmail        string     `gorm:"column:customer_email;size:255" json:"customer_email,omitempty"` // Stored at checkout for retry
 
 	// Shipping
 	ShippingMethod string     `gorm:"column:shipping_method;size:50" json:"shipping_method"`
@@ -84,7 +91,7 @@ type Order struct {
 	// Items
 	Items []OrderItem `gorm:"foreignKey:OrderID" json:"items,omitempty"`
 
-	// Status History
+	// Status History — backed by order_status_workflows table
 	StatusHistory []OrderStatusHistory `gorm:"foreignKey:OrderID" json:"status_history,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
@@ -144,10 +151,12 @@ func (o *Order) GetShippingAddress() string {
 
 // OrderItem represents an item in an order
 type OrderItem struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	OrderID   uuid.UUID `gorm:"type:uuid;not null" json:"order_id"`
-	ProductID uuid.UUID `gorm:"type:uuid;not null" json:"product_id"`
-	VariantID *uuid.UUID `gorm:"type:uuid" json:"variant_id"`
+	ID            uuid.UUID                  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	OrderID       uuid.UUID                  `gorm:"type:uuid;not null" json:"order_id"`
+	ProductID     uuid.UUID                  `gorm:"type:uuid;not null" json:"product_id"`
+	CombinationID *uuid.UUID                 `gorm:"type:uuid" json:"combination_id"`
+	Product       *Product                   `gorm:"foreignKey:ProductID" json:"product,omitempty"`
+	Combination   *ProductVariantCombination `gorm:"foreignKey:CombinationID" json:"combination,omitempty"`
 
 	// Snapshot data
 	ProductName  string `gorm:"column:product_name;size:255;not null" json:"product_name"`
@@ -176,20 +185,21 @@ func (oi *OrderItem) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// OrderStatusHistory tracks order status changes
+// OrderStatusHistory tracks order status changes.
+// Uses the order_status_workflows table (shared with workflow engine).
 type OrderStatusHistory struct {
 	ID         uuid.UUID  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	OrderID    uuid.UUID  `gorm:"type:uuid;not null" json:"order_id"`
 	FromStatus string     `gorm:"column:from_status;size:50" json:"from_status"`
 	ToStatus   string     `gorm:"column:to_status;size:50;not null" json:"to_status"`
 	Notes      string     `gorm:"type:text" json:"notes"`
-	ChangedBy  *uuid.UUID `gorm:"column:changed_by;type:uuid" json:"changed_by"`
-	ChangedAt  time.Time  `gorm:"column:changed_at;default:CURRENT_TIMESTAMP" json:"changed_at"`
+	ChangedBy  *uuid.UUID `gorm:"-" json:"changed_by,omitempty"` // not in order_status_workflows, ignored
+	ChangedAt  time.Time  `gorm:"column:created_at;default:CURRENT_TIMESTAMP" json:"changed_at"`
 }
 
-// TableName sets the table name
+// TableName maps to the existing order_status_workflows table
 func (OrderStatusHistory) TableName() string {
-	return "order_status_history"
+	return "order_status_workflows"
 }
 
 // BeforeCreate generates UUID
@@ -202,23 +212,23 @@ func (osh *OrderStatusHistory) BeforeCreate(tx *gorm.DB) error {
 
 // PromoCode represents a promotional discount code
 type PromoCode struct {
-	ID                  uuid.UUID       `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	Code                string          `gorm:"size:50;uniqueIndex;not null" json:"code"`
-	Description         string          `gorm:"type:text" json:"description"`
-	DiscountType        string          `gorm:"column:discount_type;size:20;not null" json:"discount_type"` // percentage, fixed
-	DiscountValue       decimal.Decimal `gorm:"column:discount_value;type:numeric(12,2);not null" json:"discount_value"`
-	MinOrderAmount      decimal.Decimal `gorm:"column:min_order_amount;type:numeric(12,2);default:0" json:"min_order_amount"`
-	MaxDiscountAmount   *decimal.Decimal `gorm:"column:max_discount_amount;type:numeric(12,2)" json:"max_discount_amount"`
-	UsageLimit          *int            `gorm:"column:usage_limit" json:"usage_limit"`
-	UsageCount          int             `gorm:"column:usage_count;default:0" json:"usage_count"`
-	UsageLimitPerUser   int             `gorm:"column:usage_limit_per_user;default:1" json:"usage_limit_per_user"`
-	ValidFrom           time.Time       `gorm:"column:valid_from;not null" json:"valid_from"`
-	ValidTo             time.Time       `gorm:"column:valid_to;not null" json:"valid_to"`
-	IsActive            bool            `gorm:"column:is_active;default:true" json:"is_active"`
-	ApplicableProducts  []uuid.UUID     `gorm:"column:applicable_products;type:uuid[]" json:"applicable_products"`
-	ApplicableCategories []uuid.UUID    `gorm:"column:applicable_categories;type:uuid[]" json:"applicable_categories"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
+	ID                   uuid.UUID        `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	Code                 string           `gorm:"size:50;uniqueIndex;not null" json:"code"`
+	Description          string           `gorm:"type:text" json:"description"`
+	DiscountType         string           `gorm:"column:discount_type;size:20;not null" json:"discount_type"` // percentage, fixed
+	DiscountValue        decimal.Decimal  `gorm:"column:discount_value;type:numeric(12,2);not null" json:"discount_value"`
+	MinOrderAmount       decimal.Decimal  `gorm:"column:min_order_amount;type:numeric(12,2);default:0" json:"min_order_amount"`
+	MaxDiscountAmount    *decimal.Decimal `gorm:"column:max_discount_amount;type:numeric(12,2)" json:"max_discount_amount"`
+	UsageLimit           *int             `gorm:"column:usage_limit" json:"usage_limit"`
+	UsageCount           int              `gorm:"column:usage_count;default:0" json:"usage_count"`
+	UsageLimitPerUser    int              `gorm:"column:usage_limit_per_user;default:1" json:"usage_limit_per_user"`
+	ValidFrom            time.Time        `gorm:"column:valid_from;not null" json:"valid_from"`
+	ValidTo              time.Time        `gorm:"column:valid_to;not null" json:"valid_to"`
+	IsActive             bool             `gorm:"column:is_active;default:true" json:"is_active"`
+	ApplicableProducts   []uuid.UUID      `gorm:"column:applicable_products;type:uuid[]" json:"applicable_products"`
+	ApplicableCategories []uuid.UUID      `gorm:"column:applicable_categories;type:uuid[]" json:"applicable_categories"`
+	CreatedAt            time.Time        `json:"created_at"`
+	UpdatedAt            time.Time        `json:"updated_at"`
 }
 
 // TableName sets the table name

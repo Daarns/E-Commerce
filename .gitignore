@@ -32,10 +32,13 @@ dist/
 !.vscode/settings.json
 !.vscode/extensions.json
 .agents/
+.claude/
+.claude/skills/
 
 # Copilot instructions (local)
 copilot-instructions.md
 *.copilotmd
+.copilot
 
 # Skills lock (auto-generated)
 skills-lock.json
@@ -56,6 +59,7 @@ logs/
 # Docker volumes
 docker/postgres/data/
 docker/redis/data/
+docker/seaweedfs/
 
 # Testing
 coverage/
@@ -80,3 +84,15 @@ uploads/
 
 # Development documentation (internal use only)
 .dev-docs/
+improve-plan/
+planning/
+
+roadmap/
+roadmap/SEO/
+
+schema.sql
+database_schema_only_20260512_131048.sql
+database_dump_20260512_130720.sql
+
+AGENTS.md
+

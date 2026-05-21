@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion} from 'framer-motion';
 import { 
   ShoppingBag, 
   User, 
   Menu, 
-  X,
   Heart,
   LogOut
 } from 'lucide-react';
@@ -37,7 +36,11 @@ export function Header() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const { itemCount } = useCartStore();
   const { getWishlistCount } = useWishlistStore();
-  const wishlistCount = getWishlistCount();
+  const [wishlistCount, setWishlistCount] = useState(0);
+
+  useEffect(() => {
+    setWishlistCount(getWishlistCount());
+  }, [getWishlistCount]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -123,15 +126,6 @@ export function Header() {
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/orders">My Orders</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/wishlist">My Wishlist</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile">Profile</Link>
-                  </DropdownMenuItem>
                   {user?.role === 'admin' && (
                     <>
                       <DropdownMenuSeparator />
@@ -140,6 +134,15 @@ export function Header() {
                       </DropdownMenuItem>
                     </>
                   )}
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile">Profile</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/orders">My Orders</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/wishlist">My Wishlist</Link>
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => logout()} className="text-red-600">
                     <LogOut className="h-4 w-4 mr-2" />

@@ -19,7 +19,7 @@ interface AuthState {
   setUser: (user: User | null) => void;
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<void>;
-  verifyEmail: (token: string) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
   resendVerificationEmail: (email: string) => Promise<void>;
 }
 
@@ -40,21 +40,27 @@ export const useAuthStore = create<AuthState>()(
         
         set({ user: response.user, isAuthenticated: true, isEmailVerified: response.user.is_verified });
         
-        // Merge guest cart after login
-        try {
-          await cartService.mergeGuestCart();
-        } catch {
-          // Ignore merge errors
+        // Merge guest cart after login (only if there was a guest session)
+        const guestSession = Cookies.get('session_id');
+        if (guestSession) {
+          try {
+            await cartService.mergeGuestCart();
+          } catch {
+            // Ignore merge errors — guest cart may be empty or expired
+          } finally {
+            Cookies.remove('session_id');
+          }
         }
       },
 
       register: async (input: RegisterInput) => {
+        // Register returns message and email only - user must verify email first
         const response = await authService.register(input);
         
-        Cookies.set('access_token', response.access_token, { expires: 1/96 });
-        Cookies.set('refresh_token', response.refresh_token, { expires: 7 });
-        
-        set({ user: response.user, isAuthenticated: true, isEmailVerified: response.user.is_verified });
+        // Don't set authenticated state - user needs to verify email first
+        // Response contains: { message, email, user_id }
+        // No tokens issued until email verification
+        set({ user: null, isAuthenticated: false, isEmailVerified: false });
       },
 
       logout: async () => {
@@ -100,9 +106,13 @@ export const useAuthStore = create<AuthState>()(
         await authService.resetPassword({ token, password });
       },
 
-      verifyEmail: async (token: string) => {
-        await authService.verifyEmail({ token });
-        set({ isEmailVerified: true });
+      verifyEmail: async (email: string, code: string) => {
+        const response = await authService.verifyEmailByCode({ email, code });
+        set({ 
+          user: response.user,
+          isAuthenticated: true,
+          isEmailVerified: true,
+        });
       },
 
       resendVerificationEmail: async (email: string) => {

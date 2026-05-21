@@ -9,17 +9,13 @@ CREATE TABLE activity_logs (
     metadata JSONB DEFAULT '{}',
     ip_address VARCHAR(45),
     user_agent TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    
-    INDEX idx_activity_user (user_id),
-    INDEX idx_activity_action (action_type),
-    INDEX idx_activity_created (created_at DESC),
-    INDEX idx_activity_user_action (user_id, action_type),
-    INDEX idx_activity_user_date (user_id, created_at DESC)
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Index for common activity queries (user + date range)
+-- Create indexes for activity_logs table
+CREATE INDEX idx_activity_user ON activity_logs(user_id);
+CREATE INDEX idx_activity_action ON activity_logs(action_type);
+CREATE INDEX idx_activity_created ON activity_logs(created_at DESC);
+CREATE INDEX idx_activity_user_action ON activity_logs(user_id, action_type);
+CREATE INDEX idx_activity_user_date ON activity_logs(user_id, created_at DESC);
 CREATE INDEX idx_activity_user_action_date ON activity_logs(user_id, action_type, created_at DESC);
-
--- Index for activity filtering by date range
-CREATE INDEX idx_activity_date_range ON activity_logs(created_at DESC) WHERE deleted_at IS NULL;

@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"ecommerce-backend/internal/models"
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/chat"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 	"strconv"
@@ -13,11 +13,11 @@ import (
 
 // ChatHandler handles chat HTTP requests
 type ChatHandler struct {
-	chatService *services.ChatService
+	chatService *chat.ChatService
 }
 
 // NewChatHandler creates a new chat handler
-func NewChatHandler(chatService *services.ChatService) *ChatHandler {
+func NewChatHandler(chatService *chat.ChatService) *ChatHandler {
 	return &ChatHandler{
 		chatService: chatService,
 	}
@@ -346,3 +346,4 @@ func (h *ChatHandler) GetTypingUsers(c *gin.Context) {
 		"count":        len(users),
 	})
 }
+

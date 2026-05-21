@@ -1,16 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AdminLayout } from '@/components/admin/layout';
-import { ProductSearch } from '@/components/admin/product-search';
-import { ProductTable } from '@/components/admin/product-table';
-import { adminService, ProductFilters, AdminProduct } from '@/services/admin';
-import { toast } from 'sonner';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
+import { ProductSearch } from '@/components/admin/product/product-search';
+import { ProductTable } from '@/components/admin/product/product-table';
+import { AdminProduct } from '@/services/admin';
+import { useAdminProducts } from '@/hooks/useAdminProducts';
+import { calculateProductStats } from '@/utils/product.stats';
 import {
   Pagination,
   PaginationContent,
@@ -23,58 +23,27 @@ import {
 
 export default function AdminProductsPage() {
   const router = useRouter();
-  const [products, setProducts] = useState<AdminProduct[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
-  const [total, setTotal] = useState(0);
-  const [filters, setFilters] = useState<ProductFilters>({
-    sort_by: 'created_at',
-    sort_order: 'desc',
-  });
+  const {
+    products,
+    isLoading,
+    page,
+    total,
+    limit,
+    filters,
+    totalPages,
+    handleFiltersChange,
+    handleSort,
+    handlePageChange,
+    handleDelete,
+  } = useAdminProducts();
 
-  const totalPages = Math.ceil(total / limit);
+  const stats = calculateProductStats(products);
 
-  useEffect(() => {
-    loadProducts();
-  }, [page, limit, filters]);
-
-  const loadProducts = async () => {
-    try {
-      setIsLoading(true);
-      const response = await adminService.getProducts(filters, page, limit);
-      setProducts(response.data.products);
-      setTotal(response.data.total);
-    } catch (error) {
-      console.error('Failed to load products:', error);
-      toast.error('Failed to load products');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleFiltersChange = (newFilters: ProductFilters) => {
-    setFilters(newFilters);
-    setPage(1); // Reset to first page when filters change
-  };
-
-  const handleEdit = (product: AdminProduct) => {
+  const handleEdit = (product: AdminProduct): void => {
     router.push(`/admin/products/${product.id}`);
   };
 
-  const handleDelete = async (productId: string) => {
-    try {
-      await adminService.deleteProduct(productId);
-      toast.success('Product deleted successfully');
-      loadProducts();
-    } catch (error) {
-      console.error('Failed to delete product:', error);
-      toast.error('Failed to delete product');
-    }
-  };
-
-  const handleView = (product: AdminProduct) => {
-    // Navigate to product detail page or open modal
+  const handleView = (product: AdminProduct): void => {
     router.push(`/products/${product.slug}`);
   };
 
@@ -86,16 +55,17 @@ export default function AdminProductsPage() {
         className="space-y-6"
       >
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold">Products</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold">Products</h1>
+            <p className="text-muted-foreground mt-0.5 text-sm">
               Manage your product catalog
             </p>
           </div>
           <Button
             onClick={() => router.push('/admin/products/create')}
-            size="lg"
+            size="default"
+            className="w-full sm:w-auto"
           >
             <Plus className="w-4 h-4 mr-2" />
             New Product
@@ -103,32 +73,28 @@ export default function AdminProductsPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6 pb-3 sm:pb-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">{total}</p>
-                <p className="text-sm text-muted-foreground">Total Products</p>
+                <p className="text-xl sm:text-3xl font-bold">{total}</p>
+                <p className="text-[11px] sm:text-sm text-muted-foreground">Total Products</p>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6 pb-3 sm:pb-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">
-                  {products.filter(p => p.is_active).length}
-                </p>
-                <p className="text-sm text-muted-foreground">Active</p>
+                <p className="text-xl sm:text-3xl font-bold">{stats.active}</p>
+                <p className="text-[11px] sm:text-sm text-muted-foreground">Active</p>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6 pb-3 sm:pb-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">
-                  {products.filter(p => p.stock_quantity === 0).length}
-                </p>
-                <p className="text-sm text-muted-foreground">Out of Stock</p>
+                <p className="text-xl sm:text-3xl font-bold">{stats.outOfStock}</p>
+                <p className="text-[11px] sm:text-sm text-muted-foreground">Out of Stock</p>
               </div>
             </CardContent>
           </Card>
@@ -149,10 +115,10 @@ export default function AdminProductsPage() {
 
         {/* Products Table */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Products List</CardTitle>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3">
+            <CardTitle className="text-base">Products List</CardTitle>
             {!isLoading && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 Showing {(page - 1) * limit + 1}-{Math.min(page * limit, total)} of{' '}
                 {total} products
               </p>
@@ -165,15 +131,9 @@ export default function AdminProductsPage() {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onView={handleView}
-              sortBy={filters.sort_by as any}
+              sortBy={filters.sort_by}
               sortOrder={filters.sort_order}
-              onSort={(by, order) => {
-                setFilters(prev => ({
-                  ...prev,
-                  sort_by: by as any,
-                  sort_order: order,
-                }));
-              }}
+              onSort={handleSort}
             />
           </CardContent>
         </Card>
@@ -189,7 +149,7 @@ export default function AdminProductsPage() {
                 {page > 1 && (
                   <PaginationItem>
                     <PaginationPrevious
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      onClick={() => handlePageChange(Math.max(1, page - 1))}
                     />
                   </PaginationItem>
                 )}
@@ -200,7 +160,7 @@ export default function AdminProductsPage() {
                     <PaginationItem key={pageNum}>
                       <PaginationLink
                         isActive={page === pageNum}
-                        onClick={() => setPage(pageNum)}
+                        onClick={() => handlePageChange(pageNum)}
                       >
                         {pageNum}
                       </PaginationLink>
@@ -217,7 +177,7 @@ export default function AdminProductsPage() {
                 {page < totalPages && (
                   <PaginationItem>
                     <PaginationNext
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
                     />
                   </PaginationItem>
                 )}

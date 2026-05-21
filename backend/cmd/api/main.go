@@ -11,14 +11,36 @@ import (
 	"time"
 
 	"ecommerce-backend/internal/handlers"
-	"ecommerce-backend/internal/middleware"
+	adminHandler "ecommerce-backend/internal/handlers/admin"
+	adminProductHandler "ecommerce-backend/internal/handlers/admin/product"
+	adminUserHandler "ecommerce-backend/internal/handlers/admin/user"
+	authHandler "ecommerce-backend/internal/handlers/auth"
+	cartHandler "ecommerce-backend/internal/handlers/cart"
+	orderHandler "ecommerce-backend/internal/handlers/order"
+	productHandler "ecommerce-backend/internal/handlers/product"
 	"ecommerce-backend/internal/repositories"
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/routes"
+	adminService "ecommerce-backend/internal/services/admin"
+	authService "ecommerce-backend/internal/services/auth"
+	cartService "ecommerce-backend/internal/services/cart"
+	chatService "ecommerce-backend/internal/services/chat"
+	cleanupService "ecommerce-backend/internal/services/cleanup"
+	emailService "ecommerce-backend/internal/services/email"
+	newsletterService "ecommerce-backend/internal/services/newsletter"
+	orderService "ecommerce-backend/internal/services/order"
+	paymentService "ecommerce-backend/internal/services/payment"
+	productService "ecommerce-backend/internal/services/product"
+	searchService "ecommerce-backend/internal/services/search"
+	wishlistService "ecommerce-backend/internal/services/wishlist"
+	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/jwt"
+	"ecommerce-backend/pkg/storage"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
+	"github.com/zishang520/socket.io/servers/socket/v3"
+	"github.com/zishang520/socket.io/v3/pkg/types"
 	postgresDriver "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -99,28 +121,115 @@ func main() {
 	searchRepo := repositories.NewSearchRepository(db)
 	chatRepo := repositories.NewChatRepository(db)
 	activityRepo := repositories.NewActivityRepository(db)
+	emailQueueRepo := repositories.NewEmailQueueRepository(db)
+	wishlistRepo := repositories.NewWishlistRepository(db)
+	shippingRepo := repositories.NewShippingRepository(db)
+	tempUploadRepo := repositories.NewTempUploadRepository(db)
+	webhookEventRepo := repositories.NewWebhookEventRepository(db)
+
+	// Initialize Email Service
+	emailConfig := emailService.EmailConfig{
+		Host:     os.Getenv("SMTP_HOST"),
+		Port:     587, // Gmail SMTP port
+		Username: os.Getenv("SMTP_USER"),
+		Password: os.Getenv("SMTP_PASSWORD"),
+		FromAddr: os.Getenv("EMAIL_FROM"),
+	}
+	
+	// Use defaults for Gmail if not configured
+	if emailConfig.Host == "" {
+		emailConfig.Host = "smtp.gmail.com"
+	}
+	if emailConfig.Username == "" {
+		emailConfig.Username = os.Getenv("GMAIL_USER")
+	}
+	if emailConfig.Password == "" {
+		emailConfig.Password = os.Getenv("GMAIL_PASSWORD")
+	}
+	if emailConfig.FromAddr == "" {
+		emailConfig.FromAddr = emailConfig.Username
+	}
+	
+	emailSvc, err := emailService.NewEmailService(emailConfig)
+	if err != nil {
+		log.Printf("Warning: failed to initialize email service: %v\n", err)
+		emailSvc = nil
+	}
+
+	// Initialize Image Service
+	imageSvc := storage.NewImageService(
+		os.Getenv("SEAWEEDFS_ENDPOINT"),
+		os.Getenv("SEAWEEDFS_ACCESS_KEY"),
+		os.Getenv("SEAWEEDFS_SECRET_KEY"),
+	)
+
+	// Initialize Payment Services (Midtrans)
+	paymentConfig, err := paymentService.LoadPaymentGatewayConfig()
+	if err != nil {
+		log.Printf("Warning: payment gateway not configured: %v", err)
+	}
+
+	var snapSvc *paymentService.SnapService
+	var webhookSvc *paymentService.PaymentWebhookService
+	var syncSvc *paymentService.PaymentSyncService
+	if paymentConfig != nil {
+		if err := paymentConfig.Validate(); err != nil {
+			log.Printf("Warning: payment config invalid: %v", err)
+		} else {
+			snapSvc = paymentService.NewSnapService(paymentConfig)
+			webhookSvc = paymentService.NewPaymentWebhookService(orderRepo, promoCodeRepo, paymentConfig.ServerKey)
+			webhookSvc.SetWebhookEventRepository(webhookEventRepo)
+			syncSvc = paymentService.NewPaymentSyncService(paymentConfig, orderRepo, promoCodeRepo)
+			log.Printf("✅ Midtrans payment gateway initialized (sandbox=%v)", paymentConfig.IsSandbox())
+		}
+	}
 
 	// Initialize Services
-	authService := services.NewAuthService(userRepo, jwtManager)
-	productService := services.NewProductService(productRepo, categoryRepo)
-	cartService := services.NewCartService(cartRepo, addressRepo, productRepo)
-	orderService := services.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo)
-	newsletterService := services.NewNewsletterService(newsletterRepo)
-	searchService := services.NewSearchService(searchRepo, productRepo, categoryRepo)
-	chatService := services.NewChatService(chatRepo, userRepo)
-	activityService := services.NewActivityService(activityRepo)
-	exportService := services.NewExportService(userRepo, orderRepo)
+	authSvc := authService.NewAuthService(userRepo, emailQueueRepo, jwtManager, emailSvc)
+	
+	// Get underlying SQL DB from GORM DB for DashboardService
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("Failed to get SQL database from GORM: %v", err)
+	}
+	
+	dashboardSvc := adminService.NewDashboardService(nil, nil, nil, sqlDB)
+	productSvc := productService.NewProductService(productRepo, categoryRepo)
+	productSvc.SetDB(db)
+	productSvc.SetImageService(imageSvc)
+	categorySvc := productService.NewCategoryService(categoryRepo, productRepo)
+	cartSvc := cartService.NewCartService(cartRepo, addressRepo, productRepo)
+	addressSvc := cartService.NewAddressService(addressRepo)
+	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo, shippingRepo, snapSvc)
+	newsletterSvc := newsletterService.NewNewsletterService(newsletterRepo)
+	searchSvc := searchService.NewSearchService(searchRepo, productRepo, categoryRepo)
+	chatSvc := chatService.NewChatService(chatRepo, userRepo)
+	wishlistSvc := wishlistService.NewWishlistService(wishlistRepo, productRepo)
+	activitySvc := utils.NewActivityService(activityRepo)
+	exportSvc := utils.NewExportService(userRepo, orderRepo)
+	cleanupSvc := cleanupService.NewCleanupService(db, tempUploadRepo, imageSvc, redisClient)
 
 	// Initialize Handlers
-	authHandler := handlers.NewAuthHandler(authService)
-	productHandler := handlers.NewProductHandler(productService)
-	categoryHandler := handlers.NewCategoryHandler(productService)
-	cartHandler := handlers.NewCartHandler(cartService)
-	orderHandler := handlers.NewOrderHandler(orderService)
-	searchHandler := handlers.NewSearchHandler(searchService)
-	chatHandler := handlers.NewChatHandler(chatService)
-	adminUserHandler := handlers.NewAdminUserHandler(exportService)
-	adminActivityHandler := handlers.NewAdminActivityHandler(activityService)
+	authH := authHandler.NewAuthHandler(authSvc)
+	dashboardH := adminHandler.NewDashboardHandler(dashboardSvc)
+	productH := productHandler.NewProductHandler(productSvc)
+	categoryH := productHandler.NewCategoryHandler(categorySvc, productSvc)
+	cartH := cartHandler.NewCartHandler(cartSvc)
+	addressH := cartHandler.NewAddressHandler(addressSvc)
+	orderH := orderHandler.NewOrderHandler(orderSvc, syncSvc)
+	shippingH := orderHandler.NewShippingHandler(shippingRepo)
+	searchH := handlers.NewSearchHandler(searchSvc)
+	chatH := handlers.NewChatHandler(chatSvc)
+	wishlistH := handlers.NewWishlistHandler(wishlistSvc)
+	adminUserH := adminUserHandler.NewAdminUserHandler(exportSvc, userRepo)
+	adminActivityH := adminUserHandler.NewAdminActivityHandler(activitySvc)
+	adminProductH := adminProductHandler.NewAdminProductHandler(productSvc, tempUploadRepo)
+	adminCategoryH := adminProductHandler.NewAdminCategoryHandler(categorySvc)
+	adminOrderH := adminHandler.NewAdminOrderHandler(orderSvc)
+	adminSearchH := adminHandler.NewAdminSearchHandler(searchSvc)
+	adminPromoRepo := repositories.NewPromoRepository(db)
+	promoSvc := utils.NewPromoService(adminPromoRepo)
+	adminPromoH := adminHandler.NewAdminPromoHandler(promoSvc)
 
 	// Initialize Gin router
 	if os.Getenv("APP_ENV") == "production" {
@@ -131,219 +240,81 @@ func main() {
 	// Global Middleware
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
+	router.Use(SecurityHeadersMiddleware())
 
-	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": "ecommerce-api",
-			"time":    time.Now().Format(time.RFC3339),
-		})
+	// Setup all routes via routes package (Separation of Concerns)
+	routes.Setup(routes.Config{
+		Router:         router,
+		RedisClient:    redisClient,
+		JWTManager:     jwtManager,
+		WebhookSvc:     webhookSvc,
+		NewsletterSvc:  newsletterSvc,
+		AuthH:          authH,
+		DashboardH:     dashboardH,
+		ProductH:       productH,
+		AdminProductH:  adminProductH,
+		CategoryH:      categoryH,
+		AdminCategoryH: adminCategoryH,
+		CartH:          cartH,
+		OrderH:         orderH,
+		AdminOrderH:    adminOrderH,
+		ShippingH:      shippingH,
+		SearchH:        searchH,
+		AdminSearchH:   adminSearchH,
+		ChatH:          chatH,
+		WishlistH:      wishlistH,
+		AdminUserH:     adminUserH,
+		AdminActivityH: adminActivityH,
+		AddressH:       addressH,
+		AdminPromoH:    adminPromoH,
 	})
 
-	// API v1 routes
-	v1 := router.Group("/api/v1")
-	{
-		// Rate limiting middleware (100 req/min)
-		rateLimiter := middleware.NewRateLimiter(redisClient, 100, time.Minute)
-		v1.Use(rateLimiter.Middleware())
-
-		// Public routes
-		v1.GET("/ping", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{
-				"message": "pong",
-			})
-		})
-
-		// Auth routes (public)
-		authRoutes := v1.Group("/auth")
-		{
-			authRoutes.POST("/register", authHandler.Register)
-			authRoutes.POST("/login", authHandler.Login)
-			authRoutes.POST("/refresh", authHandler.Refresh)
-		}
-
-		// Category routes (public - read only)
-		categoryRoutes := v1.Group("/categories")
-		{
-			categoryRoutes.GET("", categoryHandler.ListCategories)
-			categoryRoutes.GET("/tree", categoryHandler.GetCategoryTree)
-			categoryRoutes.GET("/root", categoryHandler.GetRootCategories)
-			categoryRoutes.GET("/:identifier", categoryHandler.GetCategory)
-			categoryRoutes.GET("/:identifier/products", categoryHandler.GetCategoryWithProducts)
-		}
-
-		// Newsletter routes (public - no auth required)
-		handlers.RegisterNewsletterRoutes(v1, newsletterService)
-
-		// Product routes (public - read only)
-		productRoutes := v1.Group("/products")
-		{
-			productRoutes.GET("", productHandler.ListProducts)
-			productRoutes.GET("/search", productHandler.SearchProducts)
-			productRoutes.GET("/featured", productHandler.GetFeaturedProducts)
-			productRoutes.GET("/:identifier", productHandler.GetProduct)
-			productRoutes.GET("/:identifier/related", productHandler.GetRelatedProducts)
-		}
-
-		// Search routes (public - read only)
-		searchRoutes := v1.Group("/search")
-		searchRoutes.Use(middleware.OptionalAuthMiddleware(jwtManager))
-		{
-			searchRoutes.GET("", searchHandler.SearchProducts)
-			searchRoutes.GET("/autocomplete", searchHandler.GetAutocompleteSuggestions)
-			searchRoutes.GET("/popular", searchHandler.GetPopularSearches)
-			searchRoutes.GET("/facets", searchHandler.GetSearchFacets)
-			searchRoutes.GET("/filters", searchHandler.GetSearchFilters)
-			searchRoutes.GET("/trending-products", searchHandler.GetTrendingProducts)
-			searchRoutes.POST("/click", searchHandler.RecordProductClick)
-		}
-
-		// Cart routes (public with optional session or auth)
-		cartRoutes := v1.Group("/cart")
-		cartRoutes.Use(middleware.OptionalAuthMiddleware(jwtManager))
-		{
-			cartRoutes.GET("", cartHandler.GetCart)
-			cartRoutes.GET("/summary", cartHandler.GetCartSummary)
-			cartRoutes.POST("/items", cartHandler.AddToCart)
-			cartRoutes.PUT("/items/:itemId", cartHandler.UpdateCartItem)
-			cartRoutes.DELETE("/items/:itemId", cartHandler.RemoveFromCart)
-			cartRoutes.DELETE("", cartHandler.ClearCart)
-			cartRoutes.POST("/refresh", cartHandler.RefreshCartPrices)
-		}
-
-		// Protected routes (require authentication)
-		protected := v1.Group("")
-		protected.Use(middleware.AuthMiddleware(jwtManager))
-		{
-			protected.POST("/auth/logout", authHandler.Logout)
-			protected.GET("/auth/me", authHandler.GetProfile)
-
-			// Cart merge (after login)
-			protected.POST("/cart/merge", cartHandler.MergeGuestCart)
-
-			// Address routes
-			addressRoutes := protected.Group("/addresses")
-			{
-				addressRoutes.GET("", cartHandler.GetAddresses)
-				addressRoutes.GET("/:id", cartHandler.GetAddress)
-				addressRoutes.POST("", cartHandler.CreateAddress)
-				addressRoutes.PUT("/:id", cartHandler.UpdateAddress)
-				addressRoutes.DELETE("/:id", cartHandler.DeleteAddress)
-				addressRoutes.PUT("/:id/default", cartHandler.SetDefaultAddress)
-			}
-
-			// Order routes (customer)
-			orderRoutes := protected.Group("/orders")
-			{
-				orderRoutes.GET("", orderHandler.GetOrders)
-				orderRoutes.GET("/:id", orderHandler.GetOrder)
-				orderRoutes.POST("/:id/cancel", orderHandler.CancelOrder)
-			}
-
-			// Checkout
-			protected.POST("/checkout", orderHandler.Checkout)
-			protected.POST("/promo-codes/validate", orderHandler.ValidatePromoCode)
-
-			// Chat routes (protected - require authentication)
-			chatRoutes := protected.Group("/chat")
-			{
-				chatRoutes.POST("/conversations", chatHandler.CreateConversation)
-				chatRoutes.GET("/conversations", chatHandler.GetConversations)
-				chatRoutes.GET("/conversations/:id", chatHandler.GetConversation)
-				chatRoutes.POST("/conversations/:id/messages", chatHandler.SendMessage)
-				chatRoutes.GET("/conversations/:id/messages", chatHandler.GetMessages)
-				chatRoutes.PUT("/messages/:id/read", chatHandler.MarkAsRead)
-				chatRoutes.POST("/conversations/:id/typing", chatHandler.SetTypingIndicator)
-				chatRoutes.GET("/conversations/:id/typing", chatHandler.GetTypingUsers)
-				chatRoutes.POST("/messages/:id/reactions", chatHandler.AddReaction)
-				chatRoutes.DELETE("/messages/:id/reactions/:reaction", chatHandler.RemoveReaction)
-			}
-
-			// Account search history routes
-			accountSearchRoutes := protected.Group("/account/search")
-			{
-				accountSearchRoutes.GET("/history", searchHandler.GetUserSearchHistory)
-				accountSearchRoutes.DELETE("/history", searchHandler.ClearSearchHistory)
-			}
-		}
-
-		// Admin routes (require admin role)
-		admin := v1.Group("/admin")
-		admin.Use(middleware.AuthMiddleware(jwtManager))
-		admin.Use(middleware.AdminOnly())
-		{
-			admin.GET("/dashboard", func(c *gin.Context) {
-				userID, _ := middleware.GetUserID(c)
-				c.JSON(http.StatusOK, gin.H{
-					"message": "Admin dashboard",
-					"user_id": userID,
-				})
-			})
-
-			// Admin Product routes
-			adminProducts := admin.Group("/products")
-			{
-				adminProducts.POST("", productHandler.CreateProduct)
-				adminProducts.PUT("/:id", productHandler.UpdateProduct)
-				adminProducts.DELETE("/:id", productHandler.DeleteProduct)
-				adminProducts.POST("/:id/images", productHandler.UploadProductImage)
-				adminProducts.PUT("/:id/images/reorder", productHandler.ReorderProductImages)
-				adminProducts.DELETE("/images/:imageId", productHandler.DeleteProductImage)
-				adminProducts.POST("/:id/variants", productHandler.AddVariant)
-				adminProducts.PUT("/variants/:variantId", productHandler.UpdateVariant)
-				adminProducts.DELETE("/variants/:variantId", productHandler.DeleteVariant)
-			}
-
-			// Admin Category routes
-			adminCategories := admin.Group("/categories")
-			{
-				adminCategories.POST("", categoryHandler.CreateCategory)
-				adminCategories.PUT("/:id", categoryHandler.UpdateCategory)
-				adminCategories.DELETE("/:id", categoryHandler.DeleteCategory)
-			}
-
-			// Admin Order routes
-			adminOrders := admin.Group("/orders")
-			{
-				adminOrders.GET("", orderHandler.AdminGetOrders)
-				adminOrders.GET("/summary", orderHandler.GetOrderSummary)
-				adminOrders.GET("/:id", orderHandler.AdminGetOrder)
-				adminOrders.PUT("/:id/status", orderHandler.AdminUpdateOrderStatus)
-				adminOrders.PUT("/:id/payment", orderHandler.AdminUpdatePayment)
-				adminOrders.PUT("/:id/tracking", orderHandler.AdminUpdateTracking)
-				adminOrders.PUT("/:id/notes", orderHandler.AdminAddNotes)
-			}
-
-			// Admin User routes
-			adminUsers := admin.Group("/users")
-			{
-				adminUsers.GET("", adminUserHandler.ListUsers)
-				adminUsers.GET("/export", adminUserHandler.ExportUsersToCSV)
-				adminUsers.GET("/:id", adminUserHandler.GetUser)
-			}
-
-			// Admin Activity routes
-			adminActivities := admin.Group("/activities")
-			{
-				adminActivities.GET("", adminActivityHandler.GetActivities)
-				adminActivities.GET("/summary", adminActivityHandler.GetActivitySummary)
-				adminActivities.GET("/user/:user_id", adminActivityHandler.GetUserActivities)
-			}
-
-			// Admin Search metrics routes
-			adminSearchRoutes := admin.Group("/search")
-			{
-				adminSearchRoutes.GET("/metrics", searchHandler.GetSearchMetrics)
-			}
-		}
-	}
+	// Start background cleanup jobs
+	cleanupSvc.StartBackgroundJobs()
+	log.Println("✅ Background cleanup jobs started")
 
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
+
+	// Initialize Socket.io server dengan CORS di ServerOptions
+	socketOptions := socket.DefaultServerOptions()
+	socketOptions.SetCors(&types.Cors{
+		Origin:      "*",
+		Credentials: true,
+	})
+
+	ioServer := socket.NewServer(nil, socketOptions)
+
+	ioServer.On("connection", func(clients ...any) {
+		client := clients[0].(*socket.Socket)
+		log.Printf("✨ Socket client connected: %s\n", client.Id())
+
+		client.On("disconnect", func(reasons ...any) {
+			log.Printf("🔌 Socket client disconnected: %s\n", client.Id())
+		})
+	})
+
+	// Start Socket.io server on port 8081
+	socketPort := "8081"
+	go func() {
+		mux := http.NewServeMux()
+		mux.Handle("/socket.io/", ioServer.ServeHandler(nil))
+
+		socketSrv := &http.Server{
+			Addr:    ":" + socketPort,
+			Handler: mux,
+		}
+
+		log.Printf("🔌 WebSocket server starting on http://localhost:%s/socket.io\n", socketPort)
+		if err := socketSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("⚠️ WebSocket server error: %v\n", err)
+		}
+	}()
+
+	time.Sleep(200 * time.Millisecond)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
@@ -352,7 +323,7 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		log.Printf("🚀 Server starting on http://localhost:%s\n", port)
+		log.Printf("🚀 API Server starting on http://localhost:%s\n", port)
 		log.Printf("📚 API Documentation: http://localhost:%s/api/v1/ping\n", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
@@ -364,7 +335,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("🛑 Shutting down server...")
+	log.Println("🛑 Shutting down servers...")
 
 	ctx2, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -373,7 +344,7 @@ func main() {
 		log.Fatal("Server forced to shutdown:", err)
 	}
 
-	log.Println("✅ Server exited gracefully")
+	log.Println("✅ Servers exited gracefully")
 }
 
 func initDB() (*gorm.DB, error) {
@@ -429,3 +400,17 @@ func corsMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// SecurityHeadersMiddleware adds standard security headers to every response
+func SecurityHeadersMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("X-XSS-Protection", "1; mode=block")
+		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		// Prevents browser from sending referrer info to external sites
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Next()
+	}
+}
+

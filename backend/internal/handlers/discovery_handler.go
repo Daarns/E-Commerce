@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"ecommerce-backend/internal/services"
+	"ecommerce-backend/internal/services/discovery"
 	"ecommerce-backend/pkg/response"
 	"net/http"
 	"strconv"
@@ -11,11 +11,11 @@ import (
 
 // DiscoveryHandler handles homepage discovery endpoints
 type DiscoveryHandler struct {
-	discoveryService *services.DiscoveryService
+	discoveryService *discovery.DiscoveryService
 }
 
 // NewDiscoveryHandler creates a new discovery handler
-func NewDiscoveryHandler(discoveryService *services.DiscoveryService) *DiscoveryHandler {
+func NewDiscoveryHandler(discoveryService *discovery.DiscoveryService) *DiscoveryHandler {
 	return &DiscoveryHandler{
 		discoveryService: discoveryService,
 	}
@@ -87,3 +87,4 @@ func (h *DiscoveryHandler) GetCategories(c *gin.Context) {
 		"categories": result,
 	})
 }
+

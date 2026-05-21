@@ -149,7 +149,7 @@ export function HeroSection() {
               ref={badgeRef}
               className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary text-sm font-medium rounded-full"
             >
-              Spring/Summer 2025
+              Spring/Summer
             </span>
 
             <h1 ref={titleRef} className="text-4xl md:text-6xl font-bold tracking-tight">

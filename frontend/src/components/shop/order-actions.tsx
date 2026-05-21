@@ -1,12 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { Order, OrderStatus } from '@/types';
-import { orderService } from '@/services/order';
+import { Order } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Phone, FileText, RotateCcw, Trash2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { CreditCard, FileText, Phone, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
+import { useOrderDetailActions } from '@/hooks/useOrderDetailActions';
 
 interface OrderActionsProps {
   order: Order;
@@ -14,53 +12,24 @@ interface OrderActionsProps {
 }
 
 export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [openCancelDialog, setOpenCancelDialog] = useState(false);
-  const [openRefundDialog, setOpenRefundDialog] = useState(false);
-  const router = useRouter();
-
-  const canCancel = ['pending', 'confirmed', 'processing'].includes(order.status);
-  const canRequestRefund = order.status === 'delivered' && order.payment_status === 'paid';
-
-  const handleCancelOrder = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const updatedOrder = await orderService.cancelOrder(order.id);
-      onOrderUpdated?.(updatedOrder);
-      setOpenCancelDialog(false);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to cancel order');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleContactSupport = () => {
-    // Open a mailto link or navigate to support page
-    window.location.href = `mailto:support@ecommerce.com?subject=Order%20${order.order_number}`;
-  };
-
-  const handleViewInvoice = () => {
-    // TODO: Implement invoice download/view
-    console.log('View invoice for order:', order.id);
-  };
-
-  const handleRequestRefund = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      // TODO: Implement refund request flow
-      console.log('Request refund for order:', order.id);
-      setOpenRefundDialog(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to request refund');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    isLoading,
+    error,
+    openCancelDialog,
+    setOpenCancelDialog,
+    openRefundDialog,
+    setOpenRefundDialog,
+    canCancel,
+    canRequestRefund,
+    canRetryPayment,
+    canSyncPayment,
+    handleCancelOrder,
+    handleRetryPayment,
+    handleSyncPayment,
+    handleContactSupport,
+    handleViewInvoice,
+    handleRequestRefund,
+  } = useOrderDetailActions(order, onOrderUpdated);
 
   return (
     <div className="bg-white rounded-lg border p-6">
@@ -73,6 +42,29 @@ export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {canRetryPayment && (
+          <Button
+            onClick={() => void handleRetryPayment()}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            <CreditCard className="w-4 h-4" />
+            {isLoading ? 'Loading...' : 'Retry Payment'}
+          </Button>
+        )}
+
+        {canSyncPayment && (
+          <Button
+            variant="outline"
+            onClick={() => void handleSyncPayment()}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Sync Payment
+          </Button>
+        )}
+
         {/* Contact Support */}
         <Button
           variant="outline"
@@ -117,7 +109,7 @@ export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
               </DialogHeader>
               <div className="flex flex-col gap-4">
                 <p className="text-sm text-gray-600">
-                  <strong>Refund Amount:</strong> Rp {order.total_amount.toLocaleString('id-ID')}
+                  <strong>Refund Amount:</strong> Rp {Number(order.total_amount ?? order.total ?? 0).toLocaleString('id-ID')}
                 </p>
                 <div className="flex gap-2 justify-end">
                   <Button
