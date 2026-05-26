@@ -48,12 +48,12 @@ export default function ProductDetailPage() {
   if (error || !product) {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
-        <h1 className="text-2xl font-bold mb-4">Product Not Found</h1>
+        <h1 className="text-2xl font-bold mb-4">Produk tidak tersedia</h1>
         <p className="text-muted-foreground mb-8">
-          The product you&apos;re looking for doesn&apos;t exist or has been removed.
+          Produk yang Anda cari tidak ada, belum tersedia, atau sudah tidak dijual.
         </p>
         <Button asChild>
-          <Link href="/products">Browse Products</Link>
+          <Link href="/products">Lihat Produk Lain</Link>
         </Button>
       </div>
     );

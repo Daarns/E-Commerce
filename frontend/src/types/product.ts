@@ -84,6 +84,7 @@ export interface Category {
 
 export interface ProductFilter {
   page?: number;
+  cursor?: string;
   limit?: number;
   category_id?: string;
   search?: string;

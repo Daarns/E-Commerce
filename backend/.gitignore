@@ -38,6 +38,8 @@ logs/
 coverage.txt
 *.cover
 *.coverprofile
+tests/
+tests/smoke/
 
 # OS
 .DS_Store

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import type { ProductFilters } from '@/services/admin';
 import {
-  ADMIN_PRODUCT_ACTIVE_STATUS_OPTIONS,
+  ADMIN_PRODUCT_STATUS_FILTER_OPTIONS,
   ADMIN_PRODUCT_SORT_OPTIONS,
   ADMIN_PRODUCT_STOCK_STATUS_OPTIONS,
   SORT_ORDER_OPTIONS,
@@ -28,12 +28,17 @@ import { useAdminProductSearch } from '@/hooks/useAdminProductSearch';
 interface ProductSearchProps {
   onFiltersChange: (filters: ProductFilters) => void;
   onSearchChange?: (search: string) => void;
+  onSearchPendingChange?: (isPending: boolean) => void;
   isLoading?: boolean;
 }
+
+const ALL_CATEGORIES_VALUE = '__all_categories__';
+const ALL_STOCK_STATUSES_VALUE = '__all_stock_statuses__';
 
 export function ProductSearch({
   onFiltersChange,
   onSearchChange,
+  onSearchPendingChange,
   isLoading = false,
 }: ProductSearchProps) {
   const {
@@ -44,12 +49,26 @@ export function ProductSearch({
     hasActiveFilters,
     setIsExpanded,
     handleSearchChange,
+    clearSearch,
     handleFilterChange,
     handleStockStatusChange,
+    handleStatusChange,
     handleSortByChange,
     handleSortOrderChange,
     resetFilters,
-  } = useAdminProductSearch({ onFiltersChange, onSearchChange });
+  } = useAdminProductSearch({ onFiltersChange, onSearchChange, onSearchPendingChange });
+
+  const selectedCategoryLabel =
+    categories.find((category) => category.id === filters.category_id)?.name ?? 'Semua kategori';
+  const selectedStockLabel =
+    ADMIN_PRODUCT_STOCK_STATUS_OPTIONS.find((option) => option.value === filters.stock_status)?.label ??
+    'Semua status';
+  const selectedSortLabel =
+    ADMIN_PRODUCT_SORT_OPTIONS.find((option) => option.value === filters.sort_by)?.label ??
+    'Tanggal Dibuat';
+  const selectedSortOrderLabel =
+    SORT_ORDER_OPTIONS.find((option) => option.value === filters.sort_order)?.label ??
+    'Terbesar / Z-A';
 
   return (
     <div className="space-y-4">
@@ -65,7 +84,8 @@ export function ProductSearch({
         />
         {search && (
           <button
-            onClick={() => handleSearchChange('')}
+            type="button"
+            onClick={clearSearch}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             <X className="w-4 h-4" />
@@ -84,12 +104,7 @@ export function ProductSearch({
             transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
           }}
         />
-        Advanced Filters
-        {hasActiveFilters && (
-          <span className="ml-auto text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
-            Active
-          </span>
-        )}
+        Filter Lanjutan
       </motion.button>
 
       {/* Advanced Filters */}
@@ -105,17 +120,20 @@ export function ProductSearch({
             <div>
               <Label>Category</Label>
               <Select
-                value={filters.category_id || ''}
+                value={filters.category_id || ALL_CATEGORIES_VALUE}
                 onValueChange={(value) =>
-                  handleFilterChange('category_id', value)
+                  handleFilterChange(
+                    'category_id',
+                    !value || value === ALL_CATEGORIES_VALUE ? undefined : value
+                  )
                 }
                 disabled={isLoading}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="All categories" />
+                <SelectTrigger className="mt-1 h-10 w-full">
+                  <SelectValue placeholder="Semua kategori">{selectedCategoryLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All categories</SelectItem>
+                  <SelectItem value={ALL_CATEGORIES_VALUE}>Semua kategori</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       {cat.name}
@@ -127,17 +145,19 @@ export function ProductSearch({
 
             {/* Stock Status Filter */}
             <div>
-              <Label>Stock Status</Label>
+              <Label>Status Stok</Label>
               <Select
-                value={filters.stock_status || ''}
-                onValueChange={handleStockStatusChange}
+                value={filters.stock_status || ALL_STOCK_STATUSES_VALUE}
+                onValueChange={(value) => handleStockStatusChange(
+                  value === ALL_STOCK_STATUSES_VALUE ? null : value
+                )}
                 disabled={isLoading}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="All statuses" />
+                <SelectTrigger className="mt-1 h-10 w-full">
+                  <SelectValue placeholder="Semua status">{selectedStockLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value={ALL_STOCK_STATUSES_VALUE}>Semua status</SelectItem>
                   {ADMIN_PRODUCT_STOCK_STATUS_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -147,38 +167,32 @@ export function ProductSearch({
               </Select>
             </div>
 
-            {/* Active Status Filter */}
-            <div>
+            {/* Product Status Filter */}
+            <div className="space-y-2">
               <Label>Status</Label>
-              <Select
-                value={
-                  filters.is_active === undefined
-                    ? ''
-                    : filters.is_active
-                    ? 'active'
-                    : 'inactive'
-                }
-                onValueChange={(value) => {
-                  if (value === '') {
-                    handleFilterChange('is_active', undefined);
-                  } else {
-                    handleFilterChange('is_active', value === 'active');
-                  }
-                }}
-                disabled={isLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
-                  {ADMIN_PRODUCT_ACTIVE_STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={filters.status === undefined ? 'default' : 'outline'}
+                  onClick={() => handleStatusChange(null)}
+                  disabled={isLoading}
+                >
+                  Semua
+                </Button>
+                {ADMIN_PRODUCT_STATUS_FILTER_OPTIONS.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={filters.status === option.value ? 'default' : 'outline'}
+                    onClick={() => handleStatusChange(option.value)}
+                    disabled={isLoading}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -222,8 +236,8 @@ export function ProductSearch({
                 onValueChange={handleSortByChange}
                 disabled={isLoading}
               >
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className="h-10 w-full">
+                  <SelectValue>{selectedSortLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {ADMIN_PRODUCT_SORT_OPTIONS.map((option) => (
@@ -239,8 +253,8 @@ export function ProductSearch({
                 onValueChange={handleSortOrderChange}
                 disabled={isLoading}
               >
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className="h-10 w-full">
+                  <SelectValue>{selectedSortOrderLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {SORT_ORDER_OPTIONS.map((option) => (

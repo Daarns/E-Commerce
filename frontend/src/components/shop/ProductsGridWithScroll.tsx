@@ -2,7 +2,7 @@
 
 import { Loader2 } from 'lucide-react';
 import { Product } from '@/types';
-import { ProductGrid } from '@/components/product/product-grid';
+import { VirtualizedProductGrid } from '@/components/product/VirtualizedProductGrid';
 
 interface ProductsGridProps {
   products: Product[];
@@ -17,7 +17,7 @@ export function ProductsGridWithScroll({
 }: ProductsGridProps) {
   return (
     <>
-      <ProductGrid products={products} columns={5} />
+      <VirtualizedProductGrid products={products} columns={5} />
 
       {/* Show loading indicator while loading more */}
       {isLoadingMore && (

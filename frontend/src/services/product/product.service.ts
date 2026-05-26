@@ -10,7 +10,19 @@ interface ProductListResponse {
     limit: number;
     total: number;
     total_pages: number;
+    next_cursor?: string;
+    has_next?: boolean;
   };
+}
+
+interface ProductListData {
+  products?: Product[];
+  page?: number;
+  limit?: number;
+  total?: number;
+  total_pages?: number;
+  next_cursor?: string;
+  has_next?: boolean;
 }
 
 // ─── Review Types ──────────────────────────────────────────────────────────────
@@ -79,6 +91,7 @@ export const productService = {
   async getProducts(filter?: ProductFilter): Promise<ProductListResponse> {
     const params = new URLSearchParams();
     if (filter?.page) params.append('page', filter.page.toString());
+    if (filter?.cursor) params.append('cursor', filter.cursor);
     if (filter?.limit) params.append('limit', filter.limit.toString());
     if (filter?.category_id) params.append('category_id', filter.category_id);
     if (filter?.search) params.append('search', filter.search);
@@ -103,10 +116,20 @@ export const productService = {
       params.append('sort_order', sortOrder);
     }
 
-    const response = await api.get<ApiResponse<{ products: Product[] }>>(`/products?${params}`);
+    const response = await api.get<ApiResponse<ProductListData>>(`/products?${params}`);
+    const data = response.data.data;
+    const meta = response.data.meta;
+
     return {
-      products: response.data.data?.products || [],
-      meta: response.data.meta || { page: 1, limit: 20, total: 0, total_pages: 0 },
+      products: data?.products || [],
+      meta: {
+        page: meta?.page ?? data?.page ?? filter?.page ?? 1,
+        limit: meta?.limit ?? data?.limit ?? filter?.limit ?? 20,
+        total: meta?.total ?? data?.total ?? 0,
+        total_pages: meta?.total_pages ?? data?.total_pages ?? 0,
+        next_cursor: meta?.next_cursor ?? data?.next_cursor,
+        has_next: meta?.has_next ?? data?.has_next ?? false,
+      },
     };
   },
 

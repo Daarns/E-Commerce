@@ -13,11 +13,14 @@ import {
   buildUpdateProductPayload,
   calculateDiscountPercent,
   calculateSalePrice,
+  closeCombinationsForOption,
+  closeCombinationsForOptions,
   createEmptyProductForm,
   createEmptyVariantOption,
   createEmptyVariantType,
   createVariantCombinationRows,
   createVariantTypeRows,
+  generateCombinationSkuFromValues,
   syncCombinationRows,
   validateAdminProductForm,
 } from '@/utils/admin-product-form.utils';
@@ -49,6 +52,7 @@ export interface VariantTypeRow {
 
 export interface VariantCombinationRow {
   key: string;
+  option_ids: string[];
   option_values: string[];
   price_adjustment: number;
   stock_quantity: number;
@@ -59,7 +63,7 @@ export interface VariantCombinationRow {
 export type ProductFormErrors = Record<string, string>;
 export type VariantTypeField = Exclude<keyof VariantTypeRow, 'key' | 'options'>;
 export type VariantOptionField = Exclude<keyof VariantOptionRow, 'key'>;
-export type VariantCombinationField = Exclude<keyof VariantCombinationRow, 'key' | 'option_values'>;
+export type VariantCombinationField = Exclude<keyof VariantCombinationRow, 'key' | 'option_ids' | 'option_values'>;
 
 interface UseAdminProductFormReturn {
   isEdit: boolean;
@@ -72,6 +76,7 @@ interface UseAdminProductFormReturn {
   variantTypes: VariantTypeRow[];
   combinations: VariantCombinationRow[];
   variantsOpen: boolean;
+  variantLabelsChanged: boolean;
   errors: ProductFormErrors;
   setCategoryModalOpen: (open: boolean) => void;
   setVariantsOpen: (updater: boolean | ((open: boolean) => boolean)) => void;
@@ -82,9 +87,11 @@ interface UseAdminProductFormReturn {
   removeUploadedImage: (index: number) => Promise<void>;
   addVariantType: () => void;
   removeVariantType: (key: string) => void;
+  closeVariantTypeCombinations: (key: string) => void;
   updateVariantType: <K extends VariantTypeField>(key: string, field: K, value: VariantTypeRow[K]) => void;
   addVariantOption: (typeKey: string) => void;
   removeVariantOption: (typeKey: string, optionKey: string) => void;
+  closeVariantOptionCombinations: (optionKey: string) => void;
   updateVariantOption: <K extends VariantOptionField>(
     typeKey: string,
     optionKey: string,
@@ -97,6 +104,8 @@ interface UseAdminProductFormReturn {
     field: K,
     value: VariantCombinationRow[K]
   ) => void;
+  regenerateCombinationSku: (key: string) => void;
+  regenerateAllCombinationSkus: () => void;
   handleSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 }
 
@@ -122,6 +131,7 @@ export function useAdminProductForm({
     createVariantCombinationRows(product)
   ));
   const [variantsOpen, setVariantsOpen] = useState(false);
+  const [variantLabelsChanged, setVariantLabelsChanged] = useState(false);
   const [errors, setErrors] = useState<ProductFormErrors>({});
   const [stockManuallyEdited, setStockManuallyEdited] = useState<boolean>(() => (
     (product?.stock_quantity ?? 0) > 0
@@ -157,6 +167,7 @@ export function useAdminProductForm({
     setVariantTypes(createVariantTypeRows(product));
     setCombinations(createVariantCombinationRows(product));
     setVariantsOpen((product.variant_types ?? []).length > 0);
+    setVariantLabelsChanged(false);
     setStockManuallyEdited((product.stock_quantity ?? 0) > 0);
     setErrors({});
   }, [isEdit, product]);
@@ -233,10 +244,9 @@ export function useAdminProductForm({
     setCombinations((previous) => syncCombinationRows(
       nextVariantTypes,
       previous,
-      formData.name,
-      formData.sku
+      formData.name
     ));
-  }, [formData.name, formData.sku]);
+  }, [formData.name]);
 
   const addVariantType = useCallback((): void => {
     setVariantTypes((previous) => {
@@ -255,17 +265,28 @@ export function useAdminProductForm({
     });
   }, [resyncCombinations]);
 
+  const closeVariantTypeCombinations = useCallback((key: string): void => {
+    const variantType = variantTypes.find((candidate) => candidate.key === key);
+    if (!variantType) return;
+
+    const optionIds = variantType.options.map((option) => option.key);
+    setCombinations((previous) => closeCombinationsForOptions(previous, optionIds));
+    toast.success('Kombinasi untuk tipe ini dinonaktifkan');
+  }, [variantTypes]);
+
   const updateVariantType = useCallback(
     <K extends VariantTypeField>(key: string, field: K, value: VariantTypeRow[K]): void => {
       setVariantTypes((previous) => {
         const next = previous.map((variantType) => (
           variantType.key === key ? { ...variantType, [field]: value } : variantType
         ));
-        resyncCombinations(next);
+        if (field === 'name') {
+          setVariantLabelsChanged(true);
+        }
         return next;
       });
     },
-    [resyncCombinations]
+    []
   );
 
   const addVariantOption = useCallback((typeKey: string): void => {
@@ -295,6 +316,11 @@ export function useAdminProductForm({
     });
   }, [resyncCombinations]);
 
+  const closeVariantOptionCombinations = useCallback((optionKey: string): void => {
+    setCombinations((previous) => closeCombinationsForOption(previous, optionKey));
+    toast.success('Kombinasi untuk pilihan ini dinonaktifkan');
+  }, []);
+
   const updateVariantOption = useCallback(
     <K extends VariantOptionField>(typeKey: string, optionKey: string, field: K, value: VariantOptionRow[K]): void => {
       setVariantTypes((previous) => {
@@ -308,11 +334,18 @@ export function useAdminProductForm({
               }
             : variantType
         ));
-        resyncCombinations(next);
+        if (field === 'value') {
+          setVariantLabelsChanged(true);
+          setCombinations((previousCombinations) => syncCombinationRows(
+            next,
+            previousCombinations,
+            formData.name
+          ));
+        }
         return next;
       });
     },
-    [resyncCombinations]
+    [formData.name]
   );
 
   const removeVariantOptionImage = useCallback(
@@ -350,6 +383,25 @@ export function useAdminProductForm({
     },
     [clearError, formData.stock_quantity, stockManuallyEdited]
   );
+
+  const regenerateCombinationSku = useCallback((key: string): void => {
+    setCombinations((previous) => previous.map((combination) => (
+      combination.key === key
+        ? {
+            ...combination,
+            sku: generateCombinationSkuFromValues(formData.name, combination.option_values),
+          }
+        : combination
+    )));
+  }, [formData.name]);
+
+  const regenerateAllCombinationSkus = useCallback((): void => {
+    setCombinations((previous) => previous.map((combination) => ({
+      ...combination,
+      sku: generateCombinationSkuFromValues(formData.name, combination.option_values),
+    })));
+    setVariantLabelsChanged(false);
+  }, [formData.name]);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -402,6 +454,7 @@ export function useAdminProductForm({
     variantTypes,
     combinations,
     variantsOpen,
+    variantLabelsChanged,
     errors,
     setCategoryModalOpen,
     setVariantsOpen,
@@ -412,12 +465,16 @@ export function useAdminProductForm({
     removeUploadedImage,
     addVariantType,
     removeVariantType,
+    closeVariantTypeCombinations,
     updateVariantType,
     addVariantOption,
     removeVariantOption,
+    closeVariantOptionCombinations,
     updateVariantOption,
     removeVariantOptionImage,
     updateCombination,
+    regenerateCombinationSku,
+    regenerateAllCombinationSkus,
     handleSubmit,
   };
 }

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { productService, categoryService } from '@/services/product';
 import { Product, Category } from '@/types';
 import { ProductFilters } from './useProductFilter';
@@ -11,9 +10,11 @@ export interface ProductListState {
   isLoadingMore: boolean;
   totalProducts: number;
   currentPage: number;
+  nextCursor?: string;
+  hasNextPage: boolean;
 }
 
-const LIMIT = 15;
+const LIMIT = 20;
 
 export function useProductList(filters: ProductFilters) {
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -24,6 +25,8 @@ export function useProductList(filters: ProductFilters) {
     isLoadingMore: false,
     totalProducts: 0,
     currentPage: 1,
+    nextCursor: undefined,
+    hasNextPage: false,
   });
 
   // Fetch categories on mount
@@ -67,6 +70,8 @@ export function useProductList(filters: ProductFilters) {
           totalProducts: result.meta.total,
           isLoading: false,
           currentPage: 1,
+          nextCursor: result.meta.next_cursor,
+          hasNextPage: result.meta.has_next ?? result.products.length >= LIMIT,
         }));
       } catch (error) {
         console.error('Failed to fetch products:', error);
@@ -81,7 +86,10 @@ export function useProductList(filters: ProductFilters) {
   }, [filters, state.categories]);
 
   // Load next page (infinite scroll)
-  const loadNextPage = useCallback(async (nextPage: number) => {
+  const loadNextPage = useCallback(async () => {
+    const cursor = state.nextCursor;
+    if (!cursor) return;
+
     setState(prev => ({ ...prev, isLoadingMore: true }));
 
     try {
@@ -92,7 +100,7 @@ export function useProductList(filters: ProductFilters) {
       }
 
       const result = await productService.getProducts({
-        page: nextPage,
+        cursor,
         limit: LIMIT,
         search: filters.searchQuery,
         category_id: categoryId,
@@ -105,7 +113,9 @@ export function useProductList(filters: ProductFilters) {
         ...prev,
         products: [...prev.products, ...result.products],
         totalProducts: result.meta.total,
-        currentPage: nextPage,
+        currentPage: prev.currentPage + 1,
+        nextCursor: result.meta.next_cursor,
+        hasNextPage: result.meta.has_next ?? result.products.length >= LIMIT,
         isLoadingMore: false,
       }));
     } catch (error) {
@@ -115,32 +125,31 @@ export function useProductList(filters: ProductFilters) {
         isLoadingMore: false,
       }));
     }
-  }, [filters, state.categories]);
+  }, [filters, state.categories, state.nextCursor]);
 
   // Infinite scroll - Intersection Observer
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !state.isLoadingMore && !state.isLoading) {
-          const totalPages = Math.ceil(state.totalProducts / LIMIT);
-          if (state.currentPage < totalPages) {
-            loadNextPage(state.currentPage + 1);
-          }
+        if (entries[0]?.isIntersecting && !state.isLoadingMore && !state.isLoading && state.hasNextPage) {
+          void loadNextPage();
         }
       },
-      { threshold: 0.1 }
+      { rootMargin: '800px 0px', threshold: 0.1 }
     );
 
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
+    const target = observerTarget.current;
+
+    if (target) {
+      observer.observe(target);
     }
 
     return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current);
+      if (target) {
+        observer.unobserve(target);
       }
     };
-  }, [state.isLoadingMore, state.isLoading, state.currentPage, state.totalProducts, loadNextPage]);
+  }, [state.isLoadingMore, state.isLoading, state.hasNextPage, loadNextPage]);
 
   return {
     ...state,

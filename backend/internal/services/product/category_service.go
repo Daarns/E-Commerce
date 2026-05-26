@@ -3,6 +3,7 @@ package product
 import (
 	"ecommerce-backend/internal/models"
 	"ecommerce-backend/internal/repositories"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -34,11 +35,34 @@ type CreateCategoryInput struct {
 
 // UpdateCategoryInput represents category update input
 type UpdateCategoryInput struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	ParentID    *string `json:"parent_id,omitempty"`
-	ImageURL    *string `json:"image_url,omitempty"`
-	IsActive    *bool   `json:"is_active,omitempty"`
+	Name        *string        `json:"name,omitempty"`
+	Description *string        `json:"description,omitempty"`
+	ParentID    OptionalString `json:"parent_id,omitempty"`
+	ImageURL    *string        `json:"image_url,omitempty"`
+	IsActive    *bool          `json:"is_active,omitempty"`
+}
+
+// OptionalString distinguishes an omitted JSON field from an explicit null.
+// This is needed for PATCH-like updates where parent_id:null means "clear parent",
+// while an omitted parent_id means "keep the current parent".
+type OptionalString struct {
+	Set   bool
+	Value *string
+}
+
+func (o *OptionalString) UnmarshalJSON(data []byte) error {
+	o.Set = true
+	if string(data) == "null" {
+		o.Value = nil
+		return nil
+	}
+
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	o.Value = &value
+	return nil
 }
 
 // CreateCategory creates a new category
@@ -111,22 +135,22 @@ func (uc *CategoryService) UpdateCategory(id uuid.UUID, input UpdateCategoryInpu
 		category.Name = strings.TrimSpace(*input.Name)
 		// Regenerate slug
 		category.Slug = models.GenerateSlug(category.Name)
-		existingSlugs, _ := uc.categoryRepo.GetAllSlugs()
-		var filteredSlugs []string
-		for _, s := range existingSlugs {
-			if s != category.Slug {
-				filteredSlugs = append(filteredSlugs, s)
-			}
+		existingSlugs, err := uc.categoryRepo.GetAllSlugsExcept(id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check existing category slugs: %w", err)
 		}
-		category.Slug = models.GenerateUniqueSlug(category.Slug, filteredSlugs)
+		category.Slug = models.GenerateUniqueSlug(category.Slug, existingSlugs)
 	}
 
 	if input.Description != nil {
 		category.Description = strings.TrimSpace(*input.Description)
 	}
 
-	if input.ParentID != nil {
-		parentID := strings.TrimSpace(*input.ParentID)
+	if input.ParentID.Set {
+		parentID := ""
+		if input.ParentID.Value != nil {
+			parentID = strings.TrimSpace(*input.ParentID.Value)
+		}
 		if parentID == "" {
 			category.ParentID = nil
 		} else {

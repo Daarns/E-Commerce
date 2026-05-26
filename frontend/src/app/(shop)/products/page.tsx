@@ -25,8 +25,20 @@ const capitalizeCategoryName = (name: string): string => {
 };
 
 function ProductsPageContent() {
-  const { filters, hasActiveFilters, handleSearchChange, handleCategoryChange, handleSortChange, handlePriceChange, clearFilters } = useProductFilter();
-  const { products, categories, isLoading, isLoadingMore, totalProducts, currentPage, observerTarget } = useProductList(filters);
+  const {
+    filters,
+    appliedFilters,
+    hasActiveFilters,
+    isFilterPending,
+    handleSearchChange,
+    handleCategoryChange,
+    handleSortChange,
+    handlePriceChange,
+    clearFilters,
+  } = useProductFilter();
+  const { products, categories, isLoading, isLoadingMore, totalProducts, currentPage, observerTarget } = useProductList(appliedFilters);
+  const shouldShowProductSkeleton = isFilterPending || (isLoading && currentPage === 1);
+  const shouldShowSearchResultCount = !!appliedFilters.searchQuery && !shouldShowProductSkeleton;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -34,9 +46,11 @@ function ProductsPageContent() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold">Products</h1>
-          <p className="text-muted-foreground">
-            {isLoading && currentPage === 1 ? 'Loading...' : hasActiveFilters || products.length > 0 ? `${totalProducts} products found` : ''}
-          </p>
+          {(shouldShowProductSkeleton || shouldShowSearchResultCount) && (
+            <p className="text-muted-foreground">
+              {shouldShowProductSkeleton ? 'Loading...' : `${totalProducts} products found`}
+            </p>
+          )}
         </div>
 
         {/* Mobile Filter Button */}
@@ -75,31 +89,43 @@ function ProductsPageContent() {
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-wrap gap-2 mb-6"
         >
-          {filters.searchQuery && (
+          {filters.searchInputValue && (
             <Badge variant="secondary" className="gap-1">
-              Search: {filters.searchQuery}
-              <X
-                className="h-3 w-3 cursor-pointer"
+              Search: {filters.searchInputValue}
+              <button
+                type="button"
+                aria-label="Remove search filter"
+                className="rounded-full p-0.5 hover:bg-muted-foreground/15"
                 onClick={() => handleSearchChange('')}
-              />
+              >
+                <X className="h-3 w-3" />
+              </button>
             </Badge>
           )}
           {filters.selectedCategorySlug && (
             <Badge variant="secondary" className="gap-1">
               Category: {capitalizeCategoryName(categories.find(c => c.slug === filters.selectedCategorySlug)?.name || filters.selectedCategorySlug)}
-              <X
-                className="h-3 w-3 cursor-pointer"
+              <button
+                type="button"
+                aria-label="Remove category filter"
+                className="rounded-full p-0.5 hover:bg-muted-foreground/15"
                 onClick={() => handleCategoryChange('all')}
-              />
+              >
+                <X className="h-3 w-3" />
+              </button>
             </Badge>
           )}
           {(filters.minPrice || filters.maxPrice) && (
             <Badge variant="secondary" className="gap-1">
               Price: {filters.minPrice || '0'} - {filters.maxPrice || '∞'}
-              <X
-                className="h-3 w-3 cursor-pointer"
+              <button
+                type="button"
+                aria-label="Remove price filter"
+                className="rounded-full p-0.5 hover:bg-muted-foreground/15"
                 onClick={() => handlePriceChange('', '')}
-              />
+              >
+                <X className="h-3 w-3" />
+              </button>
             </Badge>
           )}
         </motion.div>
@@ -126,15 +152,15 @@ function ProductsPageContent() {
         {/* Products Grid */}
         <div className="flex-1">
           {/* Initial loading state */}
-          {isLoading && currentPage === 1 && <ProductsLoading />}
+          {shouldShowProductSkeleton && <ProductsLoading />}
 
           {/* No products state */}
-          {products.length === 0 && !isLoading && hasActiveFilters && (
+          {products.length === 0 && !shouldShowProductSkeleton && hasActiveFilters && (
             <ProductsEmpty onClearFilters={clearFilters} />
           )}
 
           {/* Products Grid with infinite scroll */}
-          {products.length > 0 && (
+          {products.length > 0 && !shouldShowProductSkeleton && (
             <ProductsGridWithScroll
               products={products}
               isLoadingMore={isLoadingMore}

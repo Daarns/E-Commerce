@@ -12,6 +12,12 @@
 
 # testing
 /coverage
+**/__tests__/
+**/*.test.*
+**/*.spec.*
+
+# generated local image assets
+/public/images/
 
 # next.js
 /.next/

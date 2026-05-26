@@ -14,5 +14,7 @@ export interface ApiResponse<T> {
     limit: number;
     total: number;
     total_pages: number;
+    next_cursor?: string;
+    has_next?: boolean;
   };
 }

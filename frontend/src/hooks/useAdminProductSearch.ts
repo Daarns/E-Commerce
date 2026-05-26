@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Category } from '@/types';
 import type { ProductFilters } from '@/services/admin';
 import { categoryService } from '@/services/product';
 
 type ProductFilterValue = ProductFilters[keyof ProductFilters] | null | '';
 type StockStatus = NonNullable<ProductFilters['stock_status']>;
+type ProductStatus = NonNullable<ProductFilters['status']>;
 type SortBy = NonNullable<ProductFilters['sort_by']>;
 type SortOrder = NonNullable<ProductFilters['sort_order']>;
 
 interface UseAdminProductSearchParams {
   onFiltersChange: (filters: ProductFilters) => void;
   onSearchChange?: (search: string) => void;
+  onSearchPendingChange?: (isPending: boolean) => void;
 }
 
 interface UseAdminProductSearchReturn {
@@ -21,12 +23,16 @@ interface UseAdminProductSearchReturn {
   hasActiveFilters: boolean;
   setIsExpanded: React.Dispatch<React.SetStateAction<boolean>>;
   handleSearchChange: (value: string) => void;
+  clearSearch: () => void;
   handleFilterChange: (key: keyof ProductFilters, value: ProductFilterValue) => void;
   handleStockStatusChange: (value: string | null) => void;
+  handleStatusChange: (value: string | null) => void;
   handleSortByChange: (value: string | null) => void;
   handleSortOrderChange: (value: string | null) => void;
   resetFilters: () => void;
 }
+
+const SEARCH_DEBOUNCE_MS = 2500;
 
 const DEFAULT_PRODUCT_FILTERS: ProductFilters = {
   search: '',
@@ -34,7 +40,7 @@ const DEFAULT_PRODUCT_FILTERS: ProductFilters = {
   stock_status: undefined,
   min_price: undefined,
   max_price: undefined,
-  is_active: undefined,
+  status: undefined,
   sort_by: 'created_at',
   sort_order: 'desc',
 };
@@ -42,11 +48,30 @@ const DEFAULT_PRODUCT_FILTERS: ProductFilters = {
 export function useAdminProductSearch({
   onFiltersChange,
   onSearchChange,
+  onSearchPendingChange,
 }: UseAdminProductSearchParams): UseAdminProductSearchReturn {
   const [search, setSearch] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [filters, setFilters] = useState<ProductFilters>(DEFAULT_PRODUCT_FILTERS);
+  const filtersRef = useRef<ProductFilters>(DEFAULT_PRODUCT_FILTERS);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearSearchTimer = useCallback((): void => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = null;
+    }
+  }, []);
+
+  const applyFilters = useCallback(
+    (nextFilters: ProductFilters): void => {
+      filtersRef.current = nextFilters;
+      setFilters(nextFilters);
+      onFiltersChange(nextFilters);
+    },
+    [onFiltersChange]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -62,45 +87,63 @@ export function useAdminProductSearch({
 
     return () => {
       isMounted = false;
+      clearSearchTimer();
+      onSearchPendingChange?.(false);
     };
-  }, []);
+  }, [clearSearchTimer, onSearchPendingChange]);
 
   const handleSearchChange = useCallback(
     (value: string): void => {
       setSearch(value);
-      setFilters((previous) => {
-        const nextFilters = { ...previous, search: value };
-        onFiltersChange(nextFilters);
-        return nextFilters;
-      });
-      onSearchChange?.(value);
+      clearSearchTimer();
+      onSearchPendingChange?.(value.trim().length > 0);
+
+      searchTimeoutRef.current = setTimeout(() => {
+        const trimmedValue = value.trim();
+        const nextFilters = { ...filtersRef.current, search: trimmedValue };
+        applyFilters(nextFilters);
+        onSearchChange?.(trimmedValue);
+        onSearchPendingChange?.(false);
+        searchTimeoutRef.current = null;
+      }, SEARCH_DEBOUNCE_MS);
     },
-    [onFiltersChange, onSearchChange]
+    [applyFilters, clearSearchTimer, onSearchChange, onSearchPendingChange]
+  );
+
+  const clearSearch = useCallback(
+    (): void => {
+      clearSearchTimer();
+      onSearchPendingChange?.(false);
+      setSearch('');
+      const nextFilters = { ...filtersRef.current, search: '' };
+      applyFilters(nextFilters);
+      onSearchChange?.('');
+    },
+    [applyFilters, clearSearchTimer, onSearchChange, onSearchPendingChange]
   );
 
   const handleFilterChange = useCallback(
     (key: keyof ProductFilters, value: ProductFilterValue): void => {
-      setFilters((previous) => {
-        const nextFilters = {
-          ...previous,
-          [key]: value === '' || value === null ? undefined : value,
-        };
-        onFiltersChange(nextFilters);
-        return nextFilters;
-      });
+      const nextFilters = {
+        ...filtersRef.current,
+        [key]: value === '' || value === null ? undefined : value,
+      };
+      applyFilters(nextFilters);
     },
-    [onFiltersChange]
+    [applyFilters]
   );
 
   const resetFilters = useCallback((): void => {
+    clearSearchTimer();
+    onSearchPendingChange?.(false);
     setSearch('');
-    setFilters(DEFAULT_PRODUCT_FILTERS);
-    onFiltersChange({
+    applyFilters({
       search: '',
       sort_by: 'created_at',
       sort_order: 'desc',
     });
-  }, [onFiltersChange]);
+    onSearchChange?.('');
+  }, [applyFilters, clearSearchTimer, onSearchChange, onSearchPendingChange]);
 
   const handleStockStatusChange = useCallback(
     (value: string | null): void => {
@@ -109,6 +152,13 @@ export function useAdminProductSearch({
         return;
       }
       handleFilterChange('stock_status', isStockStatus(value) ? value : undefined);
+    },
+    [handleFilterChange]
+  );
+
+  const handleStatusChange = useCallback(
+    (value: string | null): void => {
+      handleFilterChange('status', value !== null && isProductStatus(value) ? value : undefined);
     },
     [handleFilterChange]
   );
@@ -137,7 +187,7 @@ export function useAdminProductSearch({
     filters.stock_status ||
     filters.min_price ||
     filters.max_price ||
-    filters.is_active !== undefined
+    filters.status
   );
 
   return {
@@ -148,8 +198,10 @@ export function useAdminProductSearch({
     hasActiveFilters,
     setIsExpanded,
     handleSearchChange,
+    clearSearch,
     handleFilterChange,
     handleStockStatusChange,
+    handleStatusChange,
     handleSortByChange,
     handleSortOrderChange,
     resetFilters,
@@ -158,6 +210,10 @@ export function useAdminProductSearch({
 
 function isStockStatus(value: string): value is StockStatus {
   return value === 'in_stock' || value === 'low_stock' || value === 'out_of_stock';
+}
+
+function isProductStatus(value: string): value is ProductStatus {
+  return value === 'active' || value === 'draft' || value === 'archived';
 }
 
 function isSortBy(value: string): value is SortBy {

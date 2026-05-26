@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { adminService } from '@/services/admin';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,26 +22,26 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchOrder = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await adminService.getOrder(orderId);
-        setOrder(data);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load order details';
-        setError(errorMessage);
-        console.error('Error fetching order:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (orderId) {
-      fetchOrder();
+  const fetchOrder = useCallback(async (): Promise<void> => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await adminService.getOrder(orderId);
+      setOrder(data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load order details';
+      setError(errorMessage);
+      console.error('Error fetching order:', err);
+    } finally {
+      setLoading(false);
     }
   }, [orderId]);
+
+  useEffect(() => {
+    if (orderId) {
+      void fetchOrder();
+    }
+  }, [fetchOrder, orderId]);
 
   if (loading) {
     return (
@@ -118,7 +118,7 @@ export default function OrderDetailPage() {
               total={order.total_amount || order.total}
             />
 
-            <OrderDetailActions order={order} />
+            <OrderDetailActions order={order} onOrderUpdated={fetchOrder} />
           </div>
         </div>
       </div>

@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { CreateProductRequest } from '@/services/admin';
 import type { ProductFormErrors } from '@/hooks/useAdminProductForm';
 import { formatCurrency } from '@/utils';
+import { getAdminProductStatusLabel } from '@/constants/product.constants';
 import { formatThousands, parseFormattedNumber } from '@/utils/admin-product-form.utils';
 
 interface ProductSidebarSectionProps {
@@ -197,7 +198,9 @@ export function ProductSidebarSection({
                     size="sm"
                     className="mt-1 h-9 w-full rounded-xl bg-background px-3 shadow-sm hover:bg-muted/30"
                   >
-                    <SelectValue />
+                    <SelectValue placeholder={getAdminProductStatusLabel(formData.status)}>
+                      {getAdminProductStatusLabel(formData.status)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent align="start" className="rounded-xl p-1 shadow-lg">
                     <SelectItem value="active" className="rounded-lg py-2">Aktif</SelectItem>

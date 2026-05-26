@@ -55,16 +55,21 @@ export function ProductForm(props: ProductFormProps) {
               combinations={form.combinations}
               stockQuantity={form.formData.stock_quantity}
               variantsOpen={form.variantsOpen}
+              variantLabelsChanged={form.variantLabelsChanged}
               errors={form.errors}
               onToggleOpen={() => form.setVariantsOpen((open) => !open)}
               onAddVariantType={form.addVariantType}
               onRemoveVariantType={form.removeVariantType}
+              onCloseVariantTypeCombinations={form.closeVariantTypeCombinations}
               onUpdateVariantType={form.updateVariantType}
               onAddVariantOption={form.addVariantOption}
               onRemoveVariantOption={form.removeVariantOption}
+              onCloseVariantOptionCombinations={form.closeVariantOptionCombinations}
               onUpdateVariantOption={form.updateVariantOption}
               onRemoveVariantOptionImage={form.removeVariantOptionImage}
               onUpdateCombination={form.updateCombination}
+              onRegenerateCombinationSku={form.regenerateCombinationSku}
+              onRegenerateAllCombinationSkus={form.regenerateAllCombinationSkus}
             />
           </div>
 

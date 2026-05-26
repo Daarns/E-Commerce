@@ -1,7 +1,16 @@
+import { useState } from 'react';
 import Image from 'next/image';
-import { ChevronDown, ChevronUp, ImageIcon, Plus, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, ImageIcon, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ImageUploadZone } from '@/components/admin/product/image-upload-zone';
@@ -21,13 +30,16 @@ interface ProductVariantsSectionProps {
   combinations: VariantCombinationRow[];
   stockQuantity: number;
   variantsOpen: boolean;
+  variantLabelsChanged: boolean;
   errors: ProductFormErrors;
   onToggleOpen: () => void;
   onAddVariantType: () => void;
   onRemoveVariantType: (key: string) => void;
+  onCloseVariantTypeCombinations: (key: string) => void;
   onUpdateVariantType: <K extends VariantTypeField>(key: string, field: K, value: VariantTypeRow[K]) => void;
   onAddVariantOption: (typeKey: string) => void;
   onRemoveVariantOption: (typeKey: string, optionKey: string) => void;
+  onCloseVariantOptionCombinations: (optionKey: string) => void;
   onUpdateVariantOption: <K extends VariantOptionField>(
     typeKey: string,
     optionKey: string,
@@ -40,26 +52,48 @@ interface ProductVariantsSectionProps {
     field: K,
     value: VariantCombinationRow[K]
   ) => void;
+  onRegenerateCombinationSku: (key: string) => void;
+  onRegenerateAllCombinationSkus: () => void;
 }
+
+type DisableTarget =
+  | { kind: 'type'; id: string; label: string }
+  | { kind: 'option'; id: string; label: string };
 
 export function ProductVariantsSection({
   variantTypes,
   combinations,
   stockQuantity,
   variantsOpen,
+  variantLabelsChanged,
   errors,
   onToggleOpen,
   onAddVariantType,
   onRemoveVariantType,
+  onCloseVariantTypeCombinations,
   onUpdateVariantType,
   onAddVariantOption,
   onRemoveVariantOption,
+  onCloseVariantOptionCombinations,
   onUpdateVariantOption,
   onRemoveVariantOptionImage,
   onUpdateCombination,
+  onRegenerateCombinationSku,
+  onRegenerateAllCombinationSkus,
 }: ProductVariantsSectionProps) {
+  const [disableTarget, setDisableTarget] = useState<DisableTarget | null>(null);
   const showMatrixGrid = variantTypes.length === 2 &&
     variantTypes.every((variantType) => variantType.name.trim() && variantType.options.some((option) => option.value.trim()));
+
+  const confirmDisableTarget = (): void => {
+    if (!disableTarget) return;
+    if (disableTarget.kind === 'type') {
+      onCloseVariantTypeCombinations(disableTarget.id);
+    } else {
+      onCloseVariantOptionCombinations(disableTarget.id);
+    }
+    setDisableTarget(null);
+  };
 
   return (
     <Card>
@@ -120,9 +154,24 @@ export function ProductVariantsSection({
                       Mengubah gambar
                     </label>
                   </div>
-                  <button type="button" onClick={() => onRemoveVariantType(variantType.key)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDisableTarget({
+                        kind: 'type',
+                        id: variantType.key,
+                        label: variantType.name || 'tipe ini',
+                      })}
+                      className="h-8 px-2 text-xs"
+                    >
+                      Nonaktifkan tipe
+                    </Button>
+                    <button type="button" onClick={() => onRemoveVariantType(variantType.key)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </button>
+                  </div>
                 </div>
 
                 {errors[`variant_options_${typeIndex}`] && (
@@ -154,6 +203,19 @@ export function ProductVariantsSection({
                           >
                             <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                           </button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDisableTarget({
+                              kind: 'option',
+                              id: option.key,
+                              label: option.value || 'pilihan ini',
+                            })}
+                            className="h-8 px-2 text-xs"
+                          >
+                            Nonaktifkan pilihan
+                          </Button>
                         </div>
 
                         {variantType.is_visual && (
@@ -232,6 +294,23 @@ export function ProductVariantsSection({
                 </Label>
                 <span className="text-xs text-muted-foreground">{combinations.length} kombinasi</span>
               </div>
+              {variantLabelsChanged && (
+                <div className="flex flex-col gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+                  <p>
+                    Nama tipe atau opsi berubah. Stok dan harga tetap dipertahankan, tetapi SKU tidak diperbarui otomatis.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={onRegenerateAllCombinationSkus}
+                    className="h-8 gap-1 border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Regenerate semua SKU
+                  </Button>
+                </div>
+              )}
               <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">Tambahan harga</span> adalah harga ekstra di atas harga produk.
                 <span className="ml-1 font-medium text-foreground">Stok varian</span> adalah stok per kombinasi.
@@ -246,16 +325,38 @@ export function ProductVariantsSection({
                   combinations={combinations}
                   errors={errors}
                   onUpdateCombination={onUpdateCombination}
+                  onRegenerateCombinationSku={onRegenerateCombinationSku}
                 />
               ) : (
                 <CombinationCards
                   combinations={combinations}
                   errors={errors}
                   onUpdateCombination={onUpdateCombination}
+                  onRegenerateCombinationSku={onRegenerateCombinationSku}
                 />
               )}
             </div>
           )}
+
+          <Dialog open={disableTarget !== null} onOpenChange={(open) => !open && setDisableTarget(null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Nonaktifkan kombinasi?</DialogTitle>
+                <DialogDescription>
+                  Kombinasi yang memakai {disableTarget?.label ?? 'pilihan ini'} akan dibuat tidak tersedia untuk pembelian baru.
+                  Item yang sudah ada di cart user akan diminta diperbarui saat checkout jika stok pilihan ini tidak tersedia.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDisableTarget(null)}>
+                  Batal
+                </Button>
+                <Button type="button" onClick={confirmDisableTarget}>
+                  Nonaktifkan
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       )}
     </Card>
@@ -270,6 +371,7 @@ interface CombinationEditorProps {
     field: K,
     value: VariantCombinationRow[K]
   ) => void;
+  onRegenerateCombinationSku: (key: string) => void;
 }
 
 interface CombinationMatrixProps extends CombinationEditorProps {
@@ -284,6 +386,7 @@ function CombinationMatrix({
   combinations,
   errors,
   onUpdateCombination,
+  onRegenerateCombinationSku,
 }: CombinationMatrixProps) {
   const rowOptions = rowType.options.filter((option) => option.value.trim());
   const columnOptions = columnType.options.filter((option) => option.value.trim());
@@ -310,9 +413,9 @@ function CombinationMatrix({
                   {rowOption.value}
                 </th>
                 {columnOptions.map((columnOption) => {
-                  const combination = findCombinationByValues(combinations, [
-                    rowOption.value,
-                    columnOption.value,
+                  const combination = findCombinationByOptionIds(combinations, [
+                    rowOption.key,
+                    columnOption.key,
                   ]);
                   const combinationIndex = combination
                     ? combinations.findIndex((candidate) => candidate.key === combination.key)
@@ -327,6 +430,7 @@ function CombinationMatrix({
                           label={`${rowOption.value} × ${columnOption.value}`}
                           errors={errors}
                           onUpdateCombination={onUpdateCombination}
+                          onRegenerateCombinationSku={onRegenerateCombinationSku}
                         />
                       ) : (
                         <span className="text-xs text-muted-foreground">Tidak tersedia</span>
@@ -344,9 +448,9 @@ function CombinationMatrix({
       <div className="lg:hidden space-y-2">
         {rowOptions.map((rowOption) =>
           columnOptions.map((columnOption) => {
-            const combination = findCombinationByValues(combinations, [
-              rowOption.value,
-              columnOption.value,
+            const combination = findCombinationByOptionIds(combinations, [
+              rowOption.key,
+              columnOption.key,
             ]);
             const combinationIndex = combination
               ? combinations.findIndex((candidate) => candidate.key === combination.key)
@@ -370,6 +474,7 @@ function CombinationMatrix({
                   label={`${rowOption.value} × ${columnOption.value}`}
                   errors={errors}
                   onUpdateCombination={onUpdateCombination}
+                  onRegenerateCombinationSku={onRegenerateCombinationSku}
                 />
               </div>
             );
@@ -387,6 +492,7 @@ function CombinationCellFields({
   label,
   errors,
   onUpdateCombination,
+  onRegenerateCombinationSku,
 }: {
   combination: VariantCombinationRow;
   combinationIndex: number;
@@ -397,6 +503,7 @@ function CombinationCellFields({
     field: K,
     value: VariantCombinationRow[K]
   ) => void;
+  onRegenerateCombinationSku: (key: string) => void;
 }) {
   return (
     <div className="space-y-2">
@@ -460,12 +567,27 @@ function CombinationCellFields({
         className="h-8 text-xs"
         placeholder="SKU"
       />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onRegenerateCombinationSku(combination.key)}
+        className="h-8 w-full gap-1 text-xs"
+      >
+        <RefreshCw className="h-3.5 w-3.5" />
+        Regenerate SKU
+      </Button>
     </div>
   );
 }
 
 /* ─── Card-based Combinations (for 1 type or 3+ types) ─── */
-function CombinationCards({ combinations, errors, onUpdateCombination }: CombinationEditorProps) {
+function CombinationCards({
+  combinations,
+  errors,
+  onUpdateCombination,
+  onRegenerateCombinationSku,
+}: CombinationEditorProps) {
   return (
     <div className="space-y-2">
       {combinations.map((combination, combinationIndex) => (
@@ -537,6 +659,16 @@ function CombinationCards({ combinations, errors, onUpdateCombination }: Combina
                 }
                 className="h-8 text-xs"
               />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onRegenerateCombinationSku(combination.key)}
+                className="mt-2 h-8 w-full gap-1 text-xs"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Regenerate SKU
+              </Button>
             </div>
           </div>
         </div>
@@ -545,14 +677,14 @@ function CombinationCards({ combinations, errors, onUpdateCombination }: Combina
   );
 }
 
-function findCombinationByValues(
+function findCombinationByOptionIds(
   combinations: VariantCombinationRow[],
-  values: string[]
+  optionIds: string[]
 ): VariantCombinationRow | undefined {
-  const expectedKey = optionValueKey(values);
-  return combinations.find((combination) => optionValueKey(combination.option_values) === expectedKey);
+  const expectedKey = optionIDKey(optionIds);
+  return combinations.find((combination) => optionIDKey(combination.option_ids) === expectedKey);
 }
 
-function optionValueKey(values: string[]): string {
-  return values.map((value) => value.trim().toLowerCase()).sort().join('\u001f');
+function optionIDKey(optionIds: string[]): string {
+  return optionIds.map((optionId) => optionId.trim().toLowerCase()).sort().join('\u001f');
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { productService } from '@/services/product';
 import { Product } from '@/types';
 import {
@@ -35,9 +36,11 @@ export function useProductDetail(slug: string) {
 
         const related = await productService.getRelatedProducts(productData.id);
         setRelatedProducts(related);
-      } catch (err) {
-        setError('Failed to load product');
-        console.error('Failed to fetch product:', err);
+      } catch (err: unknown) {
+        setError('Produk tidak tersedia');
+        if (!isExpectedProductNotFound(err) && process.env.NODE_ENV !== 'production') {
+          console.warn('Failed to fetch product:', getErrorMessage(err));
+        }
       } finally {
         setIsLoading(false);
       }
@@ -110,4 +113,13 @@ export function useProductDetail(slug: string) {
     selectOption,
     selectedCombination,
   };
+}
+
+function isExpectedProductNotFound(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 404;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }

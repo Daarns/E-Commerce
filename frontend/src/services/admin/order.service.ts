@@ -13,6 +13,10 @@ export interface UpdateOrderStatusRequest {
   notes?: string;
 }
 
+export interface UpdateOrderTrackingRequest {
+  tracking_number: string;
+}
+
 export interface ProcessRefundRequest {
   amount: number;
   reason: string;
@@ -85,6 +89,17 @@ export const adminOrderService = {
   ): Promise<AdminOrder> {
     const response = await api.put<ApiResponse<AdminOrder>>(
       `/admin/orders/${orderId}/status`,
+      request
+    );
+    return response.data.data!;
+  },
+
+  async updateOrderTracking(
+    orderId: string,
+    request: UpdateOrderTrackingRequest
+  ): Promise<AdminOrder> {
+    const response = await api.put<ApiResponse<AdminOrder>>(
+      `/admin/orders/${orderId}/tracking`,
       request
     );
     return response.data.data!;

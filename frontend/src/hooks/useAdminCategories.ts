@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { adminCategoryService, type AdminCategoryStats, type AdminCategoryStatusFilter } from '@/services/admin';
 import type { Category } from '@/types';
@@ -69,6 +70,7 @@ function toFormData(category: Category): AdminCategoryFormData {
 }
 
 export function useAdminCategories(): UseAdminCategoriesReturn {
+  const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<AdminCategoryStats>(emptyStats);
@@ -181,12 +183,13 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
       setModalOpen(false);
       setEditingCategory(null);
       await refresh();
+      router.replace('/admin/products/categories');
     } catch (err) {
       handleError(err, { context: 'Failed to save category' });
     } finally {
       setIsSaving(false);
     }
-  }, [editingCategory, formData, refresh]);
+  }, [editingCategory, formData, refresh, router]);
 
   const requestDeleteCategory = useCallback((category: Category): void => {
     setPendingDeleteCategory(category);

@@ -26,18 +26,21 @@ export default function AdminProductsPage() {
   const {
     products,
     isLoading,
+    isSearchPending,
     page,
     total,
     limit,
     filters,
     totalPages,
     handleFiltersChange,
+    handleSearchPendingChange,
     handleSort,
     handlePageChange,
     handleDelete,
   } = useAdminProducts();
 
   const stats = calculateProductStats(products);
+  const isProductListLoading = isLoading || isSearchPending;
 
   const handleEdit = (product: AdminProduct): void => {
     router.push(`/admin/products/${product.id}`);
@@ -108,6 +111,7 @@ export default function AdminProductsPage() {
           <CardContent>
             <ProductSearch
               onFiltersChange={handleFiltersChange}
+              onSearchPendingChange={handleSearchPendingChange}
               isLoading={isLoading}
             />
           </CardContent>
@@ -117,7 +121,7 @@ export default function AdminProductsPage() {
         <Card>
           <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3">
             <CardTitle className="text-base">Products List</CardTitle>
-            {!isLoading && (
+            {!isProductListLoading && (
               <p className="text-xs sm:text-sm text-muted-foreground">
                 Showing {(page - 1) * limit + 1}-{Math.min(page * limit, total)} of{' '}
                 {total} products
@@ -127,7 +131,7 @@ export default function AdminProductsPage() {
           <CardContent>
             <ProductTable
               products={products}
-              isLoading={isLoading}
+              isLoading={isProductListLoading}
               onEdit={handleEdit}
               onDelete={handleDelete}
               onView={handleView}
@@ -139,7 +143,7 @@ export default function AdminProductsPage() {
         </Card>
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {totalPages > 1 && !isProductListLoading && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               Page {page} of {totalPages}

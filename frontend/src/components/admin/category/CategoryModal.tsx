@@ -23,6 +23,8 @@ import { Textarea } from '@/components/ui/textarea';
 import type { AdminCategoryFormData } from '@/hooks/useAdminCategories';
 import type { Category } from '@/types';
 
+const NO_PARENT_VALUE = '__no_parent__';
+
 interface CategoryModalProps {
   open: boolean;
   isEdit: boolean;
@@ -90,8 +92,11 @@ export function CategoryModal({
             <div>
               <Label htmlFor="category-parent">Parent</Label>
               <Select
-                value={formData.parent_id}
-                onValueChange={(value) => onFieldChange('parent_id', value ?? '')}
+                value={formData.parent_id || NO_PARENT_VALUE}
+                onValueChange={(value) => onFieldChange(
+                  'parent_id',
+                  !value || value === NO_PARENT_VALUE ? '' : value
+                )}
                 disabled={isSaving}
               >
                 <SelectTrigger id="category-parent" className="mt-1 h-10 w-full rounded-xl">
@@ -102,7 +107,7 @@ export function CategoryModal({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start" className="rounded-xl p-1">
-                  <SelectItem value="">Tanpa parent</SelectItem>
+                  <SelectItem value={NO_PARENT_VALUE}>Tanpa parent</SelectItem>
                   {parentOptions.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}{category.is_active === false ? ' (nonaktif)' : ''}

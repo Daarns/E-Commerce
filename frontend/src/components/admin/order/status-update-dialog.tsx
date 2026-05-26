@@ -1,14 +1,19 @@
 'use client';
 
 import type { OrderStatus } from '@/types';
+import { ADMIN_ORDER_STATUS_LABELS } from '@/constants/order.constants';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useOrderStatusUpdate } from '@/hooks/useOrderStatusUpdate';
 
 interface StatusUpdateDialogProps {
   orderId: string;
   currentStatus: OrderStatus;
+  targetStatus: OrderStatus;
+  actionLabel: string;
+  requiresTracking?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusUpdated?: () => void;
@@ -17,27 +22,36 @@ interface StatusUpdateDialogProps {
 export function StatusUpdateDialog({
   orderId,
   currentStatus,
+  targetStatus,
+  actionLabel,
+  requiresTracking = false,
   open,
   onOpenChange,
   onStatusUpdated,
 }: StatusUpdateDialogProps) {
   const {
-    newStatus,
     notes,
+    trackingNumber,
     isLoading,
     error,
-    validTransitions,
     canUpdate,
-    setNewStatus,
     setNotes,
+    setTrackingNumber,
     handleSubmit,
-  } = useOrderStatusUpdate({ orderId, currentStatus, onOpenChange, onStatusUpdated });
+  } = useOrderStatusUpdate({
+    orderId,
+    currentStatus,
+    targetStatus,
+    requiresTracking,
+    onOpenChange,
+    onStatusUpdated,
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Update Order Status</DialogTitle>
+          <DialogTitle>{actionLabel}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -46,7 +60,7 @@ export function StatusUpdateDialog({
               Current Status
             </label>
             <div className="p-3 bg-gray-50 rounded border">
-              <p className="font-medium capitalize">{currentStatus}</p>
+              <p className="font-medium">{ADMIN_ORDER_STATUS_LABELS[currentStatus]}</p>
             </div>
           </div>
 
@@ -56,19 +70,24 @@ export function StatusUpdateDialog({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   New Status
                 </label>
-                <select
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value as OrderStatus | '')}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select new status...</option>
-                  {validTransitions.map((status) => (
-                    <option key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </option>
-                  ))}
-                </select>
+                <div className="p-3 bg-gray-50 rounded border">
+                  <p className="font-medium">{ADMIN_ORDER_STATUS_LABELS[targetStatus]}</p>
+                </div>
               </div>
+
+              {requiresTracking && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tracking Number
+                  </label>
+                  <Input
+                    placeholder="Masukkan nomor resi"
+                    value={trackingNumber}
+                    onChange={(event) => setTrackingNumber(event.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -79,6 +98,7 @@ export function StatusUpdateDialog({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
+                  disabled={isLoading}
                 />
               </div>
 
@@ -98,9 +118,9 @@ export function StatusUpdateDialog({
                 </Button>
                 <Button
                   onClick={() => void handleSubmit()}
-                  disabled={isLoading || !newStatus}
+                  disabled={isLoading || (requiresTracking && trackingNumber.trim().length === 0)}
                 >
-                  {isLoading ? 'Updating...' : 'Update Status'}
+                  {isLoading ? 'Updating...' : actionLabel}
                 </Button>
               </div>
             </>

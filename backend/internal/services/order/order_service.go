@@ -100,6 +100,12 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 
 	// Process each cart item with stock validation (WITHOUT transaction yet)
 	for _, item := range cart.Items {
+		if item.CombinationID != nil {
+			if item.Combination == nil || !item.Combination.IsActive || item.Combination.StockQuantity < item.Quantity {
+				return nil, fmt.Errorf("stok untuk %s sedang berubah, silakan perbarui cart Anda", item.Product.Name)
+			}
+		}
+
 		itemSubtotal := item.Price.Mul(decimal.NewFromInt(int64(item.Quantity)))
 		subtotal = subtotal.Add(itemSubtotal)
 
@@ -180,11 +186,11 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 		PaymentStatus: models.PaymentStatusUnpaid,
 
 		// Payment
-		PaymentMethod:   input.PaymentMethod,
-		ShippingMethod:  input.ShippingMethod,
-		CustomerNotes:   input.CustomerNotes,
-		IdempotencyKey:  input.IdempotencyKey,
-		CustomerEmail:   input.CustomerEmail, // Stored so retry payment always has the email
+		PaymentMethod:  input.PaymentMethod,
+		ShippingMethod: input.ShippingMethod,
+		CustomerNotes:  input.CustomerNotes,
+		IdempotencyKey: input.IdempotencyKey,
+		CustomerEmail:  input.CustomerEmail, // Stored so retry payment always has the email
 
 		// Items
 		Items: orderItems,
@@ -195,6 +201,11 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 	err = uc.db.Transaction(func(tx *gorm.DB) error {
 		// 1. Deduct stock for all cart items (with pessimistic locking)
 		for _, item := range cart.Items {
+			if item.CombinationID != nil {
+				if err := uc.productRepo.DeductCombinationStockWithLockTx(tx, *item.CombinationID, item.Quantity); err != nil {
+					return fmt.Errorf("stok untuk %s sedang berubah, silakan perbarui cart Anda", item.Product.Name)
+				}
+			}
 			if err := uc.productRepo.DeductStockWithLockTx(tx, item.ProductID, item.Quantity); err != nil {
 				return fmt.Errorf("failed to reserve stock for %s: %w", item.Product.Name, err)
 			}
@@ -341,12 +352,12 @@ func (uc *OrderService) GetOrder(orderID, userID uuid.UUID) (*models.Order, erro
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Verify ownership
 	if order.UserID != userID {
 		return nil, fmt.Errorf("order not found")
 	}
-	
+
 	return order, nil
 }
 
@@ -356,12 +367,12 @@ func (uc *OrderService) GetOrderByNumber(orderNumber string, userID uuid.UUID) (
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Verify ownership
 	if order.UserID != userID {
 		return nil, fmt.Errorf("order not found")
 	}
-	
+
 	return order, nil
 }
 
@@ -371,12 +382,12 @@ func (uc *OrderService) CancelOrder(orderID, userID uuid.UUID, reason string) (*
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Verify ownership
 	if order.UserID != userID {
 		return nil, fmt.Errorf("order not found")
 	}
-	
+
 	// Check if can cancel
 	if !order.CanCancel() {
 		return nil, fmt.Errorf("order cannot be cancelled in current status")
@@ -459,7 +470,7 @@ func (uc *OrderService) AdminUpdatePayment(orderID uuid.UUID, paymentStatus, tra
 	if err := uc.orderRepo.UpdatePaymentStatus(orderID, paymentStatus, transactionID); err != nil {
 		return nil, fmt.Errorf("failed to update payment: %w", err)
 	}
-	
+
 	// If paid, update order status to processing
 	if paymentStatus == models.PaymentStatusPaid {
 		order, _ := uc.orderRepo.GetByID(orderID)
@@ -537,4 +548,3 @@ func (uc *OrderService) ValidatePromoCode(code string, userID uuid.UUID, subtota
 	discount := promo.CalculateDiscount(subtotal)
 	return promo, discount, nil
 }
-

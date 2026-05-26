@@ -71,6 +71,7 @@ export interface AdminVariantOptionInput {
 
 export interface AdminVariantCombinationInput {
   id?: string;
+  option_ids?: string[];
   option_values: string[];
   price_adjustment: number;
   stock_quantity: number;
@@ -79,6 +80,7 @@ export interface AdminVariantCombinationInput {
 }
 
 export interface AdminVariantImageInput {
+  option_id?: string;
   option_value: string;
   image_url: string;
 }
@@ -175,7 +177,7 @@ export interface ProductFilters {
   stock_status?: 'in_stock' | 'low_stock' | 'out_of_stock';
   min_price?: number;
   max_price?: number;
-  is_active?: boolean;
+  status?: 'active' | 'draft' | 'archived';
   sort_by?: 'name' | 'price' | 'stock' | 'created_at';
   sort_order?: 'asc' | 'desc';
 }
@@ -223,7 +225,7 @@ export const adminProductService = {
     if (filters?.stock_status) params.append('stock_status', filters.stock_status);
     if (filters?.min_price) params.append('min_price', filters.min_price.toString());
     if (filters?.max_price) params.append('max_price', filters.max_price.toString());
-    if (filters?.is_active !== undefined) params.append('is_active', filters.is_active.toString());
+    if (filters?.status) params.append('status', filters.status);
     if (filters?.sort_by) params.append('sort_by', filters.sort_by);
     if (filters?.sort_order) params.append('sort_order', filters.sort_order);
 

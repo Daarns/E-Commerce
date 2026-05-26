@@ -141,6 +141,7 @@ func (input *VariantOptionInput) UnmarshalJSON(data []byte) error {
 // VariantCombinationInput represents a purchasable variant option set.
 type VariantCombinationInput struct {
 	ID              string   `json:"id"`
+	OptionIDs       []string `json:"option_ids"`
 	OptionValues    []string `json:"option_values"`
 	PriceAdjustment float64  `json:"price_adjustment"`
 	StockQuantity   int      `json:"stock_quantity" binding:"min=0"`
@@ -150,6 +151,7 @@ type VariantCombinationInput struct {
 
 // VariantImageInput maps an uploaded image URL to a visual variant option value.
 type VariantImageInput struct {
+	OptionID    string `json:"option_id"`
 	OptionValue string `json:"option_value"`
 	ImageURL    string `json:"image_url"`
 }
@@ -185,6 +187,7 @@ func (uc *ProductService) CreateProduct(input CreateProductInput) (*models.Produ
 	}
 
 	product := &models.Product{
+		ID:               uuid.New(),
 		Name:             strings.TrimSpace(input.Name),
 		Description:      strings.TrimSpace(input.Description),
 		ShortDescription: strings.TrimSpace(input.ShortDescription),
@@ -220,30 +223,41 @@ func (uc *ProductService) CreateProduct(input CreateProductInput) (*models.Produ
 		product.SaleEndDate = parsed
 	}
 
-	if err := uc.productRepo.Create(product); err != nil {
-		return nil, fmt.Errorf("failed to create product: %w", err)
+	var variantData *variantCombinationBuildResult
+	if len(input.VariantTypes) > 0 || len(input.Combinations) > 0 {
+		var buildErr error
+		variantData, buildErr = buildVariantCombinationData(product.ID, input.VariantTypes, input.Combinations)
+		if buildErr != nil {
+			return nil, buildErr
+		}
 	}
 
-	if len(input.VariantTypes) > 0 || len(input.Combinations) > 0 {
-		variantData, err := buildVariantCombinationData(product.ID, input.VariantTypes, input.Combinations)
-		if err != nil {
-			return nil, err
+	if err := uc.productRepo.RunInTransaction(func(tx *gorm.DB) error {
+		if err := uc.productRepo.CreateTx(tx, product); err != nil {
+			return fmt.Errorf("failed to create product: %w", err)
 		}
-		if err := uc.productRepo.ReplaceVariantCombinationData(
-			product.ID,
-			variantData.VariantTypes,
-			variantData.Combinations,
-			variantData.CombinationOptions,
-		); err != nil {
-			return nil, fmt.Errorf("failed to save variant combinations: %w", err)
+
+		if variantData != nil {
+			if err := uc.productRepo.ReplaceVariantCombinationDataTx(
+				tx,
+				product.ID,
+				variantData.VariantTypes,
+				variantData.Combinations,
+				variantData.CombinationOptions,
+			); err != nil {
+				return fmt.Errorf("failed to save variant combinations: %w", err)
+			}
 		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	uc.attachVariantImages(product.ID, input.VariantImages)
 
 	uc.attachProductImages(product.ID, input.ImageURLs, 0)
 
-	return uc.GetProduct(product.ID)
+	return uc.AdminGetProduct(product.ID)
 }
 
 // GetProduct retrieves a product by ID
@@ -251,6 +265,9 @@ func (uc *ProductService) GetProduct(id uuid.UUID) (*models.Product, error) {
 	product, err := uc.productRepo.GetByID(id)
 	if err != nil {
 		return nil, err
+	}
+	if product.Status != "active" {
+		return nil, fmt.Errorf("product not found")
 	}
 	hydrateVariantCombinationResponse(product)
 	return product, nil
@@ -262,12 +279,16 @@ func (uc *ProductService) GetProductBySlug(slug string) (*models.Product, error)
 	if err != nil {
 		return nil, err
 	}
+	if product.Status != "active" {
+		return nil, fmt.Errorf("product not found")
+	}
 	hydrateVariantCombinationResponse(product)
 	return product, nil
 }
 
 // ListProducts retrieves products with filters
 func (uc *ProductService) ListProducts(filter repositories.ProductFilter) (*repositories.ProductListResult, error) {
+	filter.Status = "active"
 	result, err := uc.productRepo.List(filter)
 	if err != nil {
 		return nil, err
@@ -436,7 +457,7 @@ func (uc *ProductService) UpdateProduct(id uuid.UUID, input UpdateProductInput) 
 	uc.deleteUnusedImageObjects(oldVariantImageURLs, desiredVariantImageURLs)
 	uc.syncProductImages(id, input.ImageURLs)
 
-	return uc.GetProduct(id)
+	return uc.AdminGetProduct(id)
 }
 
 // DeleteProduct soft deletes a product
@@ -653,6 +674,7 @@ func buildVariantCombinationData(
 
 	result := &variantCombinationBuildResult{}
 	optionByValue := make(map[string]models.ProductVariantOption)
+	optionByID := make(map[uuid.UUID]models.ProductVariantOption)
 
 	for typeIndex, input := range variantInputs {
 		name := strings.TrimSpace(input.Name)
@@ -709,6 +731,7 @@ func buildVariantCombinationData(
 			}
 			variantType.Options = append(variantType.Options, option)
 			optionByValue[optionKey] = option
+			optionByID[option.ID] = option
 			seenOptionInType[optionKey] = true
 		}
 
@@ -716,8 +739,8 @@ func buildVariantCombinationData(
 	}
 
 	for _, input := range combinationInputs {
-		if len(input.OptionValues) == 0 {
-			return nil, fmt.Errorf("combination option_values are required")
+		if len(input.OptionIDs) == 0 && len(input.OptionValues) == 0 {
+			return nil, fmt.Errorf("combination option_ids or option_values are required")
 		}
 
 		combinationID := parseClientUUID(input.ID)
@@ -739,13 +762,16 @@ func buildVariantCombinationData(
 		}
 
 		seenOptions := make(map[uuid.UUID]bool)
-		for _, optionValue := range input.OptionValues {
-			option, exists := optionByValue[strings.ToLower(strings.TrimSpace(optionValue))]
+		for _, optionRef := range resolveCombinationOptionRefs(input) {
+			option, exists, err := findCombinationOption(optionRef, optionByID, optionByValue)
+			if err != nil {
+				return nil, err
+			}
 			if !exists {
-				return nil, fmt.Errorf("combination references unknown option value %s", optionValue)
+				return nil, fmt.Errorf("combination references unknown option %s", optionRef.Value)
 			}
 			if seenOptions[option.ID] {
-				return nil, fmt.Errorf("combination contains duplicate option value %s", optionValue)
+				return nil, fmt.Errorf("combination contains duplicate option %s", optionRef.Value)
 			}
 
 			result.CombinationOptions = append(result.CombinationOptions, models.ProductCombinationOption{
@@ -760,6 +786,50 @@ func buildVariantCombinationData(
 	}
 
 	return result, nil
+}
+
+type combinationOptionRef struct {
+	ID    string
+	Value string
+}
+
+func resolveCombinationOptionRefs(input VariantCombinationInput) []combinationOptionRef {
+	if len(input.OptionIDs) > 0 {
+		refs := make([]combinationOptionRef, 0, len(input.OptionIDs))
+		for _, optionID := range input.OptionIDs {
+			refs = append(refs, combinationOptionRef{
+				ID:    optionID,
+				Value: optionID,
+			})
+		}
+		return refs
+	}
+
+	refs := make([]combinationOptionRef, 0, len(input.OptionValues))
+	for _, optionValue := range input.OptionValues {
+		refs = append(refs, combinationOptionRef{
+			Value: optionValue,
+		})
+	}
+	return refs
+}
+
+func findCombinationOption(
+	optionRef combinationOptionRef,
+	optionByID map[uuid.UUID]models.ProductVariantOption,
+	optionByValue map[string]models.ProductVariantOption,
+) (models.ProductVariantOption, bool, error) {
+	if strings.TrimSpace(optionRef.ID) != "" {
+		optionID, err := uuid.Parse(strings.TrimSpace(optionRef.ID))
+		if err != nil {
+			return models.ProductVariantOption{}, false, fmt.Errorf("invalid combination option id %s", optionRef.ID)
+		}
+		option, exists := optionByID[optionID]
+		return option, exists, nil
+	}
+
+	option, exists := optionByValue[strings.ToLower(strings.TrimSpace(optionRef.Value))]
+	return option, exists, nil
 }
 
 func parseProductDate(value string) (*time.Time, error) {
@@ -804,20 +874,22 @@ func (uc *ProductService) attachVariantImages(productID uuid.UUID, variantImages
 	}
 
 	optionIDByValue := make(map[string]uuid.UUID)
+	optionIDSet := make(map[uuid.UUID]bool)
 	for _, variantType := range product.VariantTypes {
 		for _, option := range variantType.Options {
 			optionIDByValue[strings.ToLower(strings.TrimSpace(option.Value))] = option.ID
+			optionIDSet[option.ID] = true
 		}
 	}
 
 	for index, variantImage := range variantImages {
 		optionValue := strings.TrimSpace(variantImage.OptionValue)
 		imageURL := strings.TrimSpace(variantImage.ImageURL)
-		if optionValue == "" || imageURL == "" {
+		if (strings.TrimSpace(variantImage.OptionID) == "" && optionValue == "") || imageURL == "" {
 			continue
 		}
 
-		optionID, exists := optionIDByValue[strings.ToLower(optionValue)]
+		optionID, exists := resolveVariantImageOptionID(variantImage, optionIDSet, optionIDByValue)
 		if !exists {
 			log.Printf("warning: variant image option %q not found for product %s", optionValue, productID)
 			continue
@@ -841,6 +913,23 @@ func (uc *ProductService) attachVariantImages(productID uuid.UUID, variantImages
 		}
 		uc.commitTempImage(imageURL)
 	}
+}
+
+func resolveVariantImageOptionID(
+	variantImage VariantImageInput,
+	optionIDSet map[uuid.UUID]bool,
+	optionIDByValue map[string]uuid.UUID,
+) (uuid.UUID, bool) {
+	if strings.TrimSpace(variantImage.OptionID) != "" {
+		optionID, err := uuid.Parse(strings.TrimSpace(variantImage.OptionID))
+		if err == nil && optionIDSet[optionID] {
+			return optionID, true
+		}
+		return uuid.Nil, false
+	}
+
+	optionID, exists := optionIDByValue[strings.ToLower(strings.TrimSpace(variantImage.OptionValue))]
+	return optionID, exists
 }
 
 func (uc *ProductService) attachProductImages(productID uuid.UUID, imageURLs []string, displayOrderOffset int) {

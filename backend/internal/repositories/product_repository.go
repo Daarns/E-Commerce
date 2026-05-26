@@ -2,8 +2,12 @@ package repositories
 
 import (
 	"ecommerce-backend/internal/models"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -55,17 +59,19 @@ func preloadProductImages(db *gorm.DB) *gorm.DB {
 
 // ProductFilter contains filter options for product queries
 type ProductFilter struct {
-	CategoryID *uuid.UUID
-	MinPrice   *float64
-	MaxPrice   *float64
-	Search     string
-	Status     string // active, inactive, draft
-	InStock    *bool
-	Brand      string
-	SortBy     string // name, regular_price, created_at
-	SortOrder  string // asc, desc
-	Page       int
-	Limit      int
+	CategoryID  *uuid.UUID
+	MinPrice    *float64
+	MaxPrice    *float64
+	Search      string
+	Status      string // active, inactive, draft
+	StockStatus string // in_stock, low_stock, out_of_stock
+	InStock     *bool
+	Brand       string
+	SortBy      string // name, regular_price, created_at
+	SortOrder   string // asc, desc
+	Page        int
+	Limit       int
+	Cursor      string
 }
 
 // ProductListResult contains paginated product results
@@ -75,17 +81,35 @@ type ProductListResult struct {
 	Page       int              `json:"page"`
 	Limit      int              `json:"limit"`
 	TotalPages int              `json:"total_pages"`
+	NextCursor string           `json:"next_cursor,omitempty"`
+	HasNext    bool             `json:"has_next"`
+}
+
+type productListCursor struct {
+	SortBy    string `json:"sort_by"`
+	SortOrder string `json:"sort_order"`
+	SortValue string `json:"sort_value"`
+	ID        string `json:"id"`
 }
 
 // Create creates a new product with unique slug generation
 func (r *ProductRepository) Create(product *models.Product) error {
+	return r.createOn(r.db, product)
+}
+
+// CreateTx creates a new product inside an existing transaction.
+func (r *ProductRepository) CreateTx(tx *gorm.DB, product *models.Product) error {
+	return r.createOn(tx, product)
+}
+
+func (r *ProductRepository) createOn(db *gorm.DB, product *models.Product) error {
 	// Generate unique slug
 	if product.Slug == "" {
 		product.Slug = models.GenerateSlug(product.Name)
 	}
 
 	// Check for slug conflict and generate unique
-	existingSlugs, err := r.GetAllSlugs()
+	existingSlugs, err := r.getAllSlugsOn(db)
 	if err != nil {
 		return fmt.Errorf("failed to check existing slugs: %w", err)
 	}
@@ -93,7 +117,7 @@ func (r *ProductRepository) Create(product *models.Product) error {
 	product.Slug = models.GenerateUniqueSlug(baseSlug, existingSlugs)
 
 	for attempt := 0; attempt < 3; attempt++ {
-		err := r.db.Create(product).Error
+		err := db.Create(product).Error
 		if err == nil {
 			return nil
 		}
@@ -101,7 +125,7 @@ func (r *ProductRepository) Create(product *models.Product) error {
 			return err
 		}
 
-		existingSlugs, slugErr := r.GetAllSlugs()
+		existingSlugs, slugErr := r.getAllSlugsOn(db)
 		if slugErr != nil {
 			return fmt.Errorf("failed to recover from slug conflict: %w", slugErr)
 		}
@@ -219,11 +243,19 @@ func (r *ProductRepository) List(filter ProductFilter) (*ProductListResult, erro
 		}
 	}
 
-	query = query.Order(fmt.Sprintf("%s %s", sortColumn, sortOrder))
+	query = query.Order(fmt.Sprintf("%s %s, id %s", sortColumn, sortOrder, sortOrder))
 
-	// Apply pagination
-	offset := (filter.Page - 1) * filter.Limit
-	query = query.Offset(offset).Limit(filter.Limit)
+	if filter.Cursor != "" {
+		var err error
+		query, err = applyProductCursor(query, filter.Cursor, sortColumn, sortOrder)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		offset := (filter.Page - 1) * filter.Limit
+		query = query.Offset(offset)
+	}
+	query = query.Limit(filter.Limit + 1)
 
 	// Execute query with preloads
 	var products []models.Product
@@ -238,9 +270,19 @@ func (r *ProductRepository) List(filter ProductFilter) (*ProductListResult, erro
 		return nil, err
 	}
 
+	hasNext := len(products) > filter.Limit
+	if hasNext {
+		products = products[:filter.Limit]
+	}
+
 	totalPages := int(total) / filter.Limit
 	if int(total)%filter.Limit > 0 {
 		totalPages++
+	}
+
+	nextCursor := ""
+	if hasNext && len(products) > 0 {
+		nextCursor = encodeProductCursor(products[len(products)-1], sortColumn, sortOrder)
 	}
 
 	return &ProductListResult{
@@ -249,7 +291,112 @@ func (r *ProductRepository) List(filter ProductFilter) (*ProductListResult, erro
 		Page:       filter.Page,
 		Limit:      filter.Limit,
 		TotalPages: totalPages,
+		NextCursor: nextCursor,
+		HasNext:    hasNext,
 	}, nil
+}
+
+func applyProductCursor(query *gorm.DB, rawCursor string, sortColumn string, sortOrder string) (*gorm.DB, error) {
+	cursor, err := decodeProductCursor(rawCursor)
+	if err != nil {
+		return nil, err
+	}
+	if cursor.SortBy != sortColumn || cursor.SortOrder != sortOrder {
+		return nil, fmt.Errorf("cursor does not match current sort")
+	}
+
+	cursorID, err := uuid.Parse(cursor.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor id")
+	}
+
+	operator := ">"
+	if sortOrder == "DESC" {
+		operator = "<"
+	}
+
+	switch sortColumn {
+	case "created_at", "updated_at":
+		value, parseErr := time.Parse(time.RFC3339Nano, cursor.SortValue)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid cursor timestamp")
+		}
+		return query.Where(
+			fmt.Sprintf("(%s %s ? OR (%s = ? AND id %s ?))", sortColumn, operator, sortColumn, operator),
+			value,
+			value,
+			cursorID,
+		), nil
+	case "stock_quantity", "sold_count":
+		value, parseErr := strconv.Atoi(cursor.SortValue)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid cursor number")
+		}
+		return query.Where(
+			fmt.Sprintf("(%s %s ? OR (%s = ? AND id %s ?))", sortColumn, operator, sortColumn, operator),
+			value,
+			value,
+			cursorID,
+		), nil
+	case "name", "regular_price":
+		return query.Where(
+			fmt.Sprintf("(%s %s ? OR (%s = ? AND id %s ?))", sortColumn, operator, sortColumn, operator),
+			cursor.SortValue,
+			cursor.SortValue,
+			cursorID,
+		), nil
+	default:
+		return nil, fmt.Errorf("unsupported cursor sort")
+	}
+}
+
+func decodeProductCursor(rawCursor string) (*productListCursor, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(rawCursor)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor")
+	}
+
+	var cursor productListCursor
+	if err := json.Unmarshal(decoded, &cursor); err != nil {
+		return nil, fmt.Errorf("invalid cursor")
+	}
+	if cursor.SortBy == "" || cursor.SortOrder == "" || cursor.SortValue == "" || cursor.ID == "" {
+		return nil, fmt.Errorf("invalid cursor")
+	}
+	return &cursor, nil
+}
+
+func encodeProductCursor(product models.Product, sortColumn string, sortOrder string) string {
+	cursor := productListCursor{
+		SortBy:    sortColumn,
+		SortOrder: sortOrder,
+		SortValue: productCursorSortValue(product, sortColumn),
+		ID:        product.ID.String(),
+	}
+	encoded, err := json.Marshal(cursor)
+	if err != nil {
+		return ""
+	}
+	return base64.RawURLEncoding.EncodeToString(encoded)
+}
+
+func productCursorSortValue(product models.Product, sortColumn string) string {
+	switch sortColumn {
+	case "name":
+		return product.Name
+	case "regular_price":
+		return product.RegularPrice.String()
+	case "stock_quantity":
+		return strconv.Itoa(product.StockQuantity)
+	case "sold_count":
+		return strconv.Itoa(product.SoldCount)
+	case "updated_at":
+		return product.UpdatedAt.Format(time.RFC3339Nano)
+	case "created_at":
+		return product.CreatedAt.Format(time.RFC3339Nano)
+	default:
+		return product.CreatedAt.Format(time.RFC3339Nano)
+	}
 }
 
 // Update updates a product
@@ -268,7 +415,12 @@ func (r *ProductRepository) UpdateWithOptimisticLockTx(tx *gorm.DB, product *mod
 }
 
 func (r *ProductRepository) updateWithOptimisticLockOn(db *gorm.DB, product *models.Product) error {
-	result := db.Model(product).
+	var categoryID interface{}
+	if product.CategoryID != nil {
+		categoryID = product.CategoryID.String()
+	}
+
+	result := db.Model(&models.Product{}).
 		Where("id = ? AND version = ?", product.ID, product.Version).
 		Updates(map[string]interface{}{
 			"name":              product.Name,
@@ -280,7 +432,7 @@ func (r *ProductRepository) updateWithOptimisticLockOn(db *gorm.DB, product *mod
 			"sale_start_date":   product.SaleStartDate,
 			"sale_end_date":     product.SaleEndDate,
 			"stock_quantity":    product.StockQuantity,
-			"category_id":       product.CategoryID,
+			"category_id":       categoryID,
 			"brand":             product.Brand,
 			"sku":               product.SKU,
 			"status":            product.Status,
@@ -400,8 +552,12 @@ func (r *ProductRepository) Delete(id uuid.UUID) error {
 
 // GetAllSlugs retrieves all product slugs
 func (r *ProductRepository) GetAllSlugs() ([]string, error) {
+	return r.getAllSlugsOn(r.db)
+}
+
+func (r *ProductRepository) getAllSlugsOn(db *gorm.DB) ([]string, error) {
 	var slugs []string
-	err := r.db.Unscoped().Model(&models.Product{}).Pluck("slug", &slugs).Error
+	err := db.Unscoped().Model(&models.Product{}).Pluck("slug", &slugs).Error
 	return slugs, err
 }
 
@@ -597,7 +753,16 @@ func (r *ProductRepository) replaceVariantCombinationDataOn(
 		combination.Options = nil
 		combination.OptionIDs = nil
 
-		if err := tx.Clauses(clause.OnConflict{
+		combinationValues := map[string]interface{}{
+			"id":               combination.ID,
+			"product_id":       combination.ProductID,
+			"price_adjustment": combination.PriceAdjustment,
+			"stock_quantity":   combination.StockQuantity,
+			"sku":              combination.SKU,
+			"is_active":        combination.IsActive,
+		}
+
+		if err := tx.Model(&models.ProductVariantCombination{}).Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"product_id",
@@ -607,7 +772,7 @@ func (r *ProductRepository) replaceVariantCombinationDataOn(
 				"is_active",
 				"updated_at",
 			}),
-		}).Create(&combination).Error; err != nil {
+		}).Create(combinationValues).Error; err != nil {
 			return err
 		}
 	}
@@ -690,12 +855,6 @@ func deactivateOrDeleteStaleCombinations(tx *gorm.DB, productID uuid.UUID, desir
 				"is_active":      false,
 				"stock_quantity": 0,
 			}).Error; err != nil {
-			return err
-		}
-
-		if err := tx.
-			Where("combination_id IN ?", deactivatedIDs).
-			Delete(&models.ProductCombinationOption{}).Error; err != nil {
 			return err
 		}
 	}
@@ -863,6 +1022,14 @@ func (r *ProductRepository) AdminList(filter AdminProductFilter) (*ProductListRe
 	if filter.Status != "" {
 		query = query.Where("status = ?", filter.Status)
 	}
+	switch filter.StockStatus {
+	case "in_stock":
+		query = query.Where("stock_quantity > ?", 10)
+	case "low_stock":
+		query = query.Where("stock_quantity > 0 AND stock_quantity <= ?", 10)
+	case "out_of_stock":
+		query = query.Where("stock_quantity <= 0")
+	}
 	if filter.InStock != nil && *filter.InStock {
 		query = query.Where("stock_quantity > 0")
 	}
@@ -872,8 +1039,8 @@ func (r *ProductRepository) AdminList(filter AdminProductFilter) (*ProductListRe
 	if filter.Search != "" {
 		searchTerm := "%" + strings.ToLower(filter.Search) + "%"
 		query = query.Where(
-			"LOWER(name) LIKE ? OR LOWER(description) LIKE ?",
-			searchTerm, searchTerm,
+			"LOWER(name) LIKE ? OR LOWER(description) LIKE ? OR LOWER(sku) LIKE ?",
+			searchTerm, searchTerm, searchTerm,
 		)
 	}
 
@@ -888,8 +1055,12 @@ func (r *ProductRepository) AdminList(filter AdminProductFilter) (*ProductListRe
 		switch filter.SortBy {
 		case "name":
 			sortColumn = "name"
+		case "price":
+			sortColumn = "regular_price"
 		case "regular_price":
 			sortColumn = "regular_price"
+		case "stock":
+			sortColumn = "stock_quantity"
 		case "stock_quantity":
 			sortColumn = "stock_quantity"
 		case "sold_count":

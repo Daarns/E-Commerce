@@ -1,9 +1,9 @@
 package product
 
 import (
+	productHandler "ecommerce-backend/internal/handlers/product"
 	"ecommerce-backend/internal/repositories"
 	"ecommerce-backend/internal/services/product"
-	productHandler "ecommerce-backend/internal/handlers/product"
 	"ecommerce-backend/pkg/response"
 	"errors"
 	"net/http"
@@ -14,14 +14,14 @@ import (
 
 // AdminProductHandler handles admin product HTTP requests
 type AdminProductHandler struct {
-	useCase      *product.ProductService
+	useCase        *product.ProductService
 	tempUploadRepo *repositories.TempUploadRepository
 }
 
 // NewAdminProductHandler creates a new admin product handler
 func NewAdminProductHandler(useCase *product.ProductService, tempUploadRepo *repositories.TempUploadRepository) *AdminProductHandler {
 	return &AdminProductHandler{
-		useCase:      useCase,
+		useCase:        useCase,
 		tempUploadRepo: tempUploadRepo,
 	}
 }
@@ -32,8 +32,35 @@ func NewAdminProductHandler(useCase *product.ProductService, tempUploadRepo *rep
 
 // GET /api/v1/admin/products
 func (h *AdminProductHandler) AdminListProducts(c *gin.Context) {
+	productFilter := productHandler.ParseProductFilter(c)
+
+	if status := c.Query("status"); status != "" {
+		if !isAllowedAdminProductStatus(status) {
+			response.Error(c, http.StatusBadRequest, "INVALID_STATUS", "Invalid product status filter")
+			return
+		}
+		productFilter.Status = status
+	}
+
+	if stockStatus := c.Query("stock_status"); stockStatus != "" {
+		if !isAllowedAdminStockStatus(stockStatus) {
+			response.Error(c, http.StatusBadRequest, "INVALID_STOCK_STATUS", "Invalid stock status filter")
+			return
+		}
+		productFilter.StockStatus = stockStatus
+	}
+
+	if sortBy := c.Query("sort_by"); sortBy != "" && !isAllowedAdminProductSort(sortBy) {
+		response.Error(c, http.StatusBadRequest, "INVALID_SORT", "Invalid product sort field")
+		return
+	}
+	if sortOrder := c.Query("sort_order"); sortOrder != "" && !isAllowedSortOrder(sortOrder) {
+		response.Error(c, http.StatusBadRequest, "INVALID_SORT_ORDER", "Invalid product sort order")
+		return
+	}
+
 	filter := repositories.AdminProductFilter{
-		ProductFilter: productHandler.ParseProductFilter(c),
+		ProductFilter: productFilter,
 		// Admin: status tidak dibatasi, kosong = tampilkan semua
 		// Jika status diisi (e.g. ?status=draft), tetap digunakan
 		IncludeDeleted: c.Query("include_deleted") == "true",
@@ -46,6 +73,42 @@ func (h *AdminProductHandler) AdminListProducts(c *gin.Context) {
 	}
 
 	response.Success(c, result)
+}
+
+func isAllowedAdminProductStatus(status string) bool {
+	switch status {
+	case "active", "draft", "archived":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAllowedAdminStockStatus(status string) bool {
+	switch status {
+	case "in_stock", "low_stock", "out_of_stock":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAllowedAdminProductSort(sortBy string) bool {
+	switch sortBy {
+	case "name", "price", "stock", "created_at":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAllowedSortOrder(sortOrder string) bool {
+	switch sortOrder {
+	case "asc", "desc":
+		return true
+	default:
+		return false
+	}
 }
 
 // AdminGetProduct retrieves full product detail for admin.
@@ -147,5 +210,3 @@ func (h *AdminProductHandler) DeleteProduct(c *gin.Context) {
 
 	response.Success(c, gin.H{"message": "Product deleted successfully"})
 }
-
-

@@ -5,7 +5,6 @@ import {
   adminProductService,
   CreateProductRequest,
   UpdateProductRequest,
-  AdminProduct,
 } from '@/services/admin';
 import { handleError } from '@/utils/error-handler';
 
@@ -23,23 +22,22 @@ export function useProductForm(mode: 'create' | 'edit'): UseProductFormReturn {
       try {
         setIsLoading(true);
 
-        let response: AdminProduct;
         if (mode === 'create') {
           if (isUpdateProductRequest(data)) {
             throw new Error('Invalid product create payload');
           }
-          response = await adminProductService.createProduct(data);
+          await adminProductService.createProduct(data);
         } else {
           if (!isUpdateProductRequest(data)) {
             throw new Error('Invalid product update payload');
           }
-          response = await adminProductService.updateProduct(data.id, data);
+          await adminProductService.updateProduct(data.id, data);
         }
 
         toast.success(
           mode === 'create' ? 'Product created successfully' : 'Product updated successfully'
         );
-        router.push(`/admin/products/${response.id}`);
+        router.replace('/admin/products');
       } catch (error) {
         handleError(error, { context: `Failed to ${mode} product` });
       } finally {

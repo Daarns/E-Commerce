@@ -15,30 +15,34 @@ const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 interface UseOrderStatusUpdateParams {
   orderId: string;
   currentStatus: OrderStatus;
+  targetStatus: OrderStatus;
+  requiresTracking?: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusUpdated?: () => void;
 }
 
 interface UseOrderStatusUpdateReturn {
-  newStatus: OrderStatus | '';
   notes: string;
+  trackingNumber: string;
   isLoading: boolean;
   error: string | null;
   validTransitions: OrderStatus[];
   canUpdate: boolean;
-  setNewStatus: (status: OrderStatus | '') => void;
   setNotes: (notes: string) => void;
+  setTrackingNumber: (trackingNumber: string) => void;
   handleSubmit: () => Promise<void>;
 }
 
 export function useOrderStatusUpdate({
   orderId,
   currentStatus,
+  targetStatus,
+  requiresTracking = false,
   onOpenChange,
   onStatusUpdated,
 }: UseOrderStatusUpdateParams): UseOrderStatusUpdateReturn {
-  const [newStatus, setNewStatus] = useState<OrderStatus | ''>('');
   const [notes, setNotes] = useState('');
+  const [trackingNumber, setTrackingNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,41 +50,62 @@ export function useOrderStatusUpdate({
     () => VALID_TRANSITIONS[currentStatus] || [],
     [currentStatus]
   );
-  const canUpdate = validTransitions.length > 0;
+  const canUpdate = validTransitions.includes(targetStatus);
 
   const handleSubmit = useCallback(async (): Promise<void> => {
-    if (!newStatus) {
-      setError('Please select a new status');
+    if (!canUpdate) {
+      setError('This status transition is not allowed');
+      return;
+    }
+
+    if (requiresTracking && trackingNumber.trim().length === 0) {
+      setError('Tracking number is required before marking this order as shipped');
       return;
     }
 
     try {
       setIsLoading(true);
       setError(null);
+
+      if (requiresTracking) {
+        await adminService.updateOrderTracking(orderId, {
+          tracking_number: trackingNumber.trim(),
+        });
+      }
+
       await adminService.updateOrderStatus(orderId, {
-        status: newStatus,
+        status: targetStatus,
         notes: notes || undefined,
       });
       onStatusUpdated?.();
       onOpenChange(false);
-      setNewStatus('');
       setNotes('');
+      setTrackingNumber('');
     } catch (statusError) {
       setError(statusError instanceof Error ? statusError.message : 'Failed to update status');
     } finally {
       setIsLoading(false);
     }
-  }, [newStatus, notes, onOpenChange, onStatusUpdated, orderId]);
+  }, [
+    canUpdate,
+    notes,
+    onOpenChange,
+    onStatusUpdated,
+    orderId,
+    requiresTracking,
+    targetStatus,
+    trackingNumber,
+  ]);
 
   return {
-    newStatus,
     notes,
+    trackingNumber,
     isLoading,
     error,
     validTransitions,
     canUpdate,
-    setNewStatus,
     setNotes,
+    setTrackingNumber,
     handleSubmit,
   };
 }

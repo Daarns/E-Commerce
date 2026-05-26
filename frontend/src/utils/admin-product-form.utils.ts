@@ -80,6 +80,7 @@ export function createVariantCombinationRows(product?: AdminProduct): VariantCom
       const optionIds = combination.option_ids ?? combination.options?.map((option) => option.id) ?? [];
       return {
         key: combination.id,
+        option_ids: optionIds,
         option_values: optionIds
           .map((optionId) => optionValueById.get(optionId))
           .filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
@@ -176,7 +177,7 @@ export function buildUpdateProductPayload(
     meta_title: formData.meta_title,
     meta_description: formData.meta_description,
     image_urls: uploadedImages,
-    variant_types: toVariantTypeInputs(variantTypes, 'update'),
+    variant_types: toVariantTypeInputs(variantTypes),
     combinations: toVariantCombinationInputs(combinations),
     variant_images: toVariantImageInputs(variantTypes),
   };
@@ -191,38 +192,33 @@ export function buildCreateProductPayload(
   return {
     ...formData,
     image_urls: uploadedImages,
-    variant_types: toVariantTypeInputs(variantTypes, 'create'),
+    variant_types: toVariantTypeInputs(variantTypes),
     combinations: toVariantCombinationInputs(combinations),
     variant_images: toVariantImageInputs(variantTypes),
   };
 }
 
-export function toVariantTypeInputs(variantTypes: VariantTypeRow[], mode: 'create' | 'update'): AdminVariantTypeInput[] {
+export function toVariantTypeInputs(variantTypes: VariantTypeRow[]): AdminVariantTypeInput[] {
   return getActiveVariantTypes(variantTypes).map((variantType, index) => ({
     id: variantType.key,
     name: variantType.name.trim(),
     is_visual: variantType.is_visual,
     display_order: index,
     options: variantType.options
-      .map((option) => (
-        mode === 'create'
-          ? option.value.trim()
-          : {
-              id: option.key,
-              value: option.value.trim(),
-            }
-      ))
-      .filter((option) => (
-        typeof option === 'string' ? option.length > 0 : option.value.length > 0
-      )),
+      .map((option) => ({
+        id: option.key,
+        value: option.value.trim(),
+      }))
+      .filter((option) => option.value.length > 0),
   }));
 }
 
 export function toVariantCombinationInputs(combinations: VariantCombinationRow[]): AdminVariantCombinationInput[] {
   return combinations
-    .filter((combination) => combination.option_values.length > 0)
+    .filter((combination) => combination.option_ids.length > 0)
     .map((combination) => ({
       id: combination.key,
+      option_ids: combination.option_ids,
       option_values: combination.option_values,
       price_adjustment: combination.price_adjustment,
       stock_quantity: combination.stock_quantity,
@@ -236,6 +232,7 @@ export function toVariantImageInputs(variantTypes: VariantTypeRow[]): AdminVaria
     .flatMap((variantType) => variantType.options)
     .filter((option) => option.value.trim() && option.image_url.trim())
     .map((option) => ({
+      option_id: option.key,
       option_value: option.value.trim(),
       image_url: option.image_url.trim(),
     }));
@@ -244,27 +241,92 @@ export function toVariantImageInputs(variantTypes: VariantTypeRow[]): AdminVaria
 export function syncCombinationRows(
   variantTypes: VariantTypeRow[],
   previousCombinations: VariantCombinationRow[],
-  productName: string,
-  productSku: string | undefined
+  productName: string
 ): VariantCombinationRow[] {
-  const optionSets = getActiveVariantTypes(variantTypes).map((variantType) => getOptionValues(variantType));
+  const optionSets = getActiveVariantTypes(variantTypes).map((variantType) => getOptionsForCombination(variantType));
   if (optionSets.length === 0 || optionSets.some((options) => options.length === 0)) return [];
 
-  const previousByKey = new Map(
-    previousCombinations.map((combination) => [combinationKey(combination.option_values), combination])
+  const previousByOptionIDs = new Map(
+    previousCombinations.map((combination) => [optionIDKey(combination.option_ids), combination])
   );
+  const nextRows = cartesianProduct(optionSets).map((optionValues) => {
+    const optionIds = optionValues.map((option) => option.id);
+    const values = optionValues.map((option) => option.value);
+    return { optionIds, values, optionValues };
+  });
 
-  return cartesianProduct(optionSets).map((optionValues) => {
-    const existing = previousByKey.get(combinationKey(optionValues));
-    if (existing) return existing;
+  const templateUsage = new Map<string, number>();
+  nextRows.forEach(({ optionIds }) => {
+    if (previousByOptionIDs.has(optionIDKey(optionIds))) return;
+
+    const template = findBestCombinationTemplate(previousCombinations, optionIds);
+    if (!template) return;
+
+    templateUsage.set(template.key, (templateUsage.get(template.key) ?? 0) + 1);
+  });
+
+  return nextRows.map(({ optionIds, values, optionValues }) => {
+    const existing = previousByOptionIDs.get(optionIDKey(optionIds));
+    if (existing) {
+      return {
+        ...existing,
+        option_ids: optionIds,
+        option_values: values,
+      };
+    }
+
+    const template = findBestCombinationTemplate(previousCombinations, optionIds);
+    if (template) {
+      const usedOnce = (templateUsage.get(template.key) ?? 0) === 1;
+
+      return {
+        key: usedOnce ? template.key : crypto.randomUUID(),
+        option_ids: optionIds,
+        option_values: values,
+        price_adjustment: template.price_adjustment,
+        stock_quantity: usedOnce ? template.stock_quantity : 0,
+        sku: generateCombinationSku(productName, optionValues),
+        is_active: usedOnce ? template.is_active : false,
+      };
+    }
 
     return {
       key: crypto.randomUUID(),
-      option_values: optionValues,
+      option_ids: optionIds,
+      option_values: values,
       price_adjustment: 0,
       stock_quantity: 0,
-      sku: generateCombinationSku(productName, productSku, optionValues),
-      is_active: true,
+      sku: generateCombinationSku(productName, optionValues),
+      is_active: false,
+    };
+  });
+}
+
+export function closeCombinationsForOption(
+  combinations: VariantCombinationRow[],
+  optionId: string
+): VariantCombinationRow[] {
+  return combinations.map((combination) => {
+    if (!combination.option_ids.includes(optionId)) return combination;
+
+    return {
+      ...combination,
+      is_active: false,
+    };
+  });
+}
+
+export function closeCombinationsForOptions(
+  combinations: VariantCombinationRow[],
+  optionIds: string[]
+): VariantCombinationRow[] {
+  const optionIDSet = new Set(optionIds);
+  return combinations.map((combination) => {
+    if (!combination.option_ids.some((optionId) => optionIDSet.has(optionId))) return combination;
+
+    return {
+      ...combination,
+      is_active: false,
     };
   });
 }
@@ -329,8 +391,22 @@ function getOptionValues(variantType: VariantTypeRow): string[] {
     .filter((value) => value.length > 0);
 }
 
-function cartesianProduct(optionSets: string[][]): string[][] {
-  return optionSets.reduce<string[][]>(
+interface CombinationOptionRef {
+  id: string;
+  value: string;
+}
+
+function getOptionsForCombination(variantType: VariantTypeRow): CombinationOptionRef[] {
+  return variantType.options
+    .map((option) => ({
+      id: option.key,
+      value: option.value.trim(),
+    }))
+    .filter((option) => option.value.length > 0);
+}
+
+function cartesianProduct(optionSets: CombinationOptionRef[][]): CombinationOptionRef[][] {
+  return optionSets.reduce<CombinationOptionRef[][]>(
     (combinations, options) => combinations.flatMap((combination) => (
       options.map((option) => [...combination, option])
     )),
@@ -338,17 +414,41 @@ function cartesianProduct(optionSets: string[][]): string[][] {
   );
 }
 
-function combinationKey(optionValues: string[]): string {
-  return optionValues.map((value) => value.trim().toLowerCase()).join('\u001f');
+function findBestCombinationTemplate(
+  combinations: VariantCombinationRow[],
+  nextOptionIds: string[]
+): VariantCombinationRow | undefined {
+  const nextIDSet = new Set(nextOptionIds);
+
+  return combinations
+    .filter((combination) => (
+      combination.option_ids.length > 0 &&
+      combination.option_ids.every((optionId) => nextIDSet.has(optionId))
+    ))
+    .sort((left, right) => right.option_ids.length - left.option_ids.length)[0];
 }
 
-function generateCombinationSku(productName: string, productSku: string | undefined, optionValues: string[]): string {
-  const base = (productSku?.trim() || productName.trim() || 'PRODUCT')
+function optionIDKey(optionIds: string[]): string {
+  return optionIds.map((optionId) => optionId.trim().toLowerCase()).sort().join('\u001f');
+}
+
+export function generateCombinationSkuFromValues(
+  productName: string,
+  optionValues: string[]
+): string {
+  return generateCombinationSku(
+    productName,
+    optionValues.map((value) => ({ id: value, value }))
+  );
+}
+
+function generateCombinationSku(productName: string, options: CombinationOptionRef[]): string {
+  const base = (productName.trim() || 'PRODUCT')
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .toUpperCase();
-  const suffix = optionValues
-    .map((value) => value.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toUpperCase())
+  const suffix = options
+    .map((option) => option.value.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toUpperCase())
     .filter(Boolean)
     .join('-');
   return [base, suffix].filter(Boolean).join('-').slice(0, 100);

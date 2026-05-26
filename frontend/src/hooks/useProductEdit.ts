@@ -74,7 +74,7 @@ export function useProductEdit(): UseProductEditReturn {
           latestVersionRef.current = updatedProduct.version;
         }
         toast.success('Product updated successfully');
-        await loadProduct();
+        router.replace('/admin/products');
       } catch (error) {
         handleError(error, { context: 'Failed to update product' });
         // Refresh product from DB so the version ref stays in sync
@@ -84,7 +84,7 @@ export function useProductEdit(): UseProductEditReturn {
         setIsUpdating(false);
       }
     },
-    [productId, loadProduct]
+    [productId, loadProduct, router]
   );
 
   const handleDelete = useCallback(async (): Promise<void> => {

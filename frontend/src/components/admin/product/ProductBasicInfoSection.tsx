@@ -14,6 +14,8 @@ import type { CreateProductRequest } from '@/services/admin';
 import type { Category } from '@/types';
 import type { ProductFormErrors } from '@/hooks/useAdminProductForm';
 
+const NO_CATEGORY_VALUE = '__no_category__';
+
 interface ProductBasicInfoSectionProps {
   formData: CreateProductRequest;
   errors: ProductFormErrors;
@@ -33,6 +35,8 @@ export function ProductBasicInfoSection({
   onFieldChange,
   onOpenCategoryModal,
 }: ProductBasicInfoSectionProps) {
+  const selectedCategory = categories.find((category) => category.id === formData.category_id);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -101,8 +105,11 @@ export function ProductBasicInfoSection({
               </button>
             </div>
             <Select
-              value={formData.category_id ?? ''}
-              onValueChange={(value) => onFieldChange('category_id', value || undefined)}
+              value={formData.category_id ?? NO_CATEGORY_VALUE}
+              onValueChange={(value) => onFieldChange(
+                'category_id',
+                !value || value === NO_CATEGORY_VALUE ? undefined : value
+              )}
               disabled={isLoading || categoriesLoading}
             >
               <SelectTrigger
@@ -111,10 +118,14 @@ export function ProductBasicInfoSection({
                   errors.category_id ? 'border-red-500' : 'border-input'
                 }`}
               >
-                <SelectValue placeholder={categoriesLoading ? 'Loading...' : 'Pilih kategori'} />
+                <SelectValue placeholder={categoriesLoading ? 'Loading...' : 'Pilih kategori'}>
+                  {selectedCategory?.name ?? 'Pilih kategori'}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent align="start" className="rounded-xl p-1 shadow-lg">
-                <SelectItem value="">{categoriesLoading ? 'Loading...' : 'Pilih kategori'}</SelectItem>
+                <SelectItem value={NO_CATEGORY_VALUE}>
+                  {categoriesLoading ? 'Loading...' : 'Pilih kategori'}
+                </SelectItem>
                 {categories.map((category) => (
                   <SelectItem key={category.id} value={category.id} className="rounded-lg py-2">
                     {category.name}

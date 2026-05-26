@@ -3,6 +3,7 @@ package repositories
 import (
 	"ecommerce-backend/internal/models"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -42,6 +43,9 @@ func NewCategoryRepository(db *gorm.DB) *CategoryRepository {
 
 // Create creates a new category
 func (r *CategoryRepository) Create(category *models.Category) error {
+	if category.ID == uuid.Nil {
+		category.ID = uuid.New()
+	}
 	// Generate unique slug if exists
 	if category.Slug == "" {
 		category.Slug = models.GenerateSlug(category.Name)
@@ -54,7 +58,25 @@ func (r *CategoryRepository) Create(category *models.Category) error {
 	}
 	category.Slug = models.GenerateUniqueSlug(category.Slug, existingSlugs)
 
-	return r.db.Create(category).Error
+	now := time.Now()
+	if category.CreatedAt.IsZero() {
+		category.CreatedAt = now
+	}
+	if category.UpdatedAt.IsZero() {
+		category.UpdatedAt = now
+	}
+
+	return r.db.Model(&models.Category{}).Create(map[string]interface{}{
+		"id":          category.ID,
+		"name":        category.Name,
+		"slug":        category.Slug,
+		"description": category.Description,
+		"parent_id":   category.ParentID,
+		"image_url":   category.ImageURL,
+		"is_active":   category.IsActive,
+		"created_at":  category.CreatedAt,
+		"updated_at":  category.UpdatedAt,
+	}).Error
 }
 
 // GetByID retrieves a category by ID
@@ -207,14 +229,24 @@ func (r *CategoryRepository) Delete(id uuid.UUID) error {
 // GetAllSlugs retrieves all category slugs
 func (r *CategoryRepository) GetAllSlugs() ([]string, error) {
 	var slugs []string
-	err := r.db.Model(&models.Category{}).Pluck("slug", &slugs).Error
+	err := r.db.Unscoped().Model(&models.Category{}).Pluck("slug", &slugs).Error
+	return slugs, err
+}
+
+// GetAllSlugsExcept retrieves all category slugs except one category ID.
+func (r *CategoryRepository) GetAllSlugsExcept(id uuid.UUID) ([]string, error) {
+	var slugs []string
+	err := r.db.Unscoped().
+		Model(&models.Category{}).
+		Where("id <> ?", id).
+		Pluck("slug", &slugs).Error
 	return slugs, err
 }
 
 // SlugExists checks if a slug already exists
 func (r *CategoryRepository) SlugExists(slug string) (bool, error) {
 	var count int64
-	err := r.db.Model(&models.Category{}).Where("slug = ?", slug).Count(&count).Error
+	err := r.db.Unscoped().Model(&models.Category{}).Where("slug = ?", slug).Count(&count).Error
 	return count > 0, err
 }
 

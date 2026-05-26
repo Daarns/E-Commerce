@@ -37,19 +37,35 @@ export const ADMIN_PRODUCT_STOCK_STATUS_OPTIONS = [
   { value: 'out_of_stock', label: 'Out of Stock' },
 ] as const;
 
-export const ADMIN_PRODUCT_ACTIVE_STATUS_OPTIONS = [
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
+export const ADMIN_PRODUCT_STATUS_FILTER_OPTIONS = [
+  { value: 'active', label: 'Aktif' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'archived', label: 'Arsip' },
 ] as const;
 
+export const ADMIN_PRODUCT_STATUS_LABELS = {
+  active: 'Aktif',
+  draft: 'Draft',
+  archived: 'Arsip',
+} as const;
+
+export type AdminProductStatusValue = keyof typeof ADMIN_PRODUCT_STATUS_LABELS;
+
+export function getAdminProductStatusLabel(status: string | undefined): string {
+  if (status === 'active' || status === 'draft' || status === 'archived') {
+    return ADMIN_PRODUCT_STATUS_LABELS[status];
+  }
+  return ADMIN_PRODUCT_STATUS_LABELS.active;
+}
+
 export const ADMIN_PRODUCT_SORT_OPTIONS = [
-  { value: 'created_at', label: 'Date Created' },
-  { value: 'name', label: 'Product Name' },
-  { value: 'price', label: 'Price' },
-  { value: 'stock', label: 'Stock' },
+  { value: 'created_at', label: 'Tanggal Dibuat' },
+  { value: 'name', label: 'Nama Produk' },
+  { value: 'price', label: 'Harga' },
+  { value: 'stock', label: 'Stok' },
 ] as const;
 
 export const SORT_ORDER_OPTIONS = [
-  { value: 'desc', label: 'Descending' },
-  { value: 'asc', label: 'Ascending' },
+  { value: 'desc', label: 'Terbesar / Z-A' },
+  { value: 'asc', label: 'Terkecil / A-Z' },
 ] as const;

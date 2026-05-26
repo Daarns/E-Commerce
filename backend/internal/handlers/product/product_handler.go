@@ -38,6 +38,9 @@ func ParseProductFilter(c *gin.Context) repositories.ProductFilter {
 		}
 		filter.Limit = limit
 	}
+	if cursor := c.Query("cursor"); cursor != "" {
+		filter.Cursor = cursor
+	}
 	if categoryID := c.Query("category_id"); categoryID != "" {
 		if id, err := uuid.Parse(categoryID); err == nil {
 			filter.CategoryID = &id

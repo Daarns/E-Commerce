@@ -5,12 +5,14 @@ import { handleError } from '@/utils/error-handler';
 interface UseAdminProductsReturn {
   products: AdminProduct[];
   isLoading: boolean;
+  isSearchPending: boolean;
   page: number;
   limit: number;
   total: number;
   filters: ProductFilters;
   totalPages: number;
   handleFiltersChange: (newFilters: ProductFilters) => void;
+  handleSearchPendingChange: (isPending: boolean) => void;
   handleSort: (sortBy: ProductFilters['sort_by'], sortOrder: 'asc' | 'desc') => void;
   handlePageChange: (newPage: number) => void;
   handleDelete: (productId: string) => Promise<void>;
@@ -19,6 +21,7 @@ interface UseAdminProductsReturn {
 export function useAdminProducts(): UseAdminProductsReturn {
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearchPending, setIsSearchPending] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState<ProductFilters>({
@@ -47,8 +50,13 @@ export function useAdminProducts(): UseAdminProductsReturn {
   }, [loadProducts]);
 
   const handleFiltersChange = useCallback((newFilters: ProductFilters): void => {
+    setIsSearchPending(false);
     setFilters(newFilters);
     setPage(1);
+  }, []);
+
+  const handleSearchPendingChange = useCallback((isPending: boolean): void => {
+    setIsSearchPending(isPending);
   }, []);
 
   const handleSort = useCallback(
@@ -79,12 +87,14 @@ export function useAdminProducts(): UseAdminProductsReturn {
   return {
     products,
     isLoading,
+    isSearchPending,
     page,
     limit,
     total,
     filters,
     totalPages,
     handleFiltersChange,
+    handleSearchPendingChange,
     handleSort,
     handlePageChange,
     handleDelete,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { ReactElement } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
@@ -38,8 +39,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AdminProduct, ProductFilters } from '@/services/admin';
-import { LOW_STOCK_THRESHOLD, PRODUCT_STOCK_STATUS } from '@/constants/product.constants';
+import {
+  getAdminProductStatusLabel,
+  LOW_STOCK_THRESHOLD,
+  PRODUCT_STOCK_STATUS,
+} from '@/constants/product.constants';
 import { formatCurrency } from '@/utils';
 
 interface ProductTableProps {
@@ -59,9 +65,82 @@ const getStockStatus = (stock: number): { label: string; variant: 'default' | 's
   return PRODUCT_STOCK_STATUS.inStock;
 };
 
+const getProductStatusVariant = (
+  status: string | undefined
+): 'default' | 'secondary' | 'destructive' | 'outline' => {
+  switch (status) {
+    case 'active':
+      return 'default';
+    case 'draft':
+      return 'secondary';
+    case 'archived':
+      return 'outline';
+    default:
+      return 'secondary';
+  }
+};
+
 const getFirstImageUrl = (imageUrls?: string[]): string | null => {
   return imageUrls?.find((url) => typeof url === 'string' && url.trim().length > 0) ?? null;
 };
+
+function ProductTableSkeleton(): ReactElement {
+  return (
+    <div className="space-y-3">
+      <div className="hidden md:block border rounded-lg overflow-hidden">
+        <div className="grid grid-cols-[48px_1.8fr_1fr_1fr_1fr_1fr_96px] gap-4 border-b p-4">
+          {Array.from({ length: 7 }, (_, index) => (
+            <Skeleton key={index} className="h-4 w-full" />
+          ))}
+        </div>
+        {Array.from({ length: 6 }, (_, rowIndex) => (
+          <div
+            key={rowIndex}
+            className="grid grid-cols-[48px_1.8fr_1fr_1fr_1fr_1fr_96px] items-center gap-4 border-b p-4 last:border-b-0"
+          >
+            <Skeleton className="h-4 w-4" />
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="ml-auto h-4 w-24" />
+            <Skeleton className="ml-auto h-4 w-12" />
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-16" />
+              <Skeleton className="h-5 w-20" />
+            </div>
+            <Skeleton className="mx-auto h-8 w-20" />
+          </div>
+        ))}
+      </div>
+
+      <div className="md:hidden space-y-3">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="rounded-lg border p-3 space-y-3">
+            <div className="flex gap-3">
+              <Skeleton className="h-14 w-14 rounded-md" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+              <Skeleton className="h-8 w-8 rounded-md" />
+            </div>
+            <div className="grid grid-cols-3 gap-3 border-t pt-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function ProductTable({
   products,
@@ -128,11 +207,7 @@ export function ProductTable({
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <ProductTableSkeleton />;
   }
 
   if (products.length === 0) {
@@ -254,8 +329,8 @@ export function ProductTable({
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
-                      <Badge variant={product.is_active ? 'default' : 'secondary'}>
-                        {product.is_active ? 'Active' : 'Inactive'}
+                      <Badge variant={getProductStatusVariant(product.status)}>
+                        {getAdminProductStatusLabel(product.status)}
                       </Badge>
                       <Badge variant={stockStatus.variant}>
                         {stockStatus.label}
@@ -375,8 +450,8 @@ export function ProductTable({
                   <p className="text-[10px] text-muted-foreground">stock</p>
                 </div>
                 <div className="flex gap-1">
-                  <Badge variant={product.is_active ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
-                    {product.is_active ? 'Active' : 'Inactive'}
+                  <Badge variant={getProductStatusVariant(product.status)} className="text-[10px] px-1.5 py-0">
+                    {getAdminProductStatusLabel(product.status)}
                   </Badge>
                   <Badge variant={stockStatus.variant} className="text-[10px] px-1.5 py-0">
                     {stockStatus.label}

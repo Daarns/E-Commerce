@@ -56,7 +56,7 @@ func (uc *CartService) AddToCart(input AddToCartInput) (*models.Cart, error) {
 	}
 
 	if product.Status != "active" {
-		return nil, fmt.Errorf("product is not available")
+		return nil, fmt.Errorf("produk ini sedang tidak tersedia")
 	}
 
 	// Get price
@@ -65,13 +65,13 @@ func (uc *CartService) AddToCart(input AddToCartInput) (*models.Cart, error) {
 	if input.CombinationID != nil {
 		combination, err := uc.productRepo.GetCombination(*input.CombinationID)
 		if err != nil {
-			return nil, fmt.Errorf("combination not found")
+			return nil, fmt.Errorf("pilihan produk ini sedang tidak tersedia")
 		}
 		if combination.ProductID != input.ProductID {
-			return nil, fmt.Errorf("combination does not belong to this product")
+			return nil, fmt.Errorf("pilihan produk ini tidak sesuai")
 		}
 		if !combination.IsActive {
-			return nil, fmt.Errorf("combination is not available")
+			return nil, fmt.Errorf("stok untuk pilihan ini sedang kosong")
 		}
 		price = price.Add(combination.PriceAdjustment)
 	}
@@ -122,12 +122,15 @@ func (uc *CartService) AddToCart(input AddToCartInput) (*models.Cart, error) {
 func (uc *CartService) validateStock(product *models.Product, combinationID *uuid.UUID, quantity int) error {
 	if combinationID != nil {
 		combination, _ := uc.productRepo.GetCombination(*combinationID)
+		if combination != nil && !combination.IsActive {
+			return fmt.Errorf("stok untuk pilihan ini sedang kosong")
+		}
 		if combination != nil && !combination.HasSufficientStock(quantity) {
-			return fmt.Errorf("insufficient stock: only %d available", combination.StockQuantity)
+			return fmt.Errorf("stok untuk pilihan ini hanya tersisa %d", combination.StockQuantity)
 		}
 	} else {
 		if !product.HasSufficientStock(quantity) {
-			return fmt.Errorf("insufficient stock: only %d available", product.StockQuantity)
+			return fmt.Errorf("stok produk hanya tersisa %d", product.StockQuantity)
 		}
 	}
 	return nil
