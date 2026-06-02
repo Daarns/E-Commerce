@@ -31,6 +31,7 @@ export function OrderItemsList({ order }: { order: Order }) {
                     alt={item.product_name}
                     fill
                     className="object-cover"
+                    sizes="80px"
                   />
                 )}
               </div>

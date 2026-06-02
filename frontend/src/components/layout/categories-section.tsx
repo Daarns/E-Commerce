@@ -81,6 +81,7 @@ export function CategoriesSection({ categories }: CategoriesSectionProps) {
                       alt={category.name}
                       fill
                       className="object-cover transition-transform duration-500 group-hover:scale-125"
+                      sizes="288px"
                     />
                   )}
 

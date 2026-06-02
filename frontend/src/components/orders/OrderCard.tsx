@@ -104,6 +104,7 @@ export function OrderCard({
                         alt={item.product_name}
                         fill
                         className="object-cover"
+                        sizes="64px"
                       />
                     )}
                   </div>

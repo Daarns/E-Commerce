@@ -169,6 +169,7 @@ export function OrderDetailModal({
                               alt={item.product_name}
                               fill
                               className="object-cover"
+                              sizes="(max-width: 640px) 64px, 72px"
                             />
                           )}
                         </div>

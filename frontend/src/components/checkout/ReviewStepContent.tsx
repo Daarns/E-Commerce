@@ -119,6 +119,7 @@ export function ReviewStepContent({
                         alt={item.product?.name ?? 'Product image'}
                         fill
                         className="object-cover"
+                        sizes="64px"
                       />
                     )}
                   </div>

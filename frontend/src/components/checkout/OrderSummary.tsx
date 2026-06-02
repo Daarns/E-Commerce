@@ -58,6 +58,7 @@ export function OrderSummary({
                       alt={item.product?.name ?? 'Product image'}
                       fill
                       className="object-cover"
+                      sizes="48px"
                     />
                   </div>
                 )}
