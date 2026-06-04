@@ -32,6 +32,7 @@ type Config struct {
 
 	AuthH          *authHandler.AuthHandler
 	DashboardH     *adminHandler.DashboardHandler
+	NotificationH  *handlers.NotificationHandler
 	ProductH       *productHandler.ProductHandler
 	AdminProductH  *adminProductHandler.AdminProductHandler
 	CategoryH      *productHandler.CategoryHandler
@@ -202,6 +203,16 @@ func Setup(c Config) {
 			// Checkout
 			protected.POST("/checkout", c.OrderH.Checkout)
 			protected.POST("/promo-codes/validate", c.OrderH.ValidatePromoCode)
+
+			if c.NotificationH != nil {
+				notificationRoutes := protected.Group("/notifications")
+				{
+					notificationRoutes.GET("", c.NotificationH.GetNotifications)
+					notificationRoutes.GET("/summary", c.NotificationH.GetSummary)
+					notificationRoutes.PUT("/read-all", c.NotificationH.MarkAllRead)
+					notificationRoutes.PUT("/:id/read", c.NotificationH.MarkRead)
+				}
+			}
 
 			// Chat routes (protected - require authentication)
 			chatRoutes := protected.Group("/chat")

@@ -189,6 +189,17 @@ func (r *UserRepository) GetUsersForExport() ([]models.User, error) {
 	return users, nil
 }
 
+func (r *UserRepository) GetAdmins() ([]models.User, error) {
+	var users []models.User
+	err := r.db.
+		Where("role = ? AND is_active = true AND deleted_at IS NULL", "admin").
+		Find(&users).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get admins: %w", err)
+	}
+	return users, nil
+}
+
 // GetUserCount returns total count of active users
 func (r *UserRepository) GetUserCount() (int64, error) {
 	var count int64

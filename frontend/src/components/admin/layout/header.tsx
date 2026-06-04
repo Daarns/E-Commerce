@@ -1,12 +1,13 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { LogOut, Bell, Settings, MessageSquare } from 'lucide-react';
+import { LogOut, Settings, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { BurgerButton } from '@/components/admin/layout/sidebar';
 import { toast } from 'sonner';
 import { useAdminChatSummary } from '@/hooks/useAdminChatSummary';
+import { NotificationMenu } from '@/components/notification/notification-menu';
 
 export function AdminHeader() {
   const router = useRouter();
@@ -54,10 +55,7 @@ export function AdminHeader() {
             )}
           </Button>
 
-          <Button variant="ghost" size="icon" title="Notifications" className="relative h-8 w-8">
-            <Bell className="h-4 w-4" />
-            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-red-500 rounded-full" />
-          </Button>
+          <NotificationMenu />
 
           <Button variant="ghost" size="icon" title="Settings" className="h-8 w-8">
             <Settings className="h-4 w-4" />

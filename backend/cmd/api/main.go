@@ -28,6 +28,7 @@ import (
 	cleanupService "ecommerce-backend/internal/services/cleanup"
 	emailService "ecommerce-backend/internal/services/email"
 	newsletterService "ecommerce-backend/internal/services/newsletter"
+	notificationService "ecommerce-backend/internal/services/notification"
 	orderService "ecommerce-backend/internal/services/order"
 	paymentService "ecommerce-backend/internal/services/payment"
 	productService "ecommerce-backend/internal/services/product"
@@ -128,6 +129,7 @@ func main() {
 	shippingRepo := repositories.NewShippingRepository(db)
 	tempUploadRepo := repositories.NewTempUploadRepository(db)
 	webhookEventRepo := repositories.NewWebhookEventRepository(db)
+	notificationRepo := repositories.NewNotificationRepository(db)
 
 	// Initialize Email Service
 	emailConfig := emailService.EmailConfig{
@@ -206,8 +208,10 @@ func main() {
 	addressSvc := cartService.NewAddressService(addressRepo)
 	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo, shippingRepo, snapSvc, refundSvc)
 	newsletterSvc := newsletterService.NewNewsletterService(newsletterRepo)
+	notificationSvc := notificationService.NewService(notificationRepo)
 	searchSvc := searchService.NewSearchService(searchRepo, productRepo, categoryRepo)
 	chatSvc := chatService.NewChatService(chatRepo, userRepo)
+	chatSvc.SetNotificationWriter(notificationSvc)
 	wishlistSvc := wishlistService.NewWishlistService(wishlistRepo, productRepo)
 	activitySvc := utils.NewActivityService(activityRepo)
 	exportSvc := utils.NewExportService(userRepo, orderRepo)
@@ -224,6 +228,7 @@ func main() {
 	shippingH := orderHandler.NewShippingHandler(shippingRepo)
 	searchH := handlers.NewSearchHandler(searchSvc)
 	chatH := handlers.NewChatHandler(chatSvc)
+	notificationH := handlers.NewNotificationHandler(notificationSvc)
 	wishlistH := handlers.NewWishlistHandler(wishlistSvc)
 	adminUserH := adminUserHandler.NewAdminUserHandler(exportSvc, userRepo)
 	adminActivityH := adminUserHandler.NewAdminActivityHandler(activitySvc)
@@ -253,6 +258,7 @@ func main() {
 		JWTManager:     jwtManager,
 		WebhookSvc:     webhookSvc,
 		NewsletterSvc:  newsletterSvc,
+		NotificationH:  notificationH,
 		AuthH:          authH,
 		DashboardH:     dashboardH,
 		ProductH:       productH,

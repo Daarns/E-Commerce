@@ -12,14 +12,19 @@ import (
 
 // ChatService handles chat business logic
 type ChatService struct {
-	chatRepo *repositories.ChatRepository
-	userRepo *repositories.UserRepository
-	events   ChatEventPublisher
+	chatRepo      *repositories.ChatRepository
+	userRepo      *repositories.UserRepository
+	events        ChatEventPublisher
+	notifications ChatNotificationWriter
 }
 
 type ChatEventPublisher interface {
 	PublishConversationEvent(conversationID uuid.UUID, eventType string, payload interface{})
 	PublishAdminEvent(eventType string, payload interface{})
+}
+
+type ChatNotificationWriter interface {
+	CreateForUser(userID uuid.UUID, notificationType string, title string, message string, metadata map[string]interface{}) error
 }
 
 // NewChatService creates a new chat service
@@ -32,6 +37,10 @@ func NewChatService(chatRepo *repositories.ChatRepository, userRepo *repositorie
 
 func (s *ChatService) SetEventPublisher(publisher ChatEventPublisher) {
 	s.events = publisher
+}
+
+func (s *ChatService) SetNotificationWriter(writer ChatNotificationWriter) {
+	s.notifications = writer
 }
 
 // ===== Conversation Management =====
@@ -90,6 +99,7 @@ func (s *ChatService) CreateConversation(userID uuid.UUID, req *models.CreateCon
 	response.Metadata = metadata
 	s.publishConversationEvent(conversation.ID, "conversation:updated", response)
 	s.publishConversationEvent(conversation.ID, "message:new", messageToResponse(message))
+	s.notifyAdmins("Chat CS baru", subject, conversation.ID)
 	return response, nil
 }
 
@@ -258,6 +268,7 @@ func (s *ChatService) SendMessage(conversationID uuid.UUID, senderID uuid.UUID, 
 
 	response := messageToResponse(message)
 	s.publishConversationEvent(conversationID, "message:new", response)
+	s.createMessageNotification(conversation, senderID, isAdmin, messageText)
 	updatedConversation, err := s.GetConversation(conversationID, senderID, isAdmin)
 	if err == nil {
 		s.publishConversationEvent(conversationID, "conversation:updated", updatedConversation)
@@ -444,6 +455,39 @@ func (s *ChatService) publishConversationEvent(conversationID uuid.UUID, eventTy
 		return
 	}
 	s.events.PublishConversationEvent(conversationID, eventType, payload)
+}
+
+func (s *ChatService) createMessageNotification(conversation *models.Conversation, senderID uuid.UUID, isAdmin bool, messageText string) {
+	if s.notifications == nil {
+		return
+	}
+
+	if isAdmin {
+		_ = s.notifications.CreateForUser(conversation.UserID, models.NotificationTypeChat, "Balasan dari CS", messageText, map[string]interface{}{
+			"conversation_id": conversation.ID.String(),
+		})
+		return
+	}
+
+	if conversation.UserID == senderID {
+		s.notifyAdmins("Pesan chat baru", messageText, conversation.ID)
+	}
+}
+
+func (s *ChatService) notifyAdmins(title string, message string, conversationID uuid.UUID) {
+	if s.notifications == nil || s.userRepo == nil {
+		return
+	}
+
+	admins, err := s.userRepo.GetAdmins()
+	if err != nil {
+		return
+	}
+	for _, admin := range admins {
+		_ = s.notifications.CreateForUser(admin.ID, models.NotificationTypeChat, title, message, map[string]interface{}{
+			"conversation_id": conversationID.String(),
+		})
+	}
 }
 
 func conversationToResponse(conversation *models.Conversation, viewerID uuid.UUID) *models.ConversationResponse {

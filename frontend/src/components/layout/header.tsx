@@ -25,6 +25,7 @@ import { SearchInput } from '@/components/search/search-input';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
 import { useWishlistStore } from '@/stores/wishlist-store';
+import { NotificationMenu } from '@/components/notification/notification-menu';
 
 const navLinks = [
   { href: '/products', label: 'Shop All' },
@@ -117,6 +118,8 @@ export function Header() {
                 )}
               </Link>
             </Button>
+
+            {isAuthenticated && <NotificationMenu />}
 
             {/* User Menu */}
             {isAuthenticated ? (
