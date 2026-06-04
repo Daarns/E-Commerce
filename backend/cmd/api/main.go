@@ -209,6 +209,14 @@ func main() {
 	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo, shippingRepo, snapSvc, refundSvc)
 	newsletterSvc := newsletterService.NewNewsletterService(newsletterRepo)
 	notificationSvc := notificationService.NewService(notificationRepo)
+	orderSvc.SetNotificationWriter(notificationSvc)
+	orderSvc.SetAdminUserProvider(userRepo)
+	if webhookSvc != nil {
+		webhookSvc.SetNotificationWriter(notificationSvc)
+	}
+	if syncSvc != nil {
+		syncSvc.SetNotificationWriter(notificationSvc)
+	}
 	searchSvc := searchService.NewSearchService(searchRepo, productRepo, categoryRepo)
 	chatSvc := chatService.NewChatService(chatRepo, userRepo)
 	chatSvc.SetNotificationWriter(notificationSvc)

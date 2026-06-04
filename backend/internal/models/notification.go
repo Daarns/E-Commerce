@@ -10,6 +10,7 @@ const (
 	NotificationTypeChat    = "chat_message"
 	NotificationTypeOrder   = "order_update"
 	NotificationTypePayment = "payment_update"
+	NotificationTypeRefund  = "refund_update"
 )
 
 type Notification struct {

@@ -24,6 +24,16 @@ type OrderService struct {
 	shippingRepo  *repositories.ShippingRepository
 	snapService   *paymentSvc.SnapService
 	refundService *paymentSvc.RefundService
+	notifications OrderNotificationWriter
+	adminUsers    AdminUserProvider
+}
+
+type OrderNotificationWriter interface {
+	CreateForUser(userID uuid.UUID, notificationType string, title string, message string, metadata map[string]interface{}) error
+}
+
+type AdminUserProvider interface {
+	GetAdmins() ([]models.User, error)
 }
 
 // NewOrderService creates a new order service
@@ -49,6 +59,14 @@ func NewOrderService(
 		snapService:   snapService,
 		refundService: refundService,
 	}
+}
+
+func (uc *OrderService) SetNotificationWriter(writer OrderNotificationWriter) {
+	uc.notifications = writer
+}
+
+func (uc *OrderService) SetAdminUserProvider(provider AdminUserProvider) {
+	uc.adminUsers = provider
 }
 
 // CheckoutInput represents checkout input
@@ -479,7 +497,13 @@ func (uc *OrderService) ConfirmReceived(orderID, userID uuid.UUID) (*models.Orde
 		return nil, err
 	}
 
-	return uc.orderRepo.GetByID(orderID)
+	updatedOrder, err := uc.orderRepo.GetByID(orderID)
+	if err != nil {
+		return nil, err
+	}
+	uc.notifyOrderCustomer(updatedOrder, models.NotificationTypeOrder, "Pesanan selesai", fmt.Sprintf("Pesanan %s sudah ditandai selesai. Terima kasih sudah berbelanja.", updatedOrder.OrderNumber), models.OrderStatusCompleted)
+
+	return updatedOrder, nil
 }
 
 func (uc *OrderService) RequestRefund(orderID, userID uuid.UUID, input RefundRequestInput) (*models.Order, error) {
@@ -558,7 +582,14 @@ func (uc *OrderService) RequestRefund(orderID, userID uuid.UUID, input RefundReq
 		return nil, err
 	}
 
-	return uc.orderRepo.GetByID(orderID)
+	updatedOrder, err := uc.orderRepo.GetByID(orderID)
+	if err != nil {
+		return nil, err
+	}
+	uc.notifyOrderCustomer(updatedOrder, models.NotificationTypeRefund, "Refund diajukan", fmt.Sprintf("Pengajuan refund untuk pesanan %s sudah dikirim dan menunggu review admin.", updatedOrder.OrderNumber), models.OrderStatusRefundRequested)
+	uc.notifyAdmins("Refund perlu direview", fmt.Sprintf("Pesanan %s mengajukan refund dan perlu diperiksa.", updatedOrder.OrderNumber), updatedOrder, models.OrderStatusRefundRequested)
+
+	return updatedOrder, nil
 }
 
 func findStatusChangedAt(history []models.OrderStatusHistory, status string) (time.Time, bool) {
@@ -578,6 +609,56 @@ func countStatusChanges(history []models.OrderStatusHistory, status string) int 
 		}
 	}
 	return count
+}
+
+func (uc *OrderService) notifyOrderStatusChanged(order *models.Order, status string) {
+	title, message, ok := orderStatusNotification(order.OrderNumber, status)
+	if !ok {
+		return
+	}
+	uc.notifyOrderCustomer(order, models.NotificationTypeOrder, title, message, status)
+}
+
+func orderStatusNotification(orderNumber string, status string) (string, string, bool) {
+	switch status {
+	case models.OrderStatusProcessing:
+		return "Pesanan diproses", fmt.Sprintf("Pesanan %s sedang disiapkan oleh admin.", orderNumber), true
+	case models.OrderStatusShipped:
+		return "Pesanan dikirim", fmt.Sprintf("Pesanan %s sudah dikirim. Nomor resi bisa dilihat di detail pesanan.", orderNumber), true
+	case models.OrderStatusDelivered:
+		return "Pesanan sampai", fmt.Sprintf("Pesanan %s sudah ditandai sampai. Silakan konfirmasi jika barang sudah diterima.", orderNumber), true
+	}
+	return "", "", false
+}
+
+func (uc *OrderService) notifyOrderCustomer(order *models.Order, notificationType string, title string, message string, status string) {
+	if uc.notifications == nil || order == nil {
+		return
+	}
+
+	_ = uc.notifications.CreateForUser(order.UserID, notificationType, title, message, map[string]interface{}{
+		"order_id":     order.ID.String(),
+		"order_number": order.OrderNumber,
+		"status":       status,
+	})
+}
+
+func (uc *OrderService) notifyAdmins(title string, message string, order *models.Order, status string) {
+	if uc.notifications == nil || uc.adminUsers == nil || order == nil {
+		return
+	}
+
+	admins, err := uc.adminUsers.GetAdmins()
+	if err != nil {
+		return
+	}
+	for _, admin := range admins {
+		_ = uc.notifications.CreateForUser(admin.ID, models.NotificationTypeOrder, title, message, map[string]interface{}{
+			"order_id":     order.ID.String(),
+			"order_number": order.OrderNumber,
+			"status":       status,
+		})
+	}
 }
 
 // ===== ADMIN ORDER MANAGEMENT =====
@@ -608,7 +689,13 @@ func (uc *OrderService) AdminUpdateOrderStatus(orderID uuid.UUID, newStatus, not
 		return nil, fmt.Errorf("failed to update status: %w", err)
 	}
 
-	return uc.orderRepo.GetByID(orderID)
+	updatedOrder, err := uc.orderRepo.GetByID(orderID)
+	if err != nil {
+		return nil, err
+	}
+	uc.notifyOrderStatusChanged(updatedOrder, newStatus)
+
+	return updatedOrder, nil
 }
 
 // isValidStatusTransition checks if status transition is valid
@@ -647,9 +734,15 @@ func (uc *OrderService) AdminUpdatePayment(orderID uuid.UUID, paymentStatus, tra
 
 	// If paid, update order status to processing
 	if paymentStatus == models.PaymentStatusPaid {
-		order, _ := uc.orderRepo.GetByID(orderID)
+		order, err := uc.orderRepo.GetByID(orderID)
+		if err != nil {
+			return nil, err
+		}
 		if order.OrderStatus == models.OrderStatusPending {
-			uc.orderRepo.UpdateStatus(orderID, models.OrderStatusPaymentConfirmed, "Payment confirmed", nil)
+			if err := uc.orderRepo.UpdateStatus(orderID, models.OrderStatusPaymentConfirmed, "Payment confirmed", nil); err != nil {
+				return nil, err
+			}
+			uc.notifyOrderCustomer(order, models.NotificationTypePayment, "Pembayaran berhasil", fmt.Sprintf("Pembayaran pesanan %s sudah berhasil. Pesanan akan segera diproses.", order.OrderNumber), models.OrderStatusPaymentConfirmed)
 		}
 	}
 
@@ -735,7 +828,13 @@ func (uc *OrderService) AdminProcessRefund(orderID uuid.UUID, amount decimal.Dec
 		return nil, err
 	}
 
-	return uc.orderRepo.GetByID(orderID)
+	updatedOrder, err := uc.orderRepo.GetByID(orderID)
+	if err != nil {
+		return nil, err
+	}
+	uc.notifyOrderCustomer(updatedOrder, models.NotificationTypeRefund, "Refund disetujui", fmt.Sprintf("Refund untuk pesanan %s sudah diproses.", updatedOrder.OrderNumber), models.OrderStatusRefunded)
+
+	return updatedOrder, nil
 }
 
 func latestRefundRequestReason(history []models.OrderStatusHistory) string {
@@ -794,7 +893,13 @@ func (uc *OrderService) AdminRejectRefund(orderID uuid.UUID, reason, notes strin
 		return nil, err
 	}
 
-	return uc.orderRepo.GetByID(orderID)
+	updatedOrder, err := uc.orderRepo.GetByID(orderID)
+	if err != nil {
+		return nil, err
+	}
+	uc.notifyOrderCustomer(updatedOrder, models.NotificationTypeRefund, "Refund ditolak", fmt.Sprintf("Pengajuan refund untuk pesanan %s ditolak. Silakan cek detail pesanan untuk informasi lanjut.", updatedOrder.OrderNumber), models.OrderStatusRefundRejected)
+
+	return updatedOrder, nil
 }
 
 // AdminUpdateTracking updates shipping tracking info (admin only)

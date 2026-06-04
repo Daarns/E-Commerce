@@ -23,9 +23,10 @@ type SyncPaymentStatusResult struct {
 // PaymentSyncService uses Midtrans Core API to check and sync transaction status.
 // Acts as a fallback when webhooks fail to deliver (e.g. ngrok URL changes).
 type PaymentSyncService struct {
-	coreClient coreapi.Client
-	orderRepo  OrderRepositoryInterface
-	promoRepo  PromoCodeRepositoryInterface
+	coreClient    coreapi.Client
+	orderRepo     OrderRepositoryInterface
+	promoRepo     PromoCodeRepositoryInterface
+	notifications NotificationWriter
 }
 
 // NewPaymentSyncService creates a new PaymentSyncService.
@@ -50,6 +51,10 @@ func NewPaymentSyncService(
 		orderRepo:  orderRepo,
 		promoRepo:  promoRepo,
 	}
+}
+
+func (s *PaymentSyncService) SetNotificationWriter(writer NotificationWriter) {
+	s.notifications = writer
 }
 
 // SyncOrderPayment checks the payment status from Midtrans for the given order
@@ -140,6 +145,10 @@ func (s *PaymentSyncService) SyncOrderPayment(orderID uuid.UUID, userID uuid.UUI
 			}
 		}
 
+		if paymentStatus == models.PaymentStatusPaid {
+			s.notifyPaymentSuccess(order)
+		}
+
 		res.Updated = true
 	}
 
@@ -204,10 +213,26 @@ func (s *PaymentSyncService) SyncOrderPaymentByMidtransID(orderID uuid.UUID, use
 			}
 		}
 
+		if paymentStatus == models.PaymentStatusPaid {
+			s.notifyPaymentSuccess(order)
+		}
+
 		res.Updated = true
 	}
 
 	return res, nil
+}
+
+func (s *PaymentSyncService) notifyPaymentSuccess(order *models.Order) {
+	if s.notifications == nil || order == nil {
+		return
+	}
+
+	_ = s.notifications.CreateForUser(order.UserID, models.NotificationTypePayment, "Pembayaran berhasil", fmt.Sprintf("Pembayaran pesanan %s sudah berhasil. Pesanan akan segera diproses.", order.OrderNumber), map[string]interface{}{
+		"order_id":     order.ID.String(),
+		"order_number": order.OrderNumber,
+		"status":       models.OrderStatusPaymentConfirmed,
+	})
 }
 
 // checkMidtransStatus queries Midtrans Core API for transaction status.

@@ -57,12 +57,17 @@ type PromoCodeRepositoryInterface interface {
 	IncrementUsage(id uuid.UUID) error
 }
 
+type NotificationWriter interface {
+	CreateForUser(userID uuid.UUID, notificationType string, title string, message string, metadata map[string]interface{}) error
+}
+
 // PaymentWebhookService handles payment webhook processing
 type PaymentWebhookService struct {
 	orderRepo        OrderRepositoryInterface
 	promoRepo        PromoCodeRepositoryInterface
 	webhookEventRepo *repositories.WebhookEventRepository
 	serverKey        string
+	notifications    NotificationWriter
 }
 
 // NewPaymentWebhookService creates new payment webhook service
@@ -77,6 +82,10 @@ func NewPaymentWebhookService(orderRepo OrderRepositoryInterface, promoRepo Prom
 // SetWebhookEventRepository sets the webhook event repository for idempotency checks
 func (s *PaymentWebhookService) SetWebhookEventRepository(repo *repositories.WebhookEventRepository) {
 	s.webhookEventRepo = repo
+}
+
+func (s *PaymentWebhookService) SetNotificationWriter(writer NotificationWriter) {
+	s.notifications = writer
 }
 
 // VerifySignature verifies Midtrans webhook signature using SHA512
@@ -146,6 +155,7 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 
 	// Update payment status and store selected Midtrans payment method after Snap choice.
 	paymentMethod := formatMidtransPaymentMethod(webhook)
+	wasAlreadyPaid := order.PaymentStatus == models.PaymentStatusPaid
 	if err := s.orderRepo.UpdatePaymentStatusWithMethod(order.ID, paymentStatus, webhook.TransactionID, paymentMethod, "midtrans"); err != nil {
 		return nil, fmt.Errorf("failed to update payment status: %w", err)
 	}
@@ -177,6 +187,10 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 		}
 	}
 
+	if paymentStatus == models.PaymentStatusPaid && !wasAlreadyPaid {
+		s.notifyPaymentSuccess(order)
+	}
+
 	// Record webhook event for idempotency (non-fatal if it fails)
 	if s.webhookEventRepo != nil {
 		if err := s.webhookEventRepo.Record(webhookEventID, webhook.TransactionStatus); err != nil {
@@ -190,6 +204,18 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 		OrderID:       webhook.OrderID,
 		PaymentStatus: paymentStatus,
 	}, nil
+}
+
+func (s *PaymentWebhookService) notifyPaymentSuccess(order *models.Order) {
+	if s.notifications == nil || order == nil {
+		return
+	}
+
+	_ = s.notifications.CreateForUser(order.UserID, models.NotificationTypePayment, "Pembayaran berhasil", fmt.Sprintf("Pembayaran pesanan %s sudah berhasil. Pesanan akan segera diproses.", order.OrderNumber), map[string]interface{}{
+		"order_id":     order.ID.String(),
+		"order_number": order.OrderNumber,
+		"status":       models.OrderStatusPaymentConfirmed,
+	})
 }
 
 func formatMidtransPaymentMethod(webhook *PaymentWebhookRequest) string {

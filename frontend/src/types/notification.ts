@@ -1,7 +1,7 @@
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'chat_message' | 'order_update' | 'payment_update' | string;
+  type: 'chat_message' | 'order_update' | 'payment_update' | 'refund_update' | string;
   title: string;
   message: string;
   metadata?: unknown;
