@@ -6,24 +6,35 @@ import (
 	paymentSvc "ecommerce-backend/internal/services/payment"
 	"ecommerce-backend/internal/utils"
 	"ecommerce-backend/pkg/response"
+	"ecommerce-backend/pkg/storage"
+	"mime/multipart"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
+const (
+	maxRefundEvidenceImages      = 3
+	maxRefundEvidenceImageBytes  = 10 << 20
+	maxRefundEvidenceRequestBody = (maxRefundEvidenceImages * maxRefundEvidenceImageBytes) + (2 << 20)
+)
+
 // OrderHandler handles order HTTP requests
 type OrderHandler struct {
 	useCase     *order.OrderService
 	syncService *paymentSvc.PaymentSyncService
+	imageSvc    *storage.ImageService
 }
 
 // NewOrderHandler creates a new order handler
-func NewOrderHandler(useCase *order.OrderService, syncSvc ...*paymentSvc.PaymentSyncService) *OrderHandler {
-	h := &OrderHandler{useCase: useCase}
-	if len(syncSvc) > 0 {
-		h.syncService = syncSvc[0]
+func NewOrderHandler(useCase *order.OrderService, syncSvc *paymentSvc.PaymentSyncService, imageSvc *storage.ImageService) *OrderHandler {
+	h := &OrderHandler{
+		useCase:     useCase,
+		syncService: syncSvc,
+		imageSvc:    imageSvc,
 	}
 	return h
 }
@@ -132,6 +143,174 @@ func (h *OrderHandler) CancelOrder(c *gin.Context) {
 	}
 
 	response.Success(c, result)
+}
+
+// ConfirmReceived lets a customer confirm a delivered order is accepted/completed.
+// POST /api/v1/orders/:id/confirm-received
+func (h *OrderHandler) ConfirmReceived(c *gin.Context) {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid order ID")
+		return
+	}
+
+	result, err := h.useCase.ConfirmReceived(orderID, userID)
+	if err != nil {
+		msg := err.Error()
+		statusCode := http.StatusConflict
+		code := "CONFIRM_RECEIVED_FAILED"
+		if msg == "order not found" {
+			statusCode = http.StatusNotFound
+			code = "NOT_FOUND"
+		}
+		response.Error(c, statusCode, code, msg)
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// ConfirmDelivery is kept as a backward-compatible alias for older clients.
+func (h *OrderHandler) ConfirmDelivery(c *gin.Context) {
+	h.ConfirmReceived(c)
+}
+
+// RequestRefund lets a customer request refund for a completed order.
+// POST /api/v1/orders/:id/refund-request
+func (h *OrderHandler) RequestRefund(c *gin.Context) {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid order ID")
+		return
+	}
+
+	input, uploadedURLs, ok := h.bindRefundRequest(c)
+	if !ok {
+		return
+	}
+
+	result, err := h.useCase.RequestRefund(orderID, userID, input)
+	if err != nil {
+		h.cleanupUploadedRefundImages(uploadedURLs)
+		msg := err.Error()
+		statusCode := http.StatusConflict
+		code := "REQUEST_REFUND_FAILED"
+		if msg == "order not found" {
+			statusCode = http.StatusNotFound
+			code = "NOT_FOUND"
+		}
+		response.Error(c, statusCode, code, msg)
+		return
+	}
+
+	response.Success(c, result)
+}
+
+func (h *OrderHandler) bindRefundRequest(c *gin.Context) (order.RefundRequestInput, []string, bool) {
+	contentType := c.GetHeader("Content-Type")
+	if !strings.HasPrefix(contentType, "multipart/form-data") {
+		var input order.RefundRequestInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			response.ValidationError(c, err.Error())
+			return input, nil, false
+		}
+		return input, nil, true
+	}
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRefundEvidenceRequestBody)
+	if err := c.Request.ParseMultipartForm(maxRefundEvidenceRequestBody); err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_FORM", "Refund evidence upload is invalid or too large")
+		return order.RefundRequestInput{}, nil, false
+	}
+
+	form := c.Request.MultipartForm
+	if form == nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_FORM", "Invalid refund request form")
+		return order.RefundRequestInput{}, nil, false
+	}
+
+	defer func() {
+		_ = form.RemoveAll()
+	}()
+
+	files := refundImageFiles(form)
+	if len(files) > maxRefundEvidenceImages {
+		response.Error(c, http.StatusBadRequest, "TOO_MANY_REFUND_IMAGES", "Maximum 3 refund evidence images allowed")
+		return order.RefundRequestInput{}, nil, false
+	}
+
+	if len(files) == 0 {
+		return order.RefundRequestInput{
+			Reason:      c.PostForm("reason"),
+			Description: c.PostForm("description"),
+		}, nil, true
+	}
+
+	if h.imageSvc == nil {
+		response.Error(c, http.StatusServiceUnavailable, "UPLOAD_UNAVAILABLE", "Image upload service is unavailable")
+		return order.RefundRequestInput{}, nil, false
+	}
+
+	if validationErrs := h.imageSvc.ValidateImageFiles(files); len(validationErrs) > 0 {
+		var parts []string
+		for _, validationErr := range validationErrs {
+			parts = append(parts, validationErr.Error())
+		}
+		response.Error(c, http.StatusBadRequest, "VALIDATION_FAILED", strings.Join(parts, "; "))
+		return order.RefundRequestInput{}, nil, false
+	}
+
+	evidenceURLs := make([]string, 0, len(files))
+	for _, file := range files {
+		uploadResult, err := h.imageSvc.SaveImageToStorageWithMetadataInFolder(file, "refunds")
+		if err != nil {
+			h.cleanupUploadedRefundImages(evidenceURLs)
+			response.Error(c, http.StatusInternalServerError, "UPLOAD_FAILED", "Failed to upload refund evidence image")
+			return order.RefundRequestInput{}, nil, false
+		}
+		evidenceURLs = append(evidenceURLs, uploadResult.URL)
+	}
+
+	return order.RefundRequestInput{
+		Reason:       c.PostForm("reason"),
+		Description:  c.PostForm("description"),
+		EvidenceURLs: evidenceURLs,
+	}, evidenceURLs, true
+}
+
+func refundImageFiles(form *multipart.Form) []*multipart.FileHeader {
+	files := form.File["images"]
+	if len(files) == 0 {
+		files = form.File["evidence_images"]
+	}
+	if len(files) == 0 {
+		files = form.File["evidence"]
+	}
+	return files
+}
+
+func (h *OrderHandler) cleanupUploadedRefundImages(imageURLs []string) {
+	if h.imageSvc == nil {
+		return
+	}
+	for _, imageURL := range imageURLs {
+		if imageURL == "" {
+			continue
+		}
+		_ = h.imageSvc.DeleteFromSeaweedFS(imageURL)
+	}
 }
 
 // ValidatePromoCode validates a promo code

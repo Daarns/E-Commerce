@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 import Cookies from 'js-cookie';
 import { User } from '@/types';
 import { authService, LoginInput, RegisterInput } from '@/services/auth';
-import { cartService } from '@/services/cart';
 
 interface AuthState {
   user: User | null;
@@ -25,7 +24,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       isAuthenticated: false,
       isLoading: true,
@@ -38,29 +37,17 @@ export const useAuthStore = create<AuthState>()(
         Cookies.set('access_token', response.access_token, { expires: 1/96 }); // 15 min
         Cookies.set('refresh_token', response.refresh_token, { expires: 7 });
         
-        set({ user: response.user, isAuthenticated: true, isEmailVerified: response.user.is_verified });
-        
-        // Merge guest cart after login (only if there was a guest session)
-        const guestSession = Cookies.get('session_id');
-        if (guestSession) {
-          try {
-            await cartService.mergeGuestCart();
-          } catch {
-            // Ignore merge errors — guest cart may be empty or expired
-          } finally {
-            Cookies.remove('session_id');
-          }
-        }
+        set({ user: response.user, isAuthenticated: true, isEmailVerified: response.user.is_verified, isLoading: false });
       },
 
       register: async (input: RegisterInput) => {
         // Register returns message and email only - user must verify email first
-        const response = await authService.register(input);
+        await authService.register(input);
         
         // Don't set authenticated state - user needs to verify email first
         // Response contains: { message, email, user_id }
         // No tokens issued until email verification
-        set({ user: null, isAuthenticated: false, isEmailVerified: false });
+        set({ user: null, isAuthenticated: false, isEmailVerified: false, isLoading: false });
       },
 
       logout: async () => {
@@ -71,16 +58,31 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           Cookies.remove('access_token');
           Cookies.remove('refresh_token');
-          set({ user: null, isAuthenticated: false, isEmailVerified: false });
+          set({ user: null, isAuthenticated: false, isEmailVerified: false, isLoading: false });
         }
       },
 
       checkAuth: async () => {
         set({ isLoading: true });
-        
-        const token = Cookies.get('access_token');
+
+        let token = Cookies.get('access_token');
+        const refreshToken = Cookies.get('refresh_token');
+        if (!token && refreshToken) {
+          try {
+            const response = await authService.refreshToken(refreshToken);
+            Cookies.set('access_token', response.access_token, { expires: 1/96 });
+            Cookies.set('refresh_token', response.refresh_token, { expires: 7 });
+            token = response.access_token;
+          } catch {
+            Cookies.remove('access_token');
+            Cookies.remove('refresh_token');
+            set({ user: null, isAuthenticated: false, isLoading: false });
+            return;
+          }
+        }
+
         if (!token) {
-          set({ user: null, isAuthenticated: false, isLoading: false });
+          set({ user: null, isAuthenticated: false, isEmailVerified: false, isLoading: false });
           return;
         }
 
@@ -112,6 +114,7 @@ export const useAuthStore = create<AuthState>()(
           user: response.user,
           isAuthenticated: true,
           isEmailVerified: true,
+          isLoading: false,
         });
       },
 

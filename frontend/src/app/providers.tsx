@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
@@ -14,6 +15,23 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const LAST_NON_ADMIN_PATH_KEY = 'last_non_admin_path';
+const AUTH_PATHS = new Set(['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']);
+
+function RouteMemory() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!pathname || pathname.startsWith('/admin') || AUTH_PATHS.has(pathname)) {
+      return;
+    }
+
+    window.sessionStorage.setItem(LAST_NON_ADMIN_PATH_KEY, pathname);
+  }, [pathname]);
+
+  return null;
+}
 
 function AuthInitializer({ children }: { children: React.ReactNode }) {
   const { checkAuth, isAuthenticated } = useAuthStore();
@@ -33,6 +51,7 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <RouteMemory />
       {children}
       <ChatWidget />
     </>

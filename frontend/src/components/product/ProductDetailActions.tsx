@@ -9,6 +9,7 @@ interface ProductDetailActionsProps {
   quantity: number;
   stockQuantity: number;
   isOutOfStock: boolean;
+  requiresVariantSelection: boolean;
   isAddingToCart: boolean;
   onQuantityIncrease: () => void;
   onQuantityDecrease: () => void;
@@ -20,6 +21,7 @@ export function ProductDetailActions({
   quantity,
   stockQuantity,
   isOutOfStock,
+  requiresVariantSelection,
   isAddingToCart,
   onQuantityIncrease,
   onQuantityDecrease,
@@ -62,10 +64,16 @@ export function ProductDetailActions({
           className="flex-1 gap-2"
           size="lg"
           onClick={onAddToCart}
-          disabled={isOutOfStock || isAddingToCart}
+          disabled={requiresVariantSelection || isOutOfStock || isAddingToCart}
         >
           <ShoppingBag className="h-5 w-5" />
-          {isAddingToCart ? 'Adding...' : isOutOfStock ? OUT_OF_STOCK_LABEL : 'Add to Cart'}
+          {isAddingToCart
+            ? 'Adding...'
+            : requiresVariantSelection
+              ? 'Pilih Varian'
+              : isOutOfStock
+                ? OUT_OF_STOCK_LABEL
+                : 'Add to Cart'}
         </Button>
         <WishlistButton productId={productId} size="lg" />
         <Button variant="outline" size="lg">

@@ -26,7 +26,7 @@ export type {
   ProductsResponse,
   UpdateProductRequest,
 } from './product.service';
-export type { AdminOrder, UpdateOrderStatusRequest, UpdateOrderTrackingRequest, ProcessRefundRequest, OrderFilters, AdminOrderMetrics } from './order.service';
+export type { AdminOrder, UpdateOrderStatusRequest, UpdateOrderTrackingRequest, ProcessRefundRequest, RejectRefundRequest, OrderFilters, AdminOrderMetrics } from './order.service';
 export type { AdminUser, UserActivityLog, UserMetrics, UserFilters, UpdateUserRoleRequest, UpdateUserStatusRequest } from './user.service';
 export type { PromoCode, PromoListResult, PromoListFilters, CreatePromoInput, UpdatePromoInput } from './promo.service';
 export type {
@@ -84,6 +84,7 @@ export const adminService = {
   updateOrderStatus: adminOrderService.updateOrderStatus.bind(adminOrderService),
   updateOrderTracking: adminOrderService.updateOrderTracking.bind(adminOrderService),
   processRefund: adminOrderService.processRefund.bind(adminOrderService),
+  rejectRefund: adminOrderService.rejectRefund.bind(adminOrderService),
   getOrderMetrics: adminOrderService.getOrderMetrics.bind(adminOrderService),
 
   // Users

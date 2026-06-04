@@ -8,6 +8,9 @@ export type OrderStatus =
   | 'processing'
   | 'shipped'
   | 'delivered'
+  | 'completed'
+  | 'refund_requested'
+  | 'refund_rejected'
   | 'cancelled'
   | 'refunded';
 
@@ -70,11 +73,13 @@ export interface Order {
   payment_expires_at?: string;
   shipped_at?: string;
   delivered_at?: string;
+  completed_at?: string;
   cancelled_at?: string;
   cancellation_reason?: string;
   // Relations
   items: OrderItem[];
   status_history?: OrderStatusHistory[];
+  refund_images?: OrderRefundImage[];
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +112,16 @@ export interface OrderStatusHistory {
   notes?: string;
   changed_by?: string;
   changed_at: string;
+}
+
+export interface OrderRefundImage {
+  id: string;
+  order_id: string;
+  user_id: string;
+  image_url: string;
+  refund_attempt?: number;
+  position: number;
+  created_at: string;
 }
 
 // ─── Address ──────────────────────────────────────────────────────────────────

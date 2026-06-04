@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useOrderStatusUpdate } from '@/hooks/useOrderStatusUpdate';
+import { Wand2 } from 'lucide-react';
 
 interface StatusUpdateDialogProps {
   orderId: string;
@@ -37,6 +38,7 @@ export function StatusUpdateDialog({
     canUpdate,
     setNotes,
     setTrackingNumber,
+    generateDummyTrackingNumber,
     handleSubmit,
   } = useOrderStatusUpdate({
     orderId,
@@ -80,12 +82,27 @@ export function StatusUpdateDialog({
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Tracking Number
                   </label>
-                  <Input
-                    placeholder="Masukkan nomor resi"
-                    value={trackingNumber}
-                    onChange={(event) => setTrackingNumber(event.target.value)}
-                    disabled={isLoading}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Masukkan nomor resi"
+                      value={trackingNumber}
+                      onChange={(event) => setTrackingNumber(event.target.value)}
+                      disabled={isLoading}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0 gap-2"
+                      onClick={generateDummyTrackingNumber}
+                      disabled={isLoading}
+                    >
+                      <Wand2 className="h-4 w-4" />
+                      Dummy
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Dummy hanya untuk testing flow internal, bukan nomor resi ekspedisi valid.
+                  </p>
                 </div>
               )}
 

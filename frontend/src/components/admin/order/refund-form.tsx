@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { REFUND_REASONS, useOrderRefundForm } from '@/hooks/useOrderRefundForm';
+import { useOrderRefundForm } from '@/hooks/useOrderRefundForm';
 
 interface RefundFormProps {
   order: AdminOrder;
@@ -23,12 +23,10 @@ export function RefundForm({
   const {
     orderTotal,
     amount,
-    reason,
     notes,
     isLoading,
     error,
     setAmount,
-    setReason,
     setNotes,
     handleSubmit,
   } = useOrderRefundForm({ order, onOpenChange, onRefundProcessed });
@@ -57,7 +55,7 @@ export function RefundForm({
               Refund Amount
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-3 text-gray-600">Rp</span>
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-600">Rp</span>
               <Input
                 type="number"
                 value={amount}
@@ -69,24 +67,6 @@ export function RefundForm({
             <p className="text-xs text-gray-500 mt-1">
               Amount to refund to customer
             </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Refund Reason
-            </label>
-            <select
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a reason...</option>
-              {REFUND_REASONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div>
@@ -123,7 +103,7 @@ export function RefundForm({
             </Button>
             <Button
               onClick={() => void handleSubmit()}
-              disabled={isLoading || !reason}
+              disabled={isLoading}
               variant="destructive"
             >
               {isLoading ? 'Processing...' : 'Process Refund'}

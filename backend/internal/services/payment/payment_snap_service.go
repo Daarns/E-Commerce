@@ -4,6 +4,8 @@ import (
 	"ecommerce-backend/internal/models"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/midtrans/midtrans-go"
@@ -87,52 +89,7 @@ func (s *SnapService) CreateTransaction(order *models.Order, customerEmail strin
 
 	grossAmount, _ := order.Total.Float64()
 
-	req := &snap.Request{
-		TransactionDetails: midtrans.TransactionDetails{
-			OrderID:  order.OrderNumber,
-			GrossAmt: int64(grossAmount),
-		},
-		CustomerDetail: &midtrans.CustomerDetails{
-			FName: order.ShippingName,
-			Phone: order.ShippingPhone,
-			Email: customerEmail,
-			BillAddr: &midtrans.CustomerAddress{
-				FName:    order.ShippingName,
-				Phone:    order.ShippingPhone,
-				Address:  order.ShippingAddressLine1,
-				City:     order.ShippingCity,
-				Postcode: order.ShippingPostalCode,
-			},
-			ShipAddr: &midtrans.CustomerAddress{
-				FName:    order.ShippingName,
-				Phone:    order.ShippingPhone,
-				Address:  order.ShippingAddressLine1,
-				City:     order.ShippingCity,
-				Postcode: order.ShippingPostalCode,
-			},
-		},
-		Items: &items,
-		// Enable payment methods available in Snap
-		EnabledPayments: []snap.SnapPaymentType{
-			snap.PaymentTypeBankTransfer,
-			snap.PaymentTypeGopay,
-			snap.PaymentTypeShopeepay,
-			snap.PaymentTypeCreditCard,
-		},
-		Callbacks: &snap.Callbacks{
-			Finish: fmt.Sprintf("%s/orders/%s?payment=finish", s.config.GatewayURL, order.OrderNumber),
-		},
-	}
-
-	resp, err := s.client.CreateTransaction(req)
-	if err != nil {
-		return nil, fmt.Errorf("midtrans snap error: %w", err)
-	}
-
-	return &SnapResult{
-		Token:       resp.Token,
-		RedirectURL: resp.RedirectURL,
-	}, nil
+	return s.createSnapTransaction(order, customerEmail, order.OrderNumber, items, int64(grossAmount))
 }
 
 // CreateRetryTransaction creates a new Snap transaction with a suffixed order_id.
@@ -174,46 +131,71 @@ func (s *SnapService) CreateRetryTransaction(order *models.Order, customerEmail 
 	// Webhook handler will strip the suffix (everything after last "-r") to find the real order.
 	midtransOrderID := order.OrderNumber + "-r" + retrySuffix
 
-	req := &snap.Request{
-		TransactionDetails: midtrans.TransactionDetails{
-			OrderID:  midtransOrderID,
-			GrossAmt: int64(grossAmount),
-		},
-		CustomerDetail: &midtrans.CustomerDetails{
-			FName: order.ShippingName,
-			Phone: order.ShippingPhone,
-			Email: customerEmail,
-			BillAddr: &midtrans.CustomerAddress{
-				FName: order.ShippingName, Phone: order.ShippingPhone,
-				Address: order.ShippingAddressLine1, City: order.ShippingCity, Postcode: order.ShippingPostalCode,
-			},
-			ShipAddr: &midtrans.CustomerAddress{
-				FName: order.ShippingName, Phone: order.ShippingPhone,
-				Address: order.ShippingAddressLine1, City: order.ShippingCity, Postcode: order.ShippingPostalCode,
-			},
-		},
-		Items: &items,
-		EnabledPayments: []snap.SnapPaymentType{
-			snap.PaymentTypeBankTransfer,
-			snap.PaymentTypeGopay,
-			snap.PaymentTypeShopeepay,
-			snap.PaymentTypeCreditCard,
-		},
-		Callbacks: &snap.Callbacks{
-			Finish: fmt.Sprintf("%s/orders/%s?payment=finish", s.config.GatewayURL, order.OrderNumber),
-		},
-	}
-
-	resp, err := s.client.CreateTransaction(req)
-	if err != nil {
-		return nil, fmt.Errorf("midtrans snap error: %w", err)
-	}
-	return &SnapResult{Token: resp.Token, RedirectURL: resp.RedirectURL}, nil
+	return s.createSnapTransaction(order, customerEmail, midtransOrderID, items, int64(grossAmount))
 }
 
 // ClientKey returns the public client key for use in API responses (safe to expose).
 func (s *SnapService) ClientKey() string {
 	return s.config.ClientKey
+}
+
+func (s *SnapService) createSnapTransaction(
+	order *models.Order,
+	customerEmail string,
+	midtransOrderID string,
+	items []midtrans.ItemDetails,
+	grossAmount int64,
+) (*SnapResult, error) {
+	frontendURL := strings.TrimRight(s.config.FrontendURL, "/")
+	address := map[string]string{
+		"first_name":   order.ShippingName,
+		"phone":        order.ShippingPhone,
+		"address":      formatMidtransShippingAddress(order),
+		"city":         order.ShippingCity,
+		"postal_code":  order.ShippingPostalCode,
+		"country_code": "IDN",
+	}
+
+	req := snap.RequestParamWithMap{
+		"transaction_details": map[string]interface{}{
+			"order_id":     midtransOrderID,
+			"gross_amount": grossAmount,
+		},
+		"customer_details": map[string]interface{}{
+			"first_name":       order.ShippingName,
+			"phone":            order.ShippingPhone,
+			"email":            customerEmail,
+			"billing_address":  address,
+			"shipping_address": address,
+		},
+		"item_details": items,
+		"enabled_payments": []snap.SnapPaymentType{
+			snap.PaymentTypeBankTransfer,
+			snap.PaymentTypeGopay,
+			snap.PaymentTypeShopeepay,
+			snap.PaymentTypeCreditCard,
+		},
+		"callbacks": map[string]string{
+			"finish": fmt.Sprintf(
+				"%s/orders?payment=finish&order_id=%s",
+				frontendURL,
+				url.QueryEscape(order.OrderNumber),
+			),
+		},
+	}
+
+	resp, err := s.client.CreateTransactionWithMap(&req)
+	if err != nil {
+		return nil, fmt.Errorf("midtrans snap error: %w", err)
+	}
+
+	token, _ := resp["token"].(string)
+	redirectURL, _ := resp["redirect_url"].(string)
+	if token == "" {
+		return nil, fmt.Errorf("midtrans snap error: token is missing")
+	}
+
+	return &SnapResult{Token: token, RedirectURL: redirectURL}, nil
 }
 
 // truncate shortens a string to max characters (Midtrans name field limit).
@@ -222,4 +204,21 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return s[:max]
+}
+
+func formatMidtransShippingAddress(order *models.Order) string {
+	parts := []string{
+		strings.TrimSpace(order.ShippingAddressLine1),
+		strings.TrimSpace(order.ShippingAddressLine2),
+		strings.TrimSpace(order.ShippingProvince),
+	}
+
+	nonEmptyParts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part != "" {
+			nonEmptyParts = append(nonEmptyParts, part)
+		}
+	}
+
+	return truncate(strings.Join(nonEmptyParts, ", "), 200)
 }

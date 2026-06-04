@@ -16,6 +16,9 @@ const (
 	OrderStatusProcessing       = "processing"
 	OrderStatusShipped          = "shipped"
 	OrderStatusDelivered        = "delivered"
+	OrderStatusCompleted        = "completed"
+	OrderStatusRefundRequested  = "refund_requested"
+	OrderStatusRefundRejected   = "refund_rejected"
 	OrderStatusCancelled        = "cancelled"
 	OrderStatusRefunded         = "refunded"
 )
@@ -93,6 +96,7 @@ type Order struct {
 
 	// Status History — backed by order_status_workflows table
 	StatusHistory []OrderStatusHistory `gorm:"foreignKey:OrderID" json:"status_history,omitempty"`
+	RefundImages  []OrderRefundImage   `gorm:"foreignKey:OrderID" json:"refund_images,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -124,8 +128,11 @@ func GenerateOrderNumber() string {
 
 // CanCancel checks if order can be cancelled
 func (o *Order) CanCancel() bool {
-	return o.OrderStatus == OrderStatusPending ||
-		o.OrderStatus == OrderStatusPaymentConfirmed
+	if o.PaymentStatus == PaymentStatusPaid || o.PaymentStatus == PaymentStatusRefunded {
+		return false
+	}
+
+	return o.OrderStatus == OrderStatusPending
 }
 
 // CanShip checks if order can be shipped
@@ -206,6 +213,27 @@ func (OrderStatusHistory) TableName() string {
 func (osh *OrderStatusHistory) BeforeCreate(tx *gorm.DB) error {
 	if osh.ID == uuid.Nil {
 		osh.ID = uuid.New()
+	}
+	return nil
+}
+
+type OrderRefundImage struct {
+	ID            uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	OrderID       uuid.UUID `gorm:"type:uuid;not null;index" json:"order_id"`
+	UserID        uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	ImageURL      string    `gorm:"column:image_url;type:text;not null" json:"image_url"`
+	RefundAttempt int       `gorm:"column:refund_attempt;not null;default:1" json:"refund_attempt"`
+	Position      int       `gorm:"not null;default:0" json:"position"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+func (OrderRefundImage) TableName() string {
+	return "order_refund_images"
+}
+
+func (ori *OrderRefundImage) BeforeCreate(tx *gorm.DB) error {
+	if ori.ID == uuid.Nil {
+		ori.ID = uuid.New()
 	}
 	return nil
 }

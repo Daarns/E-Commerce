@@ -19,6 +19,9 @@ export interface OrderMetrics {
   processing_orders: number;
   shipped_orders: number;
   delivered_orders: number;
+  completed_orders: number;
+  refund_requested_orders: number;
+  refunded_orders: number;
   cancelled_orders: number;
   average_order_value: number;
   status_breakdown: Record<string, number>;

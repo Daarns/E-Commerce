@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { SearchInput } from '@/components/search/search-input';
 import { useAuthStore } from '@/stores/auth-store';
@@ -45,21 +46,24 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-16 items-center gap-3">
           {/* Mobile Menu */}
           <Sheet>
-            <SheetTrigger asChild className="md:hidden">
-              <Button variant="ghost" size="icon">
+            <SheetTrigger asChild className="xl:hidden">
+              <Button variant="ghost" size="icon" aria-label="Open navigation menu" className="shrink-0">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-80">
-              <nav className="flex flex-col gap-4 mt-8">
+            <SheetContent side="left" className="w-[85vw] max-w-sm px-0">
+              <SheetHeader className="border-b px-6 pb-5 pt-2 text-left">
+                <SheetTitle className="text-xl font-bold tracking-tight">STORE</SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-1 px-4 py-6">
                 {navLinks.map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="text-lg font-medium hover:text-primary transition-colors"
+                    className="rounded-md px-4 py-3 text-base font-medium text-foreground transition-colors hover:bg-muted hover:text-primary"
                   >
                     {link.label}
                   </Link>
@@ -69,7 +73,7 @@ export function Header() {
           </Sheet>
 
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex shrink-0 items-center gap-2">
             <motion.span 
               className="text-xl font-bold tracking-tight"
               whileHover={{ scale: 1.05 }}
@@ -80,7 +84,7 @@ export function Header() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden xl:flex items-center gap-6">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -93,10 +97,12 @@ export function Header() {
             ))}
           </nav>
 
+          <div className="min-w-0 flex-1" />
+
           {/* Right Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
             {/* Search */}
-            <div className="hidden md:flex">
+            <div className="hidden min-w-0 sm:flex sm:w-52 md:w-64 lg:w-72 xl:w-60 2xl:w-72">
               <SearchInput />
             </div>
 

@@ -137,15 +137,33 @@ export function getProductImageForCombination(
     ?? images?.[0];
 }
 
+export function getInitialProductImageIndex(images: ProductImage[] | undefined): number {
+  if (!images?.length) return 0;
+
+  const defaultImageIndex = images.findIndex((image) => (
+    !image.option_id && Boolean(getProductImageUrl(image))
+  ));
+  if (defaultImageIndex >= 0) return defaultImageIndex;
+
+  const variantImageIndex = images.findIndex((image) => (
+    Boolean(image.option_id) && Boolean(getProductImageUrl(image))
+  ));
+  if (variantImageIndex >= 0) return variantImageIndex;
+
+  const firstValidImageIndex = images.findIndex((image) => Boolean(getProductImageUrl(image)));
+  return firstValidImageIndex >= 0 ? firstValidImageIndex : 0;
+}
+
 export function getProductCardImages(images: ProductImage[] | undefined): ProductCardImages {
   const uniqueImages = getUniqueProductImages(images);
   const defaultImages = uniqueImages.filter((image) => !image.option_id);
   const variantImages = uniqueImages.filter((image) => Boolean(image.option_id));
   const candidates = defaultImages.length > 0 ? defaultImages : variantImages;
+  const primary = candidates[0];
 
   return {
-    primary: candidates[0],
-    hover: candidates[1],
+    primary,
+    hover: primary,
   };
 }
 

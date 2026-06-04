@@ -207,6 +207,7 @@ export default function CheckoutPage() {
               currentStep={stepsManager.currentStep}
               totalSteps={stepsManager.TOTAL_STEPS}
               canProceed={canProceed}
+              canPlaceOrder={canProceed && agreedToTerms}
               isProcessing={orderManager.isProcessing}
               returnToReview={stepsManager.returnToReview}
               onPrevious={stepsManager.prevStep}

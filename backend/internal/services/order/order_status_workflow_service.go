@@ -86,14 +86,14 @@ func (s *OrderStatusWorkflowService) queueStatusEmail(ctx context.Context, order
 
 	// Prepare email data
 	emailData := models.EmailQueueData{
-		"order_number":      order.OrderNumber,
-		"customer_email":    order.User.Email,
-		"customer_name":     order.User.Name,
-		"order_total":       order.Total.String(),
-		"status":            workflow.ToStatus,
-		"tracking_number":   order.TrackingNumber,
-		"shipping_address":  order.GetShippingAddress(),
-		"reason":            workflow.Notes,
+		"order_number":     order.OrderNumber,
+		"customer_email":   order.User.Email,
+		"customer_name":    order.User.Name,
+		"order_total":      order.Total.String(),
+		"status":           workflow.ToStatus,
+		"tracking_number":  order.TrackingNumber,
+		"shipping_address": order.GetShippingAddress(),
+		"reason":           workflow.Notes,
 	}
 
 	// Create email queue record
@@ -151,14 +151,20 @@ func isValidStatusTransition(fromStatus, toStatus string) bool {
 		},
 		models.OrderStatusShipped: {
 			models.OrderStatusDelivered,
-			models.OrderStatusCancelled,
 		},
 		models.OrderStatusDelivered: {
-			models.OrderStatusRefunded,
+			models.OrderStatusCompleted,
 		},
-		models.OrderStatusCancelled: {
-			models.OrderStatusRefunded,
+		models.OrderStatusCompleted: {
+			models.OrderStatusRefundRequested,
 		},
+		models.OrderStatusRefundRequested: {
+			models.OrderStatusRefunded,
+			models.OrderStatusRefundRejected,
+		},
+		models.OrderStatusCancelled:      {},
+		models.OrderStatusRefundRejected: {},
+		models.OrderStatusRefunded:       {},
 	}
 
 	allowed := validTransitions[fromStatus]
@@ -186,4 +192,3 @@ func getEmailSubject(emailType string, order *models.Order) string {
 	}
 	return fmt.Sprintf("Order Update - %s", order.OrderNumber)
 }
-

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,15 +15,15 @@ import (
 
 // AdminUserHandler handles admin user management HTTP requests
 type AdminUserHandler struct {
-	exportService   *utils.ExportService
-	userRepository  *repositories.UserRepository
+	exportService  *utils.ExportService
+	userRepository *repositories.UserRepository
 }
 
 // NewAdminUserHandler creates a new admin user handler
 func NewAdminUserHandler(exportService *utils.ExportService, userRepository *repositories.UserRepository) *AdminUserHandler {
 	return &AdminUserHandler{
-		exportService:   exportService,
-		userRepository:  userRepository,
+		exportService:  exportService,
+		userRepository: userRepository,
 	}
 }
 
@@ -30,9 +31,9 @@ func NewAdminUserHandler(exportService *utils.ExportService, userRepository *rep
 // GET /api/v1/admin/users/export
 func (h *AdminUserHandler) ExportUsersToCSV(c *gin.Context) {
 	// Parse query parameters for filters
-	role := c.Query("role")          // "admin", "customer", or empty for all
-	status := c.Query("status")      // "active", "inactive", "unverified", or empty for all
-	sortBy := c.Query("sort_by")     // "name", "email", "created_at"
+	role := c.Query("role")            // "admin", "customer", or empty for all
+	status := c.Query("status")        // "active", "inactive", "unverified", or empty for all
+	sortBy := c.Query("sort_by")       // "name", "email", "created_at"
 	sortOrder := c.Query("sort_order") // "asc", "desc"
 
 	if sortBy == "" {
@@ -87,16 +88,22 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 	}
 
 	// Parse filters
-	search := c.Query("search")      // search by name or email
-	role := c.Query("role")          // admin, customer
-	status := c.Query("status")      // active, inactive, unverified
-	sortBy := c.Query("sort_by")     // created_at, name, email, last_login_at
+	search := c.Query("search")        // search by name or email
+	role := c.Query("role")            // admin, customer
+	status := c.Query("status")        // active, inactive, unverified
+	sortBy := c.Query("sort_by")       // created_at, name, email, last_login_at
 	sortOrder := c.Query("sort_order") // asc, desc
 
-	if sortBy == "" {
+	switch sortBy {
+	case "created_at", "name", "email", "last_login_at":
+	default:
 		sortBy = "created_at"
 	}
-	if sortOrder == "" {
+
+	sortOrder = strings.ToLower(sortOrder)
+	switch sortOrder {
+	case "asc", "desc":
+	default:
 		sortOrder = "desc"
 	}
 
@@ -132,20 +139,20 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 		}
 
 		adminUsers[i] = map[string]interface{}{
-			"id":              user.ID,
-			"email":           user.Email,
-			"name":            user.Name,
-			"phone":           user.Phone,
-			"avatar_url":      user.AvatarURL,
-			"role":            user.Role,
-			"is_verified":     user.IsVerified,
-			"is_active":       user.IsActive,
-			"status":          userStatus,
-			"last_login":      user.LastLoginAt,
-			"total_orders":    orderCount,
-			"total_spent":     0, // TODO: Calculate from orders
-			"created_at":      user.CreatedAt,
-			"updated_at":      user.UpdatedAt,
+			"id":           user.ID,
+			"email":        user.Email,
+			"name":         user.Name,
+			"phone":        user.Phone,
+			"avatar_url":   user.AvatarURL,
+			"role":         user.Role,
+			"is_verified":  user.IsVerified,
+			"is_active":    user.IsActive,
+			"status":       userStatus,
+			"last_login":   user.LastLoginAt,
+			"total_orders": orderCount,
+			"total_spent":  0, // TODO: Calculate from orders
+			"created_at":   user.CreatedAt,
+			"updated_at":   user.UpdatedAt,
 		}
 	}
 
@@ -174,7 +181,7 @@ func (h *AdminUserHandler) GetUser(c *gin.Context) {
 
 	// TODO: Implement actual user retrieval
 	response.Success(c, gin.H{
-		"id": userID,
+		"id":      userID,
 		"message": "User details",
 	})
 }

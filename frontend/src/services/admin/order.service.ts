@@ -1,5 +1,6 @@
 import api from '@/services/api';
 import { ApiResponse, Order, OrderStatus, PaymentStatus } from '@/types';
+import { normalizeOrder } from '@/utils';
 
 // ─── Admin Order Types ────────────────────────────────────────────────────────
 
@@ -19,6 +20,11 @@ export interface UpdateOrderTrackingRequest {
 
 export interface ProcessRefundRequest {
   amount: number;
+  reason?: string;
+  notes?: string;
+}
+
+export interface RejectRefundRequest {
   reason: string;
   notes?: string;
 }
@@ -43,11 +49,21 @@ export interface AdminOrderMetrics {
   processing_orders: number;
   shipped_orders: number;
   delivered_orders: number;
+  completed_orders: number;
+  refund_requested_orders: number;
+  refunded_orders: number;
   cancelled_orders: number;
   total_revenue: number;
 }
 
 // ─── Admin Order Service ──────────────────────────────────────────────────────
+
+function normalizeAdminOrder(order: AdminOrder): AdminOrder {
+  return {
+    ...order,
+    ...normalizeOrder(order),
+  };
+}
 
 export const adminOrderService = {
   async getOrders(filters?: OrderFilters): Promise<{
@@ -56,7 +72,7 @@ export const adminOrderService = {
   }> {
     const params = new URLSearchParams();
     if (filters) {
-      if (filters.status) params.append('status', filters.status);
+      if (filters.status) params.append('order_status', filters.status);
       if (filters.payment_status) params.append('payment_status', filters.payment_status);
       if (filters.min_amount) params.append('min_amount', filters.min_amount.toString());
       if (filters.max_amount) params.append('max_amount', filters.max_amount.toString());
@@ -73,14 +89,14 @@ export const adminOrderService = {
       `/admin/orders?${params.toString()}`
     );
     return {
-      orders: response.data.data?.orders || [],
+      orders: response.data.data?.orders.map(normalizeAdminOrder) || [],
       meta: response.data.meta || { total: 0, total_pages: 0 },
     };
   },
 
   async getOrder(orderId: string): Promise<AdminOrder> {
     const response = await api.get<ApiResponse<AdminOrder>>(`/admin/orders/${orderId}`);
-    return response.data.data!;
+    return normalizeAdminOrder(response.data.data!);
   },
 
   async updateOrderStatus(
@@ -91,7 +107,7 @@ export const adminOrderService = {
       `/admin/orders/${orderId}/status`,
       request
     );
-    return response.data.data!;
+    return normalizeAdminOrder(response.data.data!);
   },
 
   async updateOrderTracking(
@@ -102,7 +118,7 @@ export const adminOrderService = {
       `/admin/orders/${orderId}/tracking`,
       request
     );
-    return response.data.data!;
+    return normalizeAdminOrder(response.data.data!);
   },
 
   async processRefund(orderId: string, request: ProcessRefundRequest): Promise<AdminOrder> {
@@ -110,7 +126,15 @@ export const adminOrderService = {
       `/admin/orders/${orderId}/refund`,
       request
     );
-    return response.data.data!;
+    return normalizeAdminOrder(response.data.data!);
+  },
+
+  async rejectRefund(orderId: string, request: RejectRefundRequest): Promise<AdminOrder> {
+    const response = await api.post<ApiResponse<AdminOrder>>(
+      `/admin/orders/${orderId}/refund/reject`,
+      request
+    );
+    return normalizeAdminOrder(response.data.data!);
   },
 
   async getOrderMetrics(): Promise<AdminOrderMetrics> {

@@ -7,6 +7,7 @@ interface CheckoutNavigationProps {
   currentStep: number;
   totalSteps: number;
   canProceed: boolean;
+  canPlaceOrder: boolean;
   isProcessing: boolean;
   returnToReview: boolean;
   onPrevious: () => void;
@@ -18,6 +19,7 @@ export function CheckoutNavigation({
   currentStep,
   totalSteps,
   canProceed,
+  canPlaceOrder,
   isProcessing,
   returnToReview,
   onPrevious,
@@ -46,10 +48,10 @@ export function CheckoutNavigation({
       ) : (
         <Button
           onClick={onPlace}
-          disabled={!canProceed || isProcessing}
+          disabled={!canPlaceOrder || isProcessing}
           className="min-w-[150px]"
         >
-          {isProcessing ? 'Processing...' : 'Place Order'}
+          {isProcessing ? 'Processing...' : 'Lanjutkan ke Pembayaran'}
         </Button>
       )}
     </div>

@@ -1,5 +1,7 @@
+import { Suspense } from 'react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { AuthRouteGuard } from '@/components/auth/AuthRouteGuard';
 
 export default function AuthLayout({
   children,
@@ -10,7 +12,9 @@ export default function AuthLayout({
     <>
       <Header />
       <main className="flex-1 flex items-center justify-center py-12">
-        {children}
+        <Suspense fallback={null}>
+          <AuthRouteGuard>{children}</AuthRouteGuard>
+        </Suspense>
       </main>
       <Footer />
     </>

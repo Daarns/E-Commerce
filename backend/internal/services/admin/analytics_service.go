@@ -18,7 +18,7 @@ func (s *DashboardService) GetRevenueMetrics(startDate, endDate time.Time) (*mod
 			COALESCE(MIN(o.total), 0) as lowest_order
 		FROM orders o
 		WHERE o.created_at >= $1 AND o.created_at <= $2
-		AND o.order_status IN ('payment_confirmed', 'processing', 'shipped', 'delivered')
+		AND o.order_status IN ('payment_confirmed', 'processing', 'shipped', 'delivered', 'completed', 'refund_requested')
 	`
 
 	var metrics models.RevenueMetrics
@@ -97,6 +97,12 @@ func (s *DashboardService) GetOrderAnalytics() (*models.OrderAnalytics, error) {
 			analytics.ShippedOrders += count
 		case "delivered":
 			analytics.DeliveredOrders += count
+		case "completed":
+			analytics.CompletedOrders += count
+		case "refund_requested":
+			analytics.RefundRequestedOrders += count
+		case "refunded":
+			analytics.RefundedOrders += count
 		case "cancelled":
 			analytics.CancelledOrders += count
 		}
@@ -109,7 +115,7 @@ func (s *DashboardService) GetOrderAnalytics() (*models.OrderAnalytics, error) {
 			o.payment_method,
 			COUNT(*) as count
 		FROM orders o
-		WHERE o.order_status IN ('payment_confirmed', 'processing', 'shipped', 'delivered')
+		WHERE o.order_status IN ('payment_confirmed', 'processing', 'shipped', 'delivered', 'completed', 'refund_requested')
 		GROUP BY o.payment_method
 	`
 
@@ -154,7 +160,7 @@ func (s *DashboardService) getTopProducts(limit int) ([]models.TopProductMetric,
 		FROM products p
 		INNER JOIN order_items oi ON p.id = oi.product_id
 		INNER JOIN orders o ON oi.order_id = o.id
-		WHERE o.order_status IN ('payment_confirmed', 'processing', 'shipped', 'delivered')
+		WHERE o.order_status IN ('payment_confirmed', 'processing', 'shipped', 'delivered', 'completed', 'refund_requested')
 		GROUP BY p.id, p.name, p.slug
 		ORDER BY sales_count DESC
 		LIMIT $1
@@ -420,4 +426,3 @@ func (s *DashboardService) GetProductPerformance(limit int, offset int) ([]model
 
 	return performances, nil
 }
-

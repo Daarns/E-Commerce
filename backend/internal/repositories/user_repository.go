@@ -3,6 +3,7 @@ package repositories
 import (
 	"ecommerce-backend/internal/models"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -231,14 +232,7 @@ func (r *UserRepository) GetUsersWithFilters(page, pageSize int, search, role, s
 		return nil, 0, fmt.Errorf("failed to count users: %w", err)
 	}
 
-	// Apply sorting
-	if sortBy == "" {
-		sortBy = "created_at"
-	}
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	sortClause := fmt.Sprintf("%s %s", sortBy, sortOrder)
+	sortClause := sanitizeUserSort(sortBy, sortOrder)
 
 	// Apply pagination
 	if page <= 0 {
@@ -262,6 +256,27 @@ func (r *UserRepository) GetUsersWithFilters(page, pageSize int, search, role, s
 	}
 
 	return users, total, nil
+}
+
+func sanitizeUserSort(sortBy, sortOrder string) string {
+	allowedSortFields := map[string]string{
+		"created_at":    "created_at",
+		"name":          "name",
+		"email":         "email",
+		"last_login_at": "last_login_at",
+	}
+
+	sortColumn, ok := allowedSortFields[sortBy]
+	if !ok {
+		sortColumn = "created_at"
+	}
+
+	sortDirection := strings.ToLower(sortOrder)
+	if sortDirection != "asc" && sortDirection != "desc" {
+		sortDirection = "desc"
+	}
+
+	return fmt.Sprintf("%s %s", sortColumn, sortDirection)
 }
 
 // GetUserMetrics returns user statistics

@@ -7,7 +7,10 @@ const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   payment_confirmed: ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
   shipped: ['delivered'],
-  delivered: ['refunded'],
+  delivered: [],
+  completed: [],
+  refund_requested: ['refunded', 'refund_rejected'],
+  refund_rejected: [],
   cancelled: [],
   refunded: [],
 };
@@ -30,7 +33,18 @@ interface UseOrderStatusUpdateReturn {
   canUpdate: boolean;
   setNotes: (notes: string) => void;
   setTrackingNumber: (trackingNumber: string) => void;
+  generateDummyTrackingNumber: () => void;
   handleSubmit: () => Promise<void>;
+}
+
+function createDummyTrackingNumber(): string {
+  const datePart = new Date()
+    .toISOString()
+    .slice(0, 10)
+    .replace(/-/g, '');
+  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+
+  return `DUMMY-${datePart}-${randomPart}`;
 }
 
 export function useOrderStatusUpdate({
@@ -51,6 +65,11 @@ export function useOrderStatusUpdate({
     [currentStatus]
   );
   const canUpdate = validTransitions.includes(targetStatus);
+
+  const generateDummyTrackingNumber = useCallback((): void => {
+    setTrackingNumber(createDummyTrackingNumber());
+    setError(null);
+  }, []);
 
   const handleSubmit = useCallback(async (): Promise<void> => {
     if (!canUpdate) {
@@ -104,6 +123,7 @@ export function useOrderStatusUpdate({
     error,
     validTransitions,
     canUpdate,
+    generateDummyTrackingNumber,
     setNotes,
     setTrackingNumber,
     handleSubmit,

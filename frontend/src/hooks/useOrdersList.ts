@@ -1,9 +1,18 @@
 import { useState, useEffect } from 'react';
 import { orderService } from '@/services/order';
-import { Order, OrderStatus } from '@/types';
+import { Order } from '@/types';
 import { toast } from 'sonner';
 
-type StatusTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+type StatusTab =
+  | 'all'
+  | 'pending'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'completed'
+  | 'refund_requested'
+  | 'refund_rejected'
+  | 'cancelled';
 
 export function useOrdersList(isAuthenticated: boolean) {
   const [orders, setOrders] = useState<Order[]>([]);

@@ -23,6 +23,7 @@ type OrderService struct {
 	addressRepo   *repositories.AddressRepository
 	shippingRepo  *repositories.ShippingRepository
 	snapService   *paymentSvc.SnapService
+	refundService *paymentSvc.RefundService
 }
 
 // NewOrderService creates a new order service
@@ -35,6 +36,7 @@ func NewOrderService(
 	addressRepo *repositories.AddressRepository,
 	shippingRepo *repositories.ShippingRepository,
 	snapService *paymentSvc.SnapService,
+	refundService *paymentSvc.RefundService,
 ) *OrderService {
 	return &OrderService{
 		db:            db,
@@ -45,6 +47,7 @@ func NewOrderService(
 		addressRepo:   addressRepo,
 		shippingRepo:  shippingRepo,
 		snapService:   snapService,
+		refundService: refundService,
 	}
 }
 
@@ -65,6 +68,14 @@ type CheckoutResult struct {
 	SnapToken   string        `json:"snap_token,omitempty"`
 	RedirectURL string        `json:"redirect_url,omitempty"`
 }
+
+type RefundRequestInput struct {
+	Reason       string   `json:"reason" binding:"required"`
+	Description  string   `json:"description"`
+	EvidenceURLs []string `json:"evidence_urls"`
+}
+
+const refundRequestWindow = 7 * 24 * time.Hour
 
 // Checkout processes checkout with pessimistic locking
 // Ensures atomicity: stock deduction, order creation, and cart clearing all succeed or all fail
@@ -92,6 +103,9 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 	}
 	if address.UserID != userID {
 		return nil, fmt.Errorf("invalid address")
+	}
+	if err := validateCheckoutAddress(address); err != nil {
+		return nil, err
 	}
 
 	// Calculate totals
@@ -213,7 +227,7 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 
 		// 2. Create order with idempotency
 		var createErr error
-		createdOrder, createErr = uc.orderRepo.CreateWithIdempotency(order, input.IdempotencyKey)
+		createdOrder, createErr = uc.orderRepo.CreateWithIdempotencyTx(tx, order, input.IdempotencyKey)
 		if createErr != nil {
 			return fmt.Errorf("failed to create order: %w", createErr)
 		}
@@ -242,16 +256,34 @@ func (uc *OrderService) Checkout(userID uuid.UUID, input CheckoutInput) (*Checko
 			result.SnapToken = snapResult.Token
 			result.RedirectURL = snapResult.RedirectURL
 			// Persist snap_token so we can reuse it (valid 24h) without hitting Midtrans again
-			if saveErr := uc.orderRepo.Update(&models.Order{
-				ID:        createdOrder.ID,
-				SnapToken: snapResult.Token,
-			}); saveErr != nil {
+			createdAt := time.Now()
+			expiresAt := createdAt.Add(24 * time.Hour)
+			if saveErr := uc.orderRepo.UpdateSnapToken(createdOrder.ID, snapResult.Token, createdAt, expiresAt); saveErr != nil {
 				fmt.Printf("Warning: failed to save snap_token for order %s: %v\n", createdOrder.OrderNumber, saveErr)
 			}
 		}
 	}
 
 	return result, nil
+}
+
+func validateCheckoutAddress(address *models.Address) error {
+	requiredFields := map[string]string{
+		"recipient name": address.RecipientName,
+		"phone":          address.Phone,
+		"address":        address.AddressLine1,
+		"city":           address.City,
+		"province":       address.Province,
+		"postal code":    address.PostalCode,
+	}
+
+	for field, value := range requiredFields {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("shipping address is incomplete: %s is required", field)
+		}
+	}
+
+	return nil
 }
 
 // GetOrCreateSnapToken returns a Midtrans Snap token for an unpaid order.
@@ -266,8 +298,9 @@ func (uc *OrderService) GetOrCreateSnapToken(orderID uuid.UUID, userID uuid.UUID
 	if order.UserID != userID {
 		return "", "", fmt.Errorf("forbidden")
 	}
-	// Only allow for unpaid orders
-	if order.PaymentStatus != models.PaymentStatusUnpaid {
+	// Only final payment states should block retrying payment. Closing Snap without
+	// paying leaves the order in pending_payment, and that must remain payable.
+	if !isPaymentRetryAllowed(order.PaymentStatus) {
 		return "", "", fmt.Errorf("order is already paid")
 	}
 	if uc.snapService == nil {
@@ -275,7 +308,7 @@ func (uc *OrderService) GetOrCreateSnapToken(orderID uuid.UUID, userID uuid.UUID
 	}
 
 	// Reuse existing token if still within 24-hour validity window
-	if order.SnapToken != "" && time.Since(order.CreatedAt) < 24*time.Hour {
+	if order.SnapToken != "" && order.SnapTokenCreatedAt != nil && time.Since(*order.SnapTokenCreatedAt) < 24*time.Hour {
 		return order.SnapToken, "", nil
 	}
 
@@ -300,14 +333,25 @@ func (uc *OrderService) GetOrCreateSnapToken(orderID uuid.UUID, userID uuid.UUID
 	}
 
 	// Persist new token to DB
-	if saveErr := uc.orderRepo.Update(&models.Order{
-		ID:        order.ID,
-		SnapToken: snapResult.Token,
-	}); saveErr != nil {
+	createdAt := time.Now()
+	expiresAt := createdAt.Add(24 * time.Hour)
+	if saveErr := uc.orderRepo.UpdateSnapToken(order.ID, snapResult.Token, createdAt, expiresAt); saveErr != nil {
 		fmt.Printf("Warning: failed to save snap_token for order %s: %v\n", order.OrderNumber, saveErr)
 	}
 
 	return snapResult.Token, snapResult.RedirectURL, nil
+}
+
+func isPaymentRetryAllowed(paymentStatus string) bool {
+	switch paymentStatus {
+	case models.PaymentStatusUnpaid,
+		models.PaymentStatusPendingPayment,
+		models.PaymentStatusFailed,
+		models.PaymentStatusExpired:
+		return true
+	default:
+		return false
+	}
 }
 
 // calculateShippingCost fetches shipping cost from the shipping_methods table.
@@ -393,20 +437,147 @@ func (uc *OrderService) CancelOrder(orderID, userID uuid.UUID, reason string) (*
 		return nil, fmt.Errorf("order cannot be cancelled in current status")
 	}
 
-	// Restore stock
-	for _, item := range order.Items {
-		// Add back stock
-		if err := uc.productRepo.UpdateStock(item.ProductID, item.Quantity, 0); err != nil {
-			fmt.Printf("Warning: failed to restore stock for product %s: %v\n", item.ProductID, err)
-		}
-	}
+	if err := uc.db.Transaction(func(tx *gorm.DB) error {
+		for _, item := range order.Items {
+			if item.CombinationID != nil {
+				if err := uc.productRepo.RestoreCombinationStockTx(tx, *item.CombinationID, item.Quantity); err != nil {
+					return fmt.Errorf("failed to restore variant stock: %w", err)
+				}
+				continue
+			}
 
-	// Update status
-	if err := uc.orderRepo.UpdateStatus(orderID, models.OrderStatusCancelled, reason, &userID); err != nil {
+			if err := uc.productRepo.RestoreStockTx(tx, item.ProductID, item.Quantity); err != nil {
+				return fmt.Errorf("failed to restore product stock: %w", err)
+			}
+		}
+
+		return uc.orderRepo.UpdateStatusTx(tx, orderID, models.OrderStatusCancelled, reason, &userID)
+	}); err != nil {
 		return nil, fmt.Errorf("failed to cancel order: %w", err)
 	}
 
 	return uc.orderRepo.GetByID(orderID)
+}
+
+func (uc *OrderService) ConfirmReceived(orderID, userID uuid.UUID) (*models.Order, error) {
+	order, err := uc.orderRepo.GetByID(orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.UserID != userID {
+		return nil, fmt.Errorf("order not found")
+	}
+	if order.OrderStatus != models.OrderStatusDelivered {
+		return nil, fmt.Errorf("only delivered orders can be confirmed as completed")
+	}
+	if order.PaymentStatus != models.PaymentStatusPaid {
+		return nil, fmt.Errorf("payment must be paid before confirming receipt")
+	}
+
+	notes := "Order received and confirmed by customer"
+	if err := uc.orderRepo.UpdateStatus(orderID, models.OrderStatusCompleted, notes, &userID); err != nil {
+		return nil, err
+	}
+
+	return uc.orderRepo.GetByID(orderID)
+}
+
+func (uc *OrderService) RequestRefund(orderID, userID uuid.UUID, input RefundRequestInput) (*models.Order, error) {
+	const maxRefundAttempts = 3
+
+	reason := strings.TrimSpace(input.Reason)
+	if reason == "" {
+		return nil, fmt.Errorf("refund reason is required")
+	}
+	description := strings.TrimSpace(input.Description)
+	if description == "" {
+		return nil, fmt.Errorf("refund description is required")
+	}
+
+	order, err := uc.orderRepo.GetByID(orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.UserID != userID {
+		return nil, fmt.Errorf("order not found")
+	}
+	if order.OrderStatus != models.OrderStatusCompleted && order.OrderStatus != models.OrderStatusRefundRejected {
+		return nil, fmt.Errorf("only completed or refund rejected orders can request refund")
+	}
+	if order.PaymentStatus != models.PaymentStatusPaid {
+		return nil, fmt.Errorf("only paid orders can request refund")
+	}
+
+	completedAt, ok := findStatusChangedAt(order.StatusHistory, models.OrderStatusCompleted)
+	if !ok {
+		return nil, fmt.Errorf("completed status history not found")
+	}
+	if time.Since(completedAt) > refundRequestWindow {
+		return nil, fmt.Errorf("refund request window has expired")
+	}
+	refundAttempts := countStatusChanges(order.StatusHistory, models.OrderStatusRefundRequested)
+	if refundAttempts >= maxRefundAttempts {
+		return nil, fmt.Errorf("maximum refund request attempts reached")
+	}
+	nextRefundAttempt := refundAttempts + 1
+
+	refundNotes := fmt.Sprintf("Refund requested by customer. Reason: %s", reason)
+	refundNotes = fmt.Sprintf("%s. Description: %s", refundNotes, description)
+	if len(input.EvidenceURLs) > 3 {
+		return nil, fmt.Errorf("maximum 3 refund evidence images allowed")
+	}
+	if len(input.EvidenceURLs) == 0 {
+		return nil, fmt.Errorf("at least one refund evidence image is required")
+	}
+
+	if err := uc.db.Transaction(func(tx *gorm.DB) error {
+		if err := uc.orderRepo.UpdateStatusTx(tx, orderID, models.OrderStatusRefundRequested, refundNotes, &userID); err != nil {
+			return err
+		}
+
+		for index, imageURL := range input.EvidenceURLs {
+			imageURL = strings.TrimSpace(imageURL)
+			if imageURL == "" {
+				continue
+			}
+
+			refundImage := models.OrderRefundImage{
+				OrderID:       orderID,
+				UserID:        userID,
+				ImageURL:      imageURL,
+				RefundAttempt: nextRefundAttempt,
+				Position:      index,
+			}
+			if err := tx.Create(&refundImage).Error; err != nil {
+				return fmt.Errorf("failed to save refund evidence: %w", err)
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return uc.orderRepo.GetByID(orderID)
+}
+
+func findStatusChangedAt(history []models.OrderStatusHistory, status string) (time.Time, bool) {
+	for i := len(history) - 1; i >= 0; i-- {
+		if history[i].ToStatus == status {
+			return history[i].ChangedAt, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func countStatusChanges(history []models.OrderStatusHistory, status string) int {
+	count := 0
+	for _, event := range history {
+		if event.ToStatus == status {
+			count++
+		}
+	}
+	return count
 }
 
 // ===== ADMIN ORDER MANAGEMENT =====
@@ -447,8 +618,11 @@ func (uc *OrderService) isValidStatusTransition(from, to string) bool {
 		models.OrderStatusPaymentConfirmed: {models.OrderStatusProcessing, models.OrderStatusCancelled},
 		models.OrderStatusProcessing:       {models.OrderStatusShipped, models.OrderStatusCancelled},
 		models.OrderStatusShipped:          {models.OrderStatusDelivered},
-		models.OrderStatusDelivered:        {models.OrderStatusRefunded},
+		models.OrderStatusDelivered:        {},
+		models.OrderStatusCompleted:        {},
+		models.OrderStatusRefundRequested:  {models.OrderStatusRefunded, models.OrderStatusRefundRejected},
 		models.OrderStatusCancelled:        {},
+		models.OrderStatusRefundRejected:   {},
 		models.OrderStatusRefunded:         {},
 	}
 
@@ -477,6 +651,147 @@ func (uc *OrderService) AdminUpdatePayment(orderID uuid.UUID, paymentStatus, tra
 		if order.OrderStatus == models.OrderStatusPending {
 			uc.orderRepo.UpdateStatus(orderID, models.OrderStatusPaymentConfirmed, "Payment confirmed", nil)
 		}
+	}
+
+	return uc.orderRepo.GetByID(orderID)
+}
+
+// AdminProcessRefund records a manual refund after the actual provider refund has been handled.
+func (uc *OrderService) AdminProcessRefund(orderID uuid.UUID, amount decimal.Decimal, reason, notes string, adminID uuid.UUID) (*models.Order, error) {
+	if !amount.IsPositive() {
+		return nil, fmt.Errorf("refund amount must be greater than zero")
+	}
+
+	order, err := uc.orderRepo.GetByID(orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.PaymentStatus != models.PaymentStatusPaid {
+		return nil, fmt.Errorf("only paid orders can be refunded")
+	}
+	if amount.GreaterThan(order.Total) {
+		return nil, fmt.Errorf("refund amount cannot exceed order total")
+	}
+	if order.OrderStatus != models.OrderStatusRefundRequested {
+		return nil, fmt.Errorf("only refund requested orders can be refunded")
+	}
+
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = latestRefundRequestReason(order.StatusHistory)
+	}
+	if reason == "" {
+		reason = "Customer refund request approved"
+	}
+	refundNotes := fmt.Sprintf("Refund reason: %s", strings.TrimSpace(reason))
+	if strings.TrimSpace(notes) != "" {
+		refundNotes = fmt.Sprintf("%s. Notes: %s", refundNotes, strings.TrimSpace(notes))
+	}
+
+	if uc.refundService == nil {
+		return nil, fmt.Errorf("midtrans refund service is not configured")
+	}
+
+	midtransOrderID := order.OrderNumber
+	refundKey := fmt.Sprintf("refund-%s", order.OrderNumber)
+	refundResult, err := uc.refundService.Refund(paymentSvc.RefundRequest{
+		OrderID:   midtransOrderID,
+		Amount:    amount,
+		Reason:    refundNotes,
+		RefundKey: refundKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	gatewayNotes := fmt.Sprintf("%s. Midtrans refund key: %s", refundNotes, refundKey)
+	if refundResult != nil && refundResult.StatusMessage != "" {
+		gatewayNotes = fmt.Sprintf("%s. Gateway: %s", gatewayNotes, refundResult.StatusMessage)
+	}
+
+	if err := uc.db.Transaction(func(tx *gorm.DB) error {
+		lockedOrder, err := uc.orderRepo.GetByIDTx(tx, orderID)
+		if err != nil {
+			return err
+		}
+		if lockedOrder.PaymentStatus != models.PaymentStatusPaid {
+			return fmt.Errorf("only paid orders can be refunded")
+		}
+		if lockedOrder.OrderStatus != models.OrderStatusRefundRequested {
+			return fmt.Errorf("only refund requested orders can be refunded")
+		}
+
+		if err := uc.orderRepo.UpdateStatusTx(tx, orderID, models.OrderStatusRefunded, gatewayNotes, &adminID); err != nil {
+			return err
+		}
+
+		return tx.Model(&models.Order{}).
+			Where("id = ?", orderID).
+			Updates(map[string]interface{}{
+				"payment_status": models.PaymentStatusRefunded,
+				"admin_notes":    gatewayNotes,
+			}).Error
+	}); err != nil {
+		return nil, err
+	}
+
+	return uc.orderRepo.GetByID(orderID)
+}
+
+func latestRefundRequestReason(history []models.OrderStatusHistory) string {
+	const prefix = "Refund requested by customer. Reason: "
+	const separator = ". Description: "
+
+	for i := len(history) - 1; i >= 0; i-- {
+		event := history[i]
+		if event.ToStatus != models.OrderStatusRefundRequested {
+			continue
+		}
+		notes := strings.TrimSpace(event.Notes)
+		if !strings.HasPrefix(notes, prefix) {
+			return notes
+		}
+		reason := strings.TrimSpace(strings.TrimPrefix(notes, prefix))
+		if index := strings.Index(reason, separator); index >= 0 {
+			reason = reason[:index]
+		}
+		return strings.TrimSpace(reason)
+	}
+	return ""
+}
+
+func (uc *OrderService) AdminRejectRefund(orderID uuid.UUID, reason, notes string, adminID uuid.UUID) (*models.Order, error) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return nil, fmt.Errorf("rejection reason is required")
+	}
+
+	rejectionNotes := fmt.Sprintf("Refund rejected by admin. Reason: %s", reason)
+	if strings.TrimSpace(notes) != "" {
+		rejectionNotes = fmt.Sprintf("%s. Notes: %s", rejectionNotes, strings.TrimSpace(notes))
+	}
+
+	if err := uc.db.Transaction(func(tx *gorm.DB) error {
+		lockedOrder, err := uc.orderRepo.GetByIDTx(tx, orderID)
+		if err != nil {
+			return err
+		}
+		if lockedOrder.PaymentStatus != models.PaymentStatusPaid {
+			return fmt.Errorf("only paid orders can reject refund requests")
+		}
+		if lockedOrder.OrderStatus != models.OrderStatusRefundRequested {
+			return fmt.Errorf("only refund requested orders can be rejected")
+		}
+
+		if err := uc.orderRepo.UpdateStatusTx(tx, orderID, models.OrderStatusRefundRejected, rejectionNotes, &adminID); err != nil {
+			return err
+		}
+
+		return tx.Model(&models.Order{}).
+			Where("id = ?", orderID).
+			Update("admin_notes", rejectionNotes).Error
+	}); err != nil {
+		return nil, err
 	}
 
 	return uc.orderRepo.GetByID(orderID)

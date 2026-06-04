@@ -6,6 +6,7 @@ export const ORDER_STATUS_FLOW: OrderStatus[] = [
   'processing',
   'shipped',
   'delivered',
+  'completed',
 ];
 
 export const ORDER_TIMELINE_STATUS_FLOW: OrderStatus[] = [
@@ -14,6 +15,9 @@ export const ORDER_TIMELINE_STATUS_FLOW: OrderStatus[] = [
   'processing',
   'shipped',
   'delivered',
+  'completed',
+  'refund_requested',
+  'refund_rejected',
   'cancelled',
   'refunded',
 ];
@@ -24,6 +28,9 @@ export const SHOP_ORDER_STATUS_TABS = [
   { value: 'processing', label: 'Processing' },
   { value: 'shipped', label: 'Shipped' },
   { value: 'delivered', label: 'Delivered' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'refund_requested', label: 'Refund Requested' },
+  { value: 'refund_rejected', label: 'Refund Rejected' },
   { value: 'cancelled', label: 'Cancelled' },
 ] as const;
 
@@ -33,6 +40,9 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   processing: 'Processing',
   shipped: 'Shipped',
   delivered: 'Delivered',
+  completed: 'Completed',
+  refund_requested: 'Refund Requested',
+  refund_rejected: 'Refund Rejected',
   cancelled: 'Cancelled',
   refunded: 'Refunded',
 };
@@ -47,7 +57,10 @@ export const ORDER_STATUS_DESCRIPTIONS: Record<OrderStatus, string> = {
   payment_confirmed: 'Payment confirmed and order being prepared',
   processing: 'Items are being packed',
   shipped: 'Package is on the way',
-  delivered: 'Package delivered',
+  delivered: 'Package has arrived and is waiting for customer confirmation',
+  completed: 'Order completed after customer confirmation',
+  refund_requested: 'Refund request submitted and waiting for admin review',
+  refund_rejected: 'Refund request rejected after admin review',
   cancelled: 'Order has been cancelled',
   refunded: 'Order refunded',
 };
@@ -58,6 +71,9 @@ export const ORDER_STATUS_BADGE_COLORS: Record<OrderStatus, string> = {
   processing: 'bg-purple-100 text-purple-800',
   shipped: 'bg-cyan-100 text-cyan-800',
   delivered: 'bg-green-100 text-green-800',
+  completed: 'bg-emerald-100 text-emerald-800',
+  refund_requested: 'bg-orange-100 text-orange-800',
+  refund_rejected: 'bg-red-100 text-red-800',
   cancelled: 'bg-red-100 text-red-800',
   refunded: 'bg-gray-100 text-gray-800',
 };
@@ -68,6 +84,9 @@ export const SHOP_ORDER_STATUS_BADGE_COLORS: Record<OrderStatus, string> = {
   processing: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   shipped: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
   delivered: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  completed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
+  refund_requested: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+  refund_rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   refunded: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
 };
@@ -105,6 +124,9 @@ export const ADMIN_ORDER_STATUS_FILTER_OPTIONS = [
   { value: 'processing', label: ADMIN_ORDER_STATUS_LABELS.processing },
   { value: 'shipped', label: ADMIN_ORDER_STATUS_LABELS.shipped },
   { value: 'delivered', label: ADMIN_ORDER_STATUS_LABELS.delivered },
+  { value: 'completed', label: ADMIN_ORDER_STATUS_LABELS.completed },
+  { value: 'refund_requested', label: ADMIN_ORDER_STATUS_LABELS.refund_requested },
+  { value: 'refund_rejected', label: ADMIN_ORDER_STATUS_LABELS.refund_rejected },
   { value: 'cancelled', label: ADMIN_ORDER_STATUS_LABELS.cancelled },
   { value: 'refunded', label: ADMIN_ORDER_STATUS_LABELS.refunded },
 ] as const;

@@ -68,6 +68,9 @@ export default function AdminDashboardPage() {
         { label: 'Diproses',    value: summary.order_analytics.processing_orders, color: 'bg-blue-500',   text: 'text-blue-600 dark:text-blue-400' },
         { label: 'Dikirim',     value: summary.order_analytics.shipped_orders,    color: 'bg-purple-500', text: 'text-purple-600 dark:text-purple-400' },
         { label: 'Terkirim',    value: summary.order_analytics.delivered_orders,  color: 'bg-emerald-500',text: 'text-emerald-600 dark:text-emerald-400' },
+        { label: 'Selesai',     value: summary.order_analytics.completed_orders,  color: 'bg-teal-500',   text: 'text-teal-600 dark:text-teal-400' },
+        { label: 'Refund',      value: summary.order_analytics.refund_requested_orders, color: 'bg-orange-500', text: 'text-orange-600 dark:text-orange-400' },
+        { label: 'Refunded',    value: summary.order_analytics.refunded_orders,   color: 'bg-slate-500',  text: 'text-slate-600 dark:text-slate-400' },
         { label: 'Dibatalkan',  value: summary.order_analytics.cancelled_orders,  color: 'bg-rose-500',   text: 'text-rose-600 dark:text-rose-400' },
       ]
     : [];
@@ -140,7 +143,7 @@ export default function AdminDashboardPage() {
         {/* Order Status Breakdown */}
         {!isLoading && summary && (
           <motion.div {...motionProps(0.35)}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-4">
               {orderStatuses.map((s) => (
                 <Card key={s.label} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">

@@ -65,13 +65,6 @@ docker/seaweedfs/
 coverage/
 *.cover
 *.coverprofile
-backend/tests/
-frontend/**/__tests__/
-frontend/**/*.test.*
-frontend/**/*.spec.*
-
-# Generated/static local image assets
-frontend/public/images/
 
 # Temporary files
 *.tmp

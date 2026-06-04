@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/services/search"
 	"ecommerce-backend/pkg/response"
 	"net/http"
@@ -65,10 +66,8 @@ func (h *SearchHandler) SearchProducts(c *gin.Context) {
 
 	// Get user ID from context if authenticated
 	var userID *uuid.UUID
-	if uid := c.GetString("user_id"); uid != "" {
-		if id, err := uuid.Parse(uid); err == nil {
-			userID = &id
-		}
+	if id, err := middleware.GetUserID(c); err == nil {
+		userID = &id
 	}
 
 	result, err := h.searchService.SearchProductsEnhanced(query, categoryID, minPrice, maxPrice, limit, userID)
@@ -182,8 +181,8 @@ func (h *SearchHandler) GetSearchFilters(c *gin.Context) {
 // RecordProductClick logs when user clicks a product from search results
 // POST /api/v1/search/click
 func (h *SearchHandler) RecordProductClick(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
@@ -195,12 +194,6 @@ func (h *SearchHandler) RecordProductClick(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&request); err != nil {
 		response.ValidationError(c, err.Error())
-		return
-	}
-
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
@@ -218,13 +211,11 @@ func (h *SearchHandler) RecordProductClick(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Click recorded successfully"})
 }
 
-
-
 // GetUserSearchHistory returns user's previous searches
 // GET /api/v1/account/search-history
 func (h *SearchHandler) GetUserSearchHistory(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
@@ -234,12 +225,6 @@ func (h *SearchHandler) GetUserSearchHistory(c *gin.Context) {
 		if l, err := strconv.Atoi(l); err == nil && l > 0 && l <= 100 {
 			limit = l
 		}
-	}
-
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
-		return
 	}
 
 	history, err := h.searchService.GetUserSearchHistory(userUUID, limit)
@@ -257,15 +242,9 @@ func (h *SearchHandler) GetUserSearchHistory(c *gin.Context) {
 // ClearSearchHistory clears user's search history
 // DELETE /api/v1/account/search-history
 func (h *SearchHandler) ClearSearchHistory(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
-		return
-	}
-
-	userUUID, err := uuid.Parse(userID)
+	userUUID, err := middleware.GetUserID(c)
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
 
@@ -311,9 +290,8 @@ func (h *SearchHandler) GetSearchSuggestion(c *gin.Context) {
 
 	// This is a simplified endpoint; in a real system you'd query the repository
 	response.Success(c, gin.H{
-		"query":             query,
-		"cached_at":         time.Now(),
-		"message":           "Query details retrieved",
+		"query":     query,
+		"cached_at": time.Now(),
+		"message":   "Query details retrieved",
 	})
 }
-

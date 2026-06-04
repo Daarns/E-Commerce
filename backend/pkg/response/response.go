@@ -1,7 +1,9 @@
 package response
 
 import (
+	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -67,6 +69,7 @@ func SuccessWithMeta(c *gin.Context, statusCode int, message string, data interf
 
 // Error sends an error response
 func Error(c *gin.Context, statusCode int, code, message string) {
+	message = sanitizeClientErrorMessage(statusCode, code, message)
 	c.JSON(statusCode, Response{
 		Success: false,
 		Error: &ErrorData{
@@ -74,6 +77,39 @@ func Error(c *gin.Context, statusCode int, code, message string) {
 			Message: message,
 		},
 	})
+}
+
+func sanitizeClientErrorMessage(statusCode int, code, message string) string {
+	lower := strings.ToLower(message)
+	leaksInternalDetail := strings.Contains(lower, "sqlstate") ||
+		strings.Contains(lower, "duplicate key value") ||
+		strings.Contains(lower, "violates unique constraint") ||
+		strings.Contains(lower, "violates foreign key constraint") ||
+		strings.Contains(lower, "pq:") ||
+		strings.Contains(lower, "gorm") ||
+		strings.Contains(lower, "failed to ")
+
+	if !leaksInternalDetail && statusCode < http.StatusInternalServerError {
+		return message
+	}
+
+	if leaksInternalDetail {
+		log.Printf("internal error detail suppressed: code=%s status=%d message=%s", code, statusCode, message)
+	}
+
+	switch statusCode {
+	case http.StatusConflict:
+		return "Resource conflict"
+	case http.StatusBadRequest:
+		return "Invalid request"
+	case http.StatusNotFound:
+		return "Resource not found"
+	default:
+		if statusCode >= http.StatusInternalServerError {
+			return "Internal server error"
+		}
+		return message
+	}
 }
 
 // ErrorWithDetails sends an error response with details

@@ -2,7 +2,7 @@
 
 import { AdminOrderMetrics } from '@/services/admin';
 import { MetricCard } from '../analytics/MetricCard';
-import { TrendingUp, Package, CheckCircle, DollarSign } from 'lucide-react';
+import { TrendingUp, Package, CheckCircle, DollarSign, RotateCcw } from 'lucide-react';
 
 interface OrderMetricsProps {
   metrics: AdminOrderMetrics | null;
@@ -12,7 +12,7 @@ export function OrderMetrics({ metrics }: OrderMetricsProps) {
   if (!metrics) return null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
       <MetricCard
         label="Total Orders"
         value={metrics.total_orders.toString()}
@@ -30,11 +30,19 @@ export function OrderMetrics({ metrics }: OrderMetricsProps) {
       />
 
       <MetricCard
-        label="Delivered Orders"
-        value={metrics.delivered_orders.toString()}
+        label="Completed"
+        value={metrics.completed_orders.toString()}
         icon={CheckCircle}
         accent="bg-green-100 text-green-600"
         delay={0.2}
+      />
+
+      <MetricCard
+        label="Refund Requests"
+        value={metrics.refund_requested_orders.toString()}
+        icon={RotateCcw}
+        accent="bg-orange-100 text-orange-600"
+        delay={0.3}
       />
 
       <MetricCard
@@ -42,7 +50,7 @@ export function OrderMetrics({ metrics }: OrderMetricsProps) {
         value={`Rp ${(metrics.total_revenue / 1000).toFixed(1)}K`}
         icon={DollarSign}
         accent="bg-emerald-100 text-emerald-600"
-        delay={0.3}
+        delay={0.4}
       />
     </div>
   );

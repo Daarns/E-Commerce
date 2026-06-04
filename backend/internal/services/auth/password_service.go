@@ -13,6 +13,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const passwordResetResendCooldown = time.Minute
+
 // ForgotPasswordInput represents forgot password input
 type ForgotPasswordInput struct {
 	Email string `json:"email" binding:"required,email"`
@@ -77,13 +79,13 @@ func (uc *AuthService) ForgotPassword(input ForgotPasswordInput, appURL string) 
 		return nil
 	}
 
-	// --- Rate limiting (15-minute window, max 3 requests) ---
+	// --- Rate limiting: allow one reset-link issue per cooldown window. ---
 	if user.PasswordResetExpiresAt != nil {
-		// If the last token was issued less than 5 minutes ago, rate-limit
 		issuedAt := user.PasswordResetExpiresAt.Add(-1 * time.Hour) // token expires in 1h → issuedAt = expiresAt - 1h
 		elapsed := int(time.Since(issuedAt).Seconds())
-		if elapsed < 300 { // 5-minute cooldown between resends
-			remaining := 300 - elapsed
+		cooldownSeconds := int(passwordResetResendCooldown.Seconds())
+		if elapsed < cooldownSeconds {
+			remaining := cooldownSeconds - elapsed
 			return fmt.Errorf("reset_rate_limit:%d", remaining)
 		}
 	}

@@ -44,8 +44,4 @@ export const cartService = {
     return response.data.data || { subtotal: 0, item_count: 0 };
   },
 
-  async mergeGuestCart(): Promise<Cart> {
-    const response = await api.post<ApiResponse<Cart>>('/cart/merge');
-    return response.data.data!;
-  },
 };

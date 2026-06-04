@@ -72,10 +72,16 @@ export default function ProductDetailPage() {
   } = getProductPricing(product, selectedCombination);
 
   const requiresCombination = Boolean(product.combinations?.length);
+  const availableCombinationStock = (product.combinations ?? [])
+    .filter((combination) => combination.is_active)
+    .reduce((total, combination) => total + combination.stock_quantity, 0);
   const stockQuantity = requiresCombination
-    ? selectedCombination?.stock_quantity ?? 0
+    ? selectedCombination?.stock_quantity ?? availableCombinationStock
     : product.stock_quantity;
-  const isOutOfStock = stockQuantity === 0;
+  const requiresVariantSelection = requiresCombination && !selectedCombination && availableCombinationStock > 0;
+  const isOutOfStock = requiresCombination
+    ? availableCombinationStock === 0 || Boolean(selectedCombination && selectedCombination.stock_quantity === 0)
+    : stockQuantity === 0;
 
   return (
     <>
@@ -127,10 +133,14 @@ export default function ProductDetailPage() {
               quantity={quantity}
               stockQuantity={stockQuantity}
               isOutOfStock={isOutOfStock}
+              requiresVariantSelection={requiresVariantSelection}
               isAddingToCart={isAddingToCart}
               onQuantityIncrease={() => incrementQuantity(stockQuantity)}
               onQuantityDecrease={decrementQuantity}
-              onAddToCart={() => handleAddToCart(product.id, selectedCombination?.id, product.name)}
+              onAddToCart={() => {
+                if (requiresCombination && !selectedCombination) return;
+                void handleAddToCart(product.id, selectedCombination?.id, product.name);
+              }}
             />
           </div>
         </div>

@@ -268,7 +268,7 @@ export function ProductTable({
             {products.map((product, idx) => {
               const stockStatus = getStockStatus(product.stock_quantity);
               const isSelected = selectedIds.has(product.id);
-              const imageUrl = getFirstImageUrl(product.image_urls);
+              const imageUrl = getFirstImageUrl(product.display_image_urls ?? product.image_urls);
 
               return (
                 <motion.tr
@@ -377,7 +377,7 @@ export function ProductTable({
       <div className="md:hidden space-y-3">
         {products.map((product, idx) => {
           const stockStatus = getStockStatus(product.stock_quantity);
-          const imageUrl = getFirstImageUrl(product.image_urls);
+          const imageUrl = getFirstImageUrl(product.display_image_urls ?? product.image_urls);
 
           return (
             <motion.div

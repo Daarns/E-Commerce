@@ -8,3 +8,4 @@ export { AddressStepContent } from './AddressStepContent';
 export { ShippingStepContent } from './ShippingStepContent';
 export { ReviewStepContent } from './ReviewStepContent';
 export { CheckoutNavigation } from './CheckoutNavigation';
+export { CheckoutPolicyDialog } from './CheckoutPolicyDialog';

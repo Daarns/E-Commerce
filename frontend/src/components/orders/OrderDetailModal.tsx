@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { CalendarDays, CreditCard, RefreshCw, Truck } from 'lucide-react';
+import { CalendarDays, CreditCard, Info, RefreshCw, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -255,6 +255,12 @@ export function OrderDetailModal({
                   <p className="mt-2 break-all text-xs text-muted-foreground sm:text-sm">
                     {order.tracking_number}
                   </p>
+                  <div className="mt-3 flex gap-2 rounded-md border bg-background p-3 text-xs text-muted-foreground">
+                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <p>
+                      Tracking is updated manually by the store. Use this number on the courier website for live shipment details.
+                    </p>
+                  </div>
                 </section>
               )}
             </aside>

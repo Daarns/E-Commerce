@@ -9,6 +9,7 @@ export {
   getProductCardImages,
   getProductCardPricing,
   getProductGalleryImages,
+  getInitialProductImageIndex,
   getProductImageForCombination,
   getProductImageUrl,
   getProductPriceRange,
@@ -34,6 +35,8 @@ export { generateIdempotencyKey } from './crypto';
 
 // Order domain utilities
 export { getOrderItemImageUrl, normalizeOrder, normalizeOrderItem, normalizeOrderItems } from './order-mapper';
+export { getRefundRequestAttemptNumber, getRefundRequestInfo } from './order-refund.utils';
+export type { RefundRequestInfo } from './order-refund.utils';
 export { getPaymentExpiryLabel, isOrderPaymentRetryable, isOrderPaymentSyncable } from './order-payment.utils';
 
 // Auth domain utilities

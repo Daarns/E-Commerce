@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/models"
 	"ecommerce-backend/internal/services/chat"
 	"ecommerce-backend/pkg/response"
@@ -28,8 +29,8 @@ func NewChatHandler(chatService *chat.ChatService) *ChatHandler {
 // CreateConversation starts a new conversation
 // POST /api/v1/chat/conversations
 func (h *ChatHandler) CreateConversation(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
@@ -37,12 +38,6 @@ func (h *ChatHandler) CreateConversation(c *gin.Context) {
 	var req models.CreateConversationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ValidationError(c, err.Error())
-		return
-	}
-
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
@@ -58,8 +53,8 @@ func (h *ChatHandler) CreateConversation(c *gin.Context) {
 // GetConversations retrieves user's conversations
 // GET /api/v1/chat/conversations
 func (h *ChatHandler) GetConversations(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
@@ -78,12 +73,6 @@ func (h *ChatHandler) GetConversations(c *gin.Context) {
 		}
 	}
 
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
-		return
-	}
-
 	result, err := h.chatService.GetUserConversations(userUUID, page, pageSize)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "FETCH_FAILED", err.Error())
@@ -96,8 +85,8 @@ func (h *ChatHandler) GetConversations(c *gin.Context) {
 // GetConversation retrieves a specific conversation
 // GET /api/v1/chat/conversations/:id
 func (h *ChatHandler) GetConversation(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
@@ -105,12 +94,6 @@ func (h *ChatHandler) GetConversation(c *gin.Context) {
 	conversationID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid conversation ID")
-		return
-	}
-
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
@@ -132,8 +115,8 @@ func (h *ChatHandler) GetConversation(c *gin.Context) {
 // SendMessage sends a message in a conversation
 // POST /api/v1/chat/conversations/:id/messages
 func (h *ChatHandler) SendMessage(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
@@ -147,12 +130,6 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	var req models.SendMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ValidationError(c, err.Error())
-		return
-	}
-
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
@@ -222,8 +199,8 @@ func (h *ChatHandler) MarkAsRead(c *gin.Context) {
 // AddReaction adds emoji reaction to message
 // POST /api/v1/chat/messages/:id/reactions
 func (h *ChatHandler) AddReaction(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
@@ -240,12 +217,6 @@ func (h *ChatHandler) AddReaction(c *gin.Context) {
 		return
 	}
 
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
-		return
-	}
-
 	if err := h.chatService.AddReaction(messageID, userUUID, req.Reaction); err != nil {
 		response.Error(c, http.StatusBadRequest, "REACTION_FAILED", err.Error())
 		return
@@ -257,8 +228,8 @@ func (h *ChatHandler) AddReaction(c *gin.Context) {
 // RemoveReaction removes emoji reaction
 // DELETE /api/v1/chat/messages/:id/reactions/:reaction
 func (h *ChatHandler) RemoveReaction(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
@@ -275,12 +246,6 @@ func (h *ChatHandler) RemoveReaction(c *gin.Context) {
 		return
 	}
 
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
-		return
-	}
-
 	if err := h.chatService.RemoveReaction(messageID, userUUID, reaction); err != nil {
 		response.Error(c, http.StatusInternalServerError, "REMOVE_FAILED", err.Error())
 		return
@@ -294,8 +259,8 @@ func (h *ChatHandler) RemoveReaction(c *gin.Context) {
 // SetTypingIndicator sets typing status
 // POST /api/v1/chat/conversations/:id/typing
 func (h *ChatHandler) SetTypingIndicator(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
@@ -309,12 +274,6 @@ func (h *ChatHandler) SetTypingIndicator(c *gin.Context) {
 	var req models.TypingIndicatorRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ValidationError(c, err.Error())
-		return
-	}
-
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
@@ -346,4 +305,3 @@ func (h *ChatHandler) GetTypingUsers(c *gin.Context) {
 		"count":        len(users),
 	})
 }
-

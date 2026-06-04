@@ -205,6 +205,12 @@ func (s *ImageService) SaveImageToStorage(file *multipart.FileHeader) (string, e
 
 // SaveImageToStorageWithMetadata converts the image to WebP, saves it, and returns image metadata.
 func (s *ImageService) SaveImageToStorageWithMetadata(file *multipart.FileHeader) (*ImageUploadResult, error) {
+	return s.SaveImageToStorageWithMetadataInFolder(file, "products")
+}
+
+// SaveImageToStorageWithMetadataInFolder converts the image to WebP, saves it in a scoped folder,
+// and returns image metadata.
+func (s *ImageService) SaveImageToStorageWithMetadataInFolder(file *multipart.FileHeader, folder string) (*ImageUploadResult, error) {
 	metadata, err := s.ExtractImageMetadata(file)
 	if err != nil {
 		return nil, err
@@ -219,13 +225,13 @@ func (s *ImageService) SaveImageToStorageWithMetadata(file *multipart.FileHeader
 	timestamp := time.Now().Unix()
 	base := s.SanitizeFilename(strings.TrimSuffix(file.Filename, filepath.Ext(file.Filename)))
 	uniqueName := fmt.Sprintf("%d_%s_%s.webp", timestamp, uuid.New().String()[:8], base)
-	objectPath := "products/" + uniqueName
+	objectPath := s.storageObjectPath(folder, uniqueName)
 
 	var imageURL string
 	if s.useSeaweedFS {
 		imageURL, err = s.uploadToSeaweedFS(webpData, objectPath)
 	} else {
-		imageURL, err = s.saveLocally(webpData, uniqueName)
+		imageURL, err = s.saveLocallyInFolder(webpData, folder, uniqueName)
 	}
 	if err != nil {
 		return nil, err
@@ -235,6 +241,15 @@ func (s *ImageService) SaveImageToStorageWithMetadata(file *multipart.FileHeader
 		URL:      imageURL,
 		Metadata: metadata,
 	}, nil
+}
+
+func (s *ImageService) storageObjectPath(folder string, filename string) string {
+	folder = strings.Trim(strings.ToLower(folder), "/\\ .")
+	folder = strings.NewReplacer("\\", "-", "/", "-", "..", "-").Replace(folder)
+	if folder == "" {
+		folder = "uploads"
+	}
+	return folder + "/" + filename
 }
 
 // uploadToSeaweedFS uploads data to SeaweedFS via S3-compatible API.
@@ -333,7 +348,16 @@ func (s *ImageService) DeleteFromSeaweedFS(publicURL string) error {
 
 // saveLocally saves data to disk and returns a URL path (fallback).
 func (s *ImageService) saveLocally(data []byte, filename string) (string, error) {
-	uploadDir := filepath.Join("uploads", "products")
+	return s.saveLocallyInFolder(data, "products", filename)
+}
+
+func (s *ImageService) saveLocallyInFolder(data []byte, folder string, filename string) (string, error) {
+	folder = strings.Trim(strings.ToLower(folder), "/\\ .")
+	folder = strings.NewReplacer("\\", "-", "/", "-", "..", "-").Replace(folder)
+	if folder == "" {
+		folder = "uploads"
+	}
+	uploadDir := filepath.Join("uploads", folder)
 	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
 		return "", fmt.Errorf("failed to create upload dir: %w", err)
 	}

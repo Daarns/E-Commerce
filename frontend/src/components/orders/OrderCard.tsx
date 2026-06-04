@@ -29,7 +29,6 @@ interface OrderCardProps {
   isPayingOrder: boolean;
   isSyncingOrder: boolean;
   isCancelling: boolean;
-  onViewDetails: (order: Order) => void;
   onPay: (order: Order) => void;
   onSync: (order: Order) => void;
   onCancel: (orderId: string) => void;
@@ -41,7 +40,6 @@ export function OrderCard({
   isPayingOrder,
   isSyncingOrder,
   isCancelling,
-  onViewDetails,
   onPay,
   onSync,
   onCancel,
@@ -149,9 +147,11 @@ export function OrderCard({
 
           {/* Actions */}
           <div className="flex justify-between items-center flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => onViewDetails(order)}>
-              <Eye className="h-4 w-4 mr-2" />
-              View Details
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/orders/${order.order_number}`}>
+                <Eye className="h-4 w-4 mr-2" />
+                View Details
+              </Link>
             </Button>
 
             <div className="flex gap-2 flex-wrap">

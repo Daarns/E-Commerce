@@ -3,9 +3,9 @@ import axios from 'axios';
 import { productService } from '@/services/product';
 import { Product } from '@/types';
 import {
-  buildSelectedOptionsFromCombination,
   findMatchingCombination,
   getAvailableOptionIdsForType,
+  getInitialProductImageIndex,
 } from '@/utils';
 
 export function useProductDetail(slug: string) {
@@ -23,16 +23,8 @@ export function useProductDetail(slug: string) {
       try {
         const productData = await productService.getProduct(slug);
         setProduct(productData);
-
-        const firstAvailableCombination = productData.combinations?.find((combination) => (
-          combination.is_active && combination.stock_quantity > 0
-        ));
-
-        if (firstAvailableCombination) {
-          setSelectedOptions(buildSelectedOptionsFromCombination(productData, firstAvailableCombination));
-        } else {
-          setSelectedOptions({});
-        }
+        setSelectedOptions({});
+        setSelectedImage(getInitialProductImageIndex(productData.images));
 
         const related = await productService.getRelatedProducts(productData.id);
         setRelatedProducts(related);
@@ -89,17 +81,17 @@ export function useProductDetail(slug: string) {
       .map((variantType) => selectedOptions[variantType.id])
       .filter(Boolean);
 
-    const defaultImageIndex = product.images.findIndex((image) => !image.option_id);
+    const defaultImageIndex = getInitialProductImageIndex(product.images);
 
     if (visualOptionIds.length === 0) {
-      setSelectedImage(defaultImageIndex >= 0 ? defaultImageIndex : 0);
+      setSelectedImage(defaultImageIndex);
       return;
     }
 
     const imageIndex = product.images.findIndex((image) => (
       image.option_id !== undefined && visualOptionIds.includes(image.option_id)
     ));
-    setSelectedImage(imageIndex >= 0 ? imageIndex : defaultImageIndex >= 0 ? defaultImageIndex : 0);
+    setSelectedImage(imageIndex >= 0 ? imageIndex : defaultImageIndex);
   }, [product, selectedOptions]);
 
   return {

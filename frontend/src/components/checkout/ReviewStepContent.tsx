@@ -1,12 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CheckoutPolicyDialog } from './CheckoutPolicyDialog';
 import {
   formatCurrency,
   getProductImageForCombination,
@@ -100,19 +99,6 @@ export function ReviewStepContent({
         </CardContent>
       </Card>
 
-      {/* Payment Info */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Payment</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <CreditCard className="h-4 w-4" />
-            <span>Pilih metode pembayaran di halaman berikutnya (Midtrans Snap)</span>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Items Summary */}
       <Card>
         <CardHeader className="pb-2">
@@ -161,16 +147,11 @@ export function ReviewStepContent({
           checked={agreedToTerms}
           onCheckedChange={(checked) => onAgreedToTermsChange(checked === true)}
         />
-        <label htmlFor="terms" className="text-sm text-muted-foreground">
-          I agree to the{' '}
-          <Link href="/terms" className="text-primary hover:underline">
-            Terms and Conditions
-          </Link>{' '}
-          and{' '}
-          <Link href="/privacy" className="text-primary hover:underline">
-            Privacy Policy
-          </Link>
-        </label>
+        <div className="text-sm text-muted-foreground">
+          Saya menyetujui{' '}
+          <CheckoutPolicyDialog type="terms" /> dan{' '}
+          <CheckoutPolicyDialog type="privacy" />.
+        </div>
       </div>
     </motion.div>
   );

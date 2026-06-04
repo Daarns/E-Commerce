@@ -36,13 +36,14 @@ func (osw *OrderStatusWorkflow) BeforeCreate(tx interface{}) error {
 
 // Email type constants for order status notifications
 const (
-	EmailTypeOrderConfirmed       = "order_confirmed"
-	EmailTypePaymentConfirmed     = "payment_confirmed"
-	EmailTypeOrderProcessing      = "order_processing"
-	EmailTypeOrderShipped         = "order_shipped"
-	EmailTypeOrderDelivered       = "order_delivered"
-	EmailTypeOrderCancelled       = "order_cancelled"
-	EmailTypeOrderRefunded        = "order_refunded"
+	EmailTypeOrderConfirmed   = "order_confirmed"
+	EmailTypePaymentConfirmed = "payment_confirmed"
+	EmailTypeOrderProcessing  = "order_processing"
+	EmailTypeOrderShipped     = "order_shipped"
+	EmailTypeOrderDelivered   = "order_delivered"
+	EmailTypeOrderCancelled   = "order_cancelled"
+	EmailTypeOrderRefunded    = "order_refunded"
+	EmailTypeRefundRejected   = "refund_rejected"
 )
 
 // ShouldTriggerEmail determines if this status transition should trigger an email
@@ -53,6 +54,9 @@ func (osw *OrderStatusWorkflow) ShouldTriggerEmail() bool {
 		OrderStatusProcessing:       true,
 		OrderStatusShipped:          true,
 		OrderStatusDelivered:        true,
+		OrderStatusCompleted:        true,
+		OrderStatusRefundRequested:  true,
+		OrderStatusRefundRejected:   true,
 		OrderStatusCancelled:        true,
 		OrderStatusRefunded:         true,
 	}
@@ -66,6 +70,9 @@ func (osw *OrderStatusWorkflow) GetEmailType() string {
 		OrderStatusProcessing:       EmailTypeOrderProcessing,
 		OrderStatusShipped:          EmailTypeOrderShipped,
 		OrderStatusDelivered:        EmailTypeOrderDelivered,
+		OrderStatusCompleted:        EmailTypeOrderDelivered,
+		OrderStatusRefundRequested:  EmailTypeOrderStatusUpdate,
+		OrderStatusRefundRejected:   EmailTypeRefundRejected,
 		OrderStatusCancelled:        EmailTypeOrderCancelled,
 		OrderStatusRefunded:         EmailTypeOrderRefunded,
 	}

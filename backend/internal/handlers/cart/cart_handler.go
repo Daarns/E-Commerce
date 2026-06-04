@@ -1,6 +1,7 @@
 package cart
 
 import (
+	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/services/cart"
 	"ecommerce-backend/pkg/response"
 	"net/http"
@@ -134,13 +135,11 @@ func (h *CartHandler) ClearCart(c *gin.Context) {
 // MergeGuestCart merges guest cart into user cart after login
 // POST /api/v1/cart/merge
 func (h *CartHandler) MergeGuestCart(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	uid, err := middleware.GetUserID(c)
+	if err != nil {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Login required")
 		return
 	}
-
-	uid, _ := uuid.Parse(userID)
 
 	var input struct {
 		SessionID string `json:"session_id" binding:"required"`

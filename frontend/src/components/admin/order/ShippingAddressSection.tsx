@@ -16,30 +16,38 @@ export function ShippingAddressSection({
   phone,
   trackingNumber,
 }: ShippingAddressSectionProps) {
+  const recipientName = address?.recipient_name || name || '-';
+  const recipientPhone = address?.phone || phone || '-';
+  const streetAddress = [address?.street_address, address?.address_line2]
+    .filter(Boolean)
+    .join(', ') || '-';
+  const city = address?.city || '-';
+  const province = address?.province || '-';
+
   return (
     <Card className="p-6">
       <h3 className="mb-4 font-semibold text-gray-900">Shipping Address</h3>
       <div className="space-y-3 text-sm">
         <div>
           <p className="text-gray-600">Recipient</p>
-          <p className="font-medium">{address?.recipient_name || name}</p>
+          <p className="font-medium">{recipientName}</p>
         </div>
         <div>
           <p className="text-gray-600">Phone</p>
-          <p className="font-medium">{address?.phone || phone}</p>
+          <p className="font-medium">{recipientPhone}</p>
         </div>
         <div>
           <p className="text-gray-600">Address</p>
-          <p className="font-medium">{address?.street_address}</p>
+          <p className="font-medium">{streetAddress}</p>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-gray-600">City</p>
-            <p className="font-medium">{address?.city}</p>
+            <p className="font-medium">{city}</p>
           </div>
           <div>
             <p className="text-gray-600">Province</p>
-            <p className="font-medium">{address?.province}</p>
+            <p className="font-medium">{province}</p>
           </div>
         </div>
         {trackingNumber && (

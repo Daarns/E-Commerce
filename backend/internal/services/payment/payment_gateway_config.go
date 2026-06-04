@@ -7,19 +7,21 @@ import (
 
 // PaymentGatewayConfig holds Midtrans payment gateway configuration
 type PaymentGatewayConfig struct {
-	GatewayURL string // e.g., https://api.sandbox.midtrans.com or https://api.midtrans.com
-	MerchantID string // Merchant ID from Midtrans dashboard
-	ClientKey  string // Public key for frontend transactions
-	ServerKey  string // Secret key for backend API calls (MUST KEEP CONFIDENTIAL)
+	GatewayURL  string // e.g., https://api.sandbox.midtrans.com or https://api.midtrans.com
+	FrontendURL string // public frontend URL for Snap redirects, e.g. ngrok or production app URL
+	MerchantID  string // Merchant ID from Midtrans dashboard
+	ClientKey   string // Public key for frontend transactions
+	ServerKey   string // Secret key for backend API calls (MUST KEEP CONFIDENTIAL)
 }
 
 // LoadPaymentGatewayConfig loads payment gateway configuration from environment variables
 func LoadPaymentGatewayConfig() (*PaymentGatewayConfig, error) {
 	config := &PaymentGatewayConfig{
-		GatewayURL: os.Getenv("PAYMENT_GATEWAY_URL"),
-		MerchantID: os.Getenv("PAYMENT_MERCHANT_ID"),
-		ClientKey:  os.Getenv("PAYMENT_CLIENT_KEY"),
-		ServerKey:  os.Getenv("PAYMENT_SERVER_KEY"),
+		GatewayURL:  os.Getenv("PAYMENT_GATEWAY_URL"),
+		FrontendURL: firstNonEmpty(os.Getenv("APP_URL"), os.Getenv("FRONTEND_URL"), "http://localhost:3000"),
+		MerchantID:  os.Getenv("PAYMENT_MERCHANT_ID"),
+		ClientKey:   os.Getenv("PAYMENT_CLIENT_KEY"),
+		ServerKey:   os.Getenv("PAYMENT_SERVER_KEY"),
 	}
 
 	// Validate required fields
@@ -84,6 +86,7 @@ func contains(str, substr string) bool {
 func (c *PaymentGatewayConfig) GetDisplayConfig() map[string]string {
 	return map[string]string{
 		"PAYMENT_GATEWAY_URL": c.GatewayURL,
+		"APP_URL":             c.FrontendURL,
 		"PAYMENT_MERCHANT_ID": c.MerchantID,
 		"PAYMENT_CLIENT_KEY":  maskSensitive(c.ClientKey),
 		"PAYMENT_SERVER_KEY":  maskSensitive(c.ServerKey),
@@ -98,3 +101,11 @@ func maskSensitive(key string) string {
 	return key[:10] + "..." + key[len(key)-4:]
 }
 
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}

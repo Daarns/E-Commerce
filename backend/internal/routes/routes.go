@@ -78,19 +78,17 @@ func Setup(c Config) {
 			})
 		})
 
-		// Auth routes — tighter limit to slow brute-force / credential stuffing.
-		// Industry standard: ~10–20 login attempts per minute per IP is acceptable for
-		// legitimate users (mobile retries, password managers, etc.) while still blocking bots.
-		// Namespace "rl:auth" is SEPARATE from "rl:global" — counters do NOT overlap.
-		authRoutes := v1.Group("/auth", middleware.PerIPRateLimit(c.RedisClient, 20, time.Minute, "rl:auth"))
+		// Auth routes use per-endpoint limits so forgot/resend flows do not inherit
+		// a long login penalty. Login has its own credential backoff in service layer.
+		authRoutes := v1.Group("/auth")
 		{
-			authRoutes.POST("/register", c.AuthH.Register)
-			authRoutes.POST("/login", c.AuthH.Login)
+			authRoutes.POST("/register", middleware.PerIPRateLimit(c.RedisClient, 10, time.Minute, "rl:auth-register"), c.AuthH.Register)
+			authRoutes.POST("/login", middleware.PerIPRateLimit(c.RedisClient, 30, time.Minute, "rl:auth-login"), c.AuthH.Login)
 			authRoutes.POST("/refresh", c.AuthH.Refresh)
 			authRoutes.POST("/verify-email", c.AuthH.VerifyEmail)
-			authRoutes.POST("/resend-verification-email", c.AuthH.ResendVerificationEmail)
-			authRoutes.POST("/forgot-password", c.AuthH.ForgotPassword)
-			authRoutes.POST("/reset-password", c.AuthH.ResetPassword)
+			authRoutes.POST("/resend-verification-email", middleware.PerIPRateLimit(c.RedisClient, 1, time.Minute, "rl:auth-resend-verification"), c.AuthH.ResendVerificationEmail)
+			authRoutes.POST("/forgot-password", middleware.PerIPRateLimit(c.RedisClient, 1, time.Minute, "rl:auth-forgot-password"), c.AuthH.ForgotPassword)
+			authRoutes.POST("/reset-password", middleware.PerIPRateLimit(c.RedisClient, 10, time.Minute, "rl:auth-reset-password"), c.AuthH.ResetPassword)
 		}
 
 		// Category routes (public - read only)
@@ -132,19 +130,6 @@ func Setup(c Config) {
 			searchRoutes.POST("/click", c.SearchH.RecordProductClick)
 		}
 
-		// Cart routes (public with optional session or auth)
-		cartRoutes := v1.Group("/cart")
-		cartRoutes.Use(middleware.OptionalAuthMiddleware(c.JWTManager))
-		{
-			cartRoutes.GET("", c.CartH.GetCart)
-			cartRoutes.GET("/summary", c.CartH.GetCartSummary)
-			cartRoutes.POST("/items", c.CartH.AddToCart)
-			cartRoutes.PUT("/items/:itemId", c.CartH.UpdateCartItem)
-			cartRoutes.DELETE("/items/:itemId", c.CartH.RemoveFromCart)
-			cartRoutes.DELETE("", c.CartH.ClearCart)
-			cartRoutes.POST("/refresh", c.CartH.RefreshCartPrices)
-		}
-
 		// Wishlist routes (public with optional session or auth)
 		wishlistRoutes := v1.Group("/wishlist")
 		wishlistRoutes.Use(middleware.OptionalAuthMiddleware(c.JWTManager))
@@ -171,8 +156,17 @@ func Setup(c Config) {
 			protected.PUT("/auth/me/password", c.AuthH.ChangePassword)
 			protected.DELETE("/auth/me", c.AuthH.DeleteAccount)
 
-			// Cart merge (after login)
-			protected.POST("/cart/merge", c.CartH.MergeGuestCart)
+			// Cart routes require authentication. Guest cart/session flow is intentionally disabled.
+			cartRoutes := protected.Group("/cart")
+			{
+				cartRoutes.GET("", c.CartH.GetCart)
+				cartRoutes.GET("/summary", c.CartH.GetCartSummary)
+				cartRoutes.POST("/items", c.CartH.AddToCart)
+				cartRoutes.PUT("/items/:itemId", c.CartH.UpdateCartItem)
+				cartRoutes.DELETE("/items/:itemId", c.CartH.RemoveFromCart)
+				cartRoutes.DELETE("", c.CartH.ClearCart)
+				cartRoutes.POST("/refresh", c.CartH.RefreshCartPrices)
+			}
 
 			// Address routes
 			addressRoutes := protected.Group("/addresses")
@@ -191,6 +185,9 @@ func Setup(c Config) {
 				orderRoutes.GET("", c.OrderH.GetOrders)
 				orderRoutes.GET("/:id", c.OrderH.GetOrder)
 				orderRoutes.POST("/:id/cancel", c.OrderH.CancelOrder)
+				orderRoutes.POST("/:id/confirm-delivery", c.OrderH.ConfirmDelivery)
+				orderRoutes.POST("/:id/confirm-received", c.OrderH.ConfirmReceived)
+				orderRoutes.POST("/:id/refund-request", middleware.RefundEvidenceUploadRateLimit(c.RedisClient), c.OrderH.RequestRefund)
 				orderRoutes.POST("/:id/pay", c.OrderH.PayOrder)                   // Resume payment for pending orders
 				orderRoutes.POST("/:id/sync-payment", c.OrderH.SyncPaymentStatus) // Sync status from Midtrans API
 			}
@@ -288,6 +285,8 @@ func Setup(c Config) {
 				adminOrders.GET("", c.AdminOrderH.AdminGetOrders)
 				adminOrders.GET("/summary", c.AdminOrderH.GetOrderSummary)
 				adminOrders.GET("/:id", c.AdminOrderH.AdminGetOrder)
+				adminOrders.POST("/:id/refund", c.AdminOrderH.AdminProcessRefund)
+				adminOrders.POST("/:id/refund/reject", c.AdminOrderH.AdminRejectRefund)
 				adminOrders.PUT("/:id/status", c.AdminOrderH.AdminUpdateOrderStatus)
 				adminOrders.PUT("/:id/payment", c.AdminOrderH.AdminUpdatePayment)
 				adminOrders.PUT("/:id/tracking", c.AdminOrderH.AdminUpdateTracking)

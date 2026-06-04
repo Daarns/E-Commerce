@@ -1,8 +1,8 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { motion } from 'framer-motion';
-import { SlidersHorizontal, X } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,6 +25,7 @@ const capitalizeCategoryName = (name: string): string => {
 };
 
 function ProductsPageContent() {
+  const [showDesktopFilters, setShowDesktopFilters] = useState(true);
   const {
     filters,
     appliedFilters,
@@ -53,19 +54,32 @@ function ProductsPageContent() {
           )}
         </div>
 
-        {/* Mobile Filter Button */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            className="hidden gap-2 md:inline-flex"
+            onClick={() => setShowDesktopFilters((current) => !current)}
+          >
+            {showDesktopFilters ? (
+              <PanelLeftClose className="h-4 w-4" />
+            ) : (
+              <PanelLeftOpen className="h-4 w-4" />
+            )}
+            {showDesktopFilters ? 'Hide Filters' : 'Show Filters'}
+          </Button>
+
+          {/* Mobile Filter Button */}
           <Sheet>
             <SheetTrigger asChild className="md:hidden">
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" aria-label="Open filters">
                 <SlidersHorizontal className="h-4 w-4" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left">
-              <SheetHeader>
+            <SheetContent side="left" className="w-[88vw] max-w-sm px-0">
+              <SheetHeader className="border-b px-6 pb-4 text-left">
                 <SheetTitle>Filters</SheetTitle>
               </SheetHeader>
-              <div className="mt-6">
+              <div className="px-6 py-6">
                 <ProductsFilter
                   filters={filters}
                   categories={categories}
@@ -133,9 +147,20 @@ function ProductsPageContent() {
 
       <div className="flex gap-8">
         {/* Desktop Sidebar */}
+        {showDesktopFilters && (
         <aside className="hidden md:block w-64 flex-shrink-0">
           <div className="sticky top-24">
-            <h2 className="font-semibold mb-4">Filters</h2>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="font-semibold">Filters</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Hide filters"
+                onClick={() => setShowDesktopFilters(false)}
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </Button>
+            </div>
             <ProductsFilter
               filters={filters}
               categories={categories}
@@ -148,6 +173,7 @@ function ProductsPageContent() {
             />
           </div>
         </aside>
+        )}
 
         {/* Products Grid */}
         <div className="flex-1">

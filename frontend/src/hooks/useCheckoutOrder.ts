@@ -6,6 +6,14 @@ import { useMidtransPayment } from './useMidtransPayment';
 
 const CHECKOUT_IDEMPOTENCY_KEY = 'checkout:idempotency-key';
 
+function buildPaymentErrorUrl(orderId: string, status: string): string {
+  const params = new URLSearchParams({
+    order_id: orderId,
+    transaction_status: status,
+  });
+  return `/payment/error?${params.toString()}`;
+}
+
 export function useCheckoutOrder() {
   const router = useRouter();
   const { clearCart } = useCartStore();
@@ -58,26 +66,32 @@ export function useCheckoutOrder() {
       if (snap_token) {
         const paymentOpened = openPaymentPopup(snap_token, {
           onSuccess: () => {
-            clearIdempotencyKey();
-            clearCart();
-            router.push(`/orders/${order.id}?payment=success`);
+            void (async (): Promise<void> => {
+              try {
+                await orderService.syncPayment(order.id);
+              } finally {
+                clearIdempotencyKey();
+                clearCart();
+                router.push(`/orders/${order.order_number}?payment=success`);
+              }
+            })();
           },
           onPending: () => {
             clearIdempotencyKey();
             clearCart();
-            router.push(`/orders/${order.id}?payment=pending`);
+            router.push(`/orders/${order.order_number}?payment=pending`);
           },
           onError: () => {
             clearIdempotencyKey();
             clearCart();
             setIsProcessing(false);
-            router.push(`/orders/${order.id}?payment=failed`);
+            router.push(buildPaymentErrorUrl(order.order_number, 'failed'));
           },
           onClose: () => {
             clearIdempotencyKey();
             clearCart();
             setIsProcessing(false);
-            router.push(`/orders/${order.id}?payment=cancelled`);
+            router.push(`/orders/${order.order_number}?payment=cancelled`);
           },
         });
 
@@ -89,7 +103,7 @@ export function useCheckoutOrder() {
           clearIdempotencyKey();
           clearCart();
           setIsProcessing(false);
-          router.push(`/orders/${order.id}?payment=retry`);
+          router.push(buildPaymentErrorUrl(order.order_number, 'unavailable'));
         }
       } else if (redirect_url) {
         clearIdempotencyKey();
@@ -98,7 +112,7 @@ export function useCheckoutOrder() {
       } else {
         clearIdempotencyKey();
         clearCart();
-        router.push(`/orders/${order.id}?payment=retry`);
+        router.push(buildPaymentErrorUrl(order.order_number, 'unavailable'));
       }
     } catch (error) {
       setIsProcessing(false);

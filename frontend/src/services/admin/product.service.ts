@@ -133,6 +133,7 @@ export interface AdminProduct {
   combinations?: ProductVariantCombination[];
   image_urls?: string[];
   variant_image_urls?: string[];   // variant images for unified gallery display
+  display_image_urls?: string[];   // read-only display priority: default images, then variant images
   price: string | number;        // alias for regular_price (used by product-table)
   rating?: number;
   review_count?: number;
@@ -190,6 +191,15 @@ function normalizeAdminProduct(product: AdminProduct): AdminProduct {
   const allImages = product.images ?? [];
   const defaultImages = allImages.filter((img) => !img.option_id);
   const variantImages = allImages.filter((img) => !!img.option_id);
+  const toImageUrls = (images: AdminProductImage[]): string[] => (
+    images
+      .map(getProductImageUrl)
+      .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+  );
+
+  const defaultImageUrls = toImageUrls(defaultImages);
+  const variantImageUrls = toImageUrls(variantImages);
+
   return {
     ...product,
     price: product.regular_price ?? product.price ?? 0,
@@ -199,13 +209,10 @@ function normalizeAdminProduct(product: AdminProduct): AdminProduct {
     // Only include general product images (no option_id).
     // Variant images (with option_id) are handled via variant_images payload
     // to avoid syncProductImages inserting duplicates with option_id=NULL.
-    image_urls: defaultImages
-      .map(getProductImageUrl)
-      .filter((url): url is string => typeof url === 'string' && url.trim().length > 0),
+    image_urls: defaultImageUrls,
     // Variant images for unified gallery display (read-only in image section)
-    variant_image_urls: variantImages
-      .map(getProductImageUrl)
-      .filter((url): url is string => typeof url === 'string' && url.trim().length > 0),
+    variant_image_urls: variantImageUrls,
+    display_image_urls: [...defaultImageUrls, ...variantImageUrls],
   };
 }
 

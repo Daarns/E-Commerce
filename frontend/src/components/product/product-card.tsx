@@ -11,8 +11,8 @@ import {
   LOW_STOCK_THRESHOLD,
   OUT_OF_STOCK_LABEL,
   PLACEHOLDER_PRODUCT_IMAGE,
+  PRODUCT_CARD_IMAGE_FIT_CLASS,
   PRODUCT_CARD_IMAGE_FRAME_CLASS,
-  PRODUCT_IMAGE_FIT_CLASS,
   PRODUCT_STOCK_STATUS,
 } from '@/constants/product.constants';
 import { useProductCard } from '@/hooks/useProductCard';
@@ -56,17 +56,18 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
     <>
       <motion.div
         ref={cardRef}
+        className="h-full"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: index * 0.1 }}
       >
-        <Link href={`/products/${product.slug}`}>
+        <Link href={`/products/${product.slug}`} className="block h-full">
           <Card
-            className="group overflow-hidden border-0 shadow-none bg-transparent"
+            className="group h-full overflow-hidden rounded-lg border bg-card shadow-none transition-colors hover:border-foreground/20"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
           >
-            <CardContent className="p-0">
+            <CardContent className="flex h-full flex-col p-0">
               {/* Image Container */}
               <div className={PRODUCT_CARD_IMAGE_FRAME_CLASS}>
                 {/* Main Image */}
@@ -74,7 +75,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                   src={primaryImageUrl ?? PLACEHOLDER_PRODUCT_IMAGE}
                   alt={product.name}
                   fill
-                  className={`${PRODUCT_IMAGE_FIT_CLASS} transition-all duration-500 ${
+                  className={`${PRODUCT_CARD_IMAGE_FIT_CLASS} transition-all duration-500 ${
                     isHovered ? 'scale-110' : 'scale-100'
                   } ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={() => setImageLoaded(true)}
@@ -89,7 +90,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                     src={hoverImageUrl}
                     alt={product.name}
                     fill
-                    className={`${PRODUCT_IMAGE_FIT_CLASS} absolute inset-0 transition-opacity duration-500 ${
+                    className={`${PRODUCT_CARD_IMAGE_FIT_CLASS} absolute inset-0 transition-opacity duration-500 ${
                       isHovered ? 'opacity-100' : 'opacity-0'
                     }`}
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -167,19 +168,19 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
               </div>
 
               {/* Product Info */}
-              <div className="p-3 space-y-2">
-                <div className="space-y-1">
+              <div className="flex min-h-[7.25rem] flex-1 flex-col justify-between p-3">
+                <div className="space-y-1.5">
                   <p className="text-xs text-muted-foreground truncate">
                     {product.category?.name}
                   </p>
-                  <h3 className="font-medium text-sm line-clamp-2">
+                  <h3 className="line-clamp-2 min-h-10 text-sm font-medium leading-5">
                     {product.name}
                   </h3>
                 </div>
 
                 {/* Price */}
-                <div className="space-y-0.5">
-                  <span className="text-sm font-bold">
+                <div className="min-h-9 space-y-0.5 pt-2">
+                  <span className="block text-sm font-bold">
                     {priceLabel}
                   </span>
                   {originalPriceLabel && (

@@ -2,11 +2,11 @@
 
 import {
   ORDER_STATUS_DESCRIPTIONS,
+  ORDER_STATUS_FLOW,
   ORDER_STATUS_LABELS,
-  ORDER_TIMELINE_STATUS_FLOW,
 } from '@/constants/order.constants';
 import { Order, OrderStatus } from '@/types';
-import { Check, Clock } from 'lucide-react';
+import { Check, Clock, Info, Truck } from 'lucide-react';
 
 interface OrderTimelineEvent {
   status: OrderStatus;
@@ -16,24 +16,58 @@ interface OrderTimelineEvent {
 }
 
 function getOrderTimelineEvents(order: Order): OrderTimelineEvent[] {
-  const statusOrder = ORDER_TIMELINE_STATUS_FLOW;
   const currentStatus = order.status || order.order_status;
-  
-  return statusOrder.map(status => {
+  const historyByStatus = new Map(
+    (order.status_history ?? []).map((history) => [history.to_status, history.changed_at])
+  );
+
+  if (currentStatus === 'cancelled') {
+    return [{
+      status: 'cancelled',
+      label: ORDER_STATUS_LABELS.cancelled,
+      date: new Date(historyByStatus.get('cancelled') || order.cancelled_at || order.updated_at).toLocaleString('id-ID'),
+      description: ORDER_STATUS_DESCRIPTIONS.cancelled,
+    }];
+  }
+
+  const timelineBaseStatus: OrderStatus =
+    currentStatus === 'refund_requested' || currentStatus === 'refund_rejected' || currentStatus === 'refunded'
+      ? 'completed'
+      : currentStatus;
+  const currentIndex = ORDER_STATUS_FLOW.indexOf(timelineBaseStatus);
+  const visibleStatuses = currentIndex >= 0
+    ? ORDER_STATUS_FLOW.slice(0, currentIndex + 1)
+    : ORDER_STATUS_FLOW.slice(0, 1);
+
+  const normalEvents = visibleStatuses.map(status => {
+    const historyDate = historyByStatus.get(status);
+    const fallbackDate = status === 'pending' ? order.created_at : status === currentStatus ? order.updated_at : '';
+
     return {
       status,
       label: ORDER_STATUS_LABELS[status],
-      date: status === currentStatus ? new Date(order.updated_at).toLocaleString('id-ID') : '',
+      date: historyDate || fallbackDate
+        ? new Date(historyDate || fallbackDate).toLocaleString('id-ID')
+        : '',
       description: ORDER_STATUS_DESCRIPTIONS[status],
     };
   });
+
+  const refundStatuses: OrderStatus[] = ['refund_requested', 'refund_rejected', 'refunded'];
+  const refundEvents = refundStatuses
+    .filter((status) => currentStatus === status || historyByStatus.has(status) || (status === 'refunded' && order.payment_status === 'refunded'))
+    .map((status) => ({
+      status,
+      label: ORDER_STATUS_LABELS[status],
+      date: new Date(historyByStatus.get(status) || order.updated_at).toLocaleString('id-ID'),
+      description: ORDER_STATUS_DESCRIPTIONS[status],
+    }));
+
+  return [...normalEvents, ...refundEvents];
 }
 
 export function OrderTimeline({ order }: { order: Order }) {
   const events = getOrderTimelineEvents(order);
-  const statusOrder = ORDER_TIMELINE_STATUS_FLOW;
-  const currentStatus = order.status || order.order_status;
-  const currentIndex = statusOrder.indexOf(currentStatus);
 
   return (
     <div className="bg-white rounded-lg border p-6">
@@ -41,8 +75,8 @@ export function OrderTimeline({ order }: { order: Order }) {
       
       <div className="space-y-4">
         {events.map((event, index) => {
-          const isCompleted = index <= currentIndex;
-          const isCurrent = index === currentIndex;
+          const isCompleted = true;
+          const isCurrent = index === events.length - 1;
           
           return (
             <div key={event.status} className="flex gap-4">
@@ -80,7 +114,7 @@ export function OrderTimeline({ order }: { order: Order }) {
                   <p className="text-sm text-gray-500 mt-1">{event.date}</p>
                 )}
                 
-                {event.description && !isCurrent && (
+                {event.description && (
                   <p className="text-sm text-gray-500 mt-1">{event.description}</p>
                 )}
               </div>
@@ -91,10 +125,19 @@ export function OrderTimeline({ order }: { order: Order }) {
 
       {order.tracking_number && (
         <div className="mt-6 pt-6 border-t">
-          <h4 className="font-medium text-sm mb-2">Tracking Number</h4>
-          <p className="text-gray-700 font-mono bg-gray-50 p-3 rounded">
+          <div className="mb-2 flex items-center gap-2">
+            <Truck className="h-4 w-4 text-gray-700" />
+            <h4 className="font-medium text-sm">Tracking Number</h4>
+          </div>
+          <p className="text-gray-700 font-mono bg-gray-50 p-3 rounded break-all">
             {order.tracking_number}
           </p>
+          <div className="mt-3 flex gap-2 rounded-md border bg-blue-50 p-3 text-xs text-blue-800">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              Tracking is updated manually by the store. Use this number on the courier website if you need live shipment details.
+            </p>
+          </div>
         </div>
       )}
     </div>

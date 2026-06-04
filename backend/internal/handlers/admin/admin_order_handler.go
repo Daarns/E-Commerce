@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/repositories"
 	"ecommerce-backend/internal/services/order"
 	"ecommerce-backend/internal/utils"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // AdminOrderHandler handles admin order HTTP requests
@@ -31,6 +33,8 @@ func (h *AdminOrderHandler) AdminGetOrders(c *gin.Context) {
 	}
 
 	if status := c.Query("order_status"); status != "" {
+		filter.OrderStatus = status
+	} else if status := c.Query("status"); status != "" {
 		filter.OrderStatus = status
 	}
 
@@ -146,6 +150,73 @@ func (h *AdminOrderHandler) AdminUpdatePayment(c *gin.Context) {
 	result, err := h.useCase.AdminUpdatePayment(orderID, input.PaymentStatus, input.TransactionID)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, "UPDATE_PAYMENT_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// AdminProcessRefund records a manual refund for an order (admin only)
+// POST /api/v1/admin/orders/:id/refund
+func (h *AdminOrderHandler) AdminProcessRefund(c *gin.Context) {
+	adminID, err := middleware.GetUserID(c)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid order ID")
+		return
+	}
+
+	var input struct {
+		Amount float64 `json:"amount" binding:"required"`
+		Reason string  `json:"reason"`
+		Notes  string  `json:"notes"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	result, err := h.useCase.AdminProcessRefund(orderID, decimal.NewFromFloat(input.Amount), input.Reason, input.Notes, adminID)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "PROCESS_REFUND_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// AdminRejectRefund rejects a refund request after admin review.
+// POST /api/v1/admin/orders/:id/refund/reject
+func (h *AdminOrderHandler) AdminRejectRefund(c *gin.Context) {
+	adminID, err := middleware.GetUserID(c)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid order ID")
+		return
+	}
+
+	var input struct {
+		Reason string `json:"reason" binding:"required"`
+		Notes  string `json:"notes"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	result, err := h.useCase.AdminRejectRefund(orderID, input.Reason, input.Notes, adminID)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "REJECT_REFUND_FAILED", err.Error())
 		return
 	}
 

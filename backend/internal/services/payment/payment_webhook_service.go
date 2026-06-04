@@ -22,6 +22,14 @@ type PaymentWebhookRequest struct {
 	GrossAmount       string `json:"gross_amount"`
 	PaymentType       string `json:"payment_type"`
 	FraudStatus       string `json:"fraud_status"`
+	VANumbers         []struct {
+		Bank     string `json:"bank"`
+		VANumber string `json:"va_number"`
+	} `json:"va_numbers"`
+	PermataVANumber string `json:"permata_va_number"`
+	Store           string `json:"store"`
+	Issuer          string `json:"issuer"`
+	Acquirer        string `json:"acquirer"`
 }
 
 // PaymentWebhookResponse represents webhook response
@@ -36,6 +44,7 @@ type PaymentWebhookResponse struct {
 type OrderRepositoryInterface interface {
 	GetByOrderNumber(orderNumber string) (*models.Order, error)
 	UpdatePaymentStatus(orderID uuid.UUID, paymentStatus string, transactionID string) error
+	UpdatePaymentStatusWithMethod(orderID uuid.UUID, paymentStatus string, transactionID string, paymentMethod string, paymentProvider string) error
 	UpdateStatus(orderID uuid.UUID, newStatus string, notes string, changedBy *uuid.UUID) error
 	GetByID(id uuid.UUID) (*models.Order, error)
 	Update(order *models.Order) error
@@ -135,8 +144,9 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 		newOrderStatus = "" // Cleanup handles expired unpaid orders and restores stock.
 	}
 
-	// Update payment status
-	if err := s.orderRepo.UpdatePaymentStatus(order.ID, paymentStatus, webhook.TransactionID); err != nil {
+	// Update payment status and store selected Midtrans payment method after Snap choice.
+	paymentMethod := formatMidtransPaymentMethod(webhook)
+	if err := s.orderRepo.UpdatePaymentStatusWithMethod(order.ID, paymentStatus, webhook.TransactionID, paymentMethod, "midtrans"); err != nil {
 		return nil, fmt.Errorf("failed to update payment status: %w", err)
 	}
 
@@ -180,6 +190,47 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 		OrderID:       webhook.OrderID,
 		PaymentStatus: paymentStatus,
 	}, nil
+}
+
+func formatMidtransPaymentMethod(webhook *PaymentWebhookRequest) string {
+	paymentType := strings.TrimSpace(strings.ToLower(webhook.PaymentType))
+
+	switch paymentType {
+	case "bank_transfer":
+		if len(webhook.VANumbers) > 0 && strings.TrimSpace(webhook.VANumbers[0].Bank) != "" {
+			return "VA " + strings.ToUpper(strings.TrimSpace(webhook.VANumbers[0].Bank))
+		}
+		if strings.TrimSpace(webhook.PermataVANumber) != "" {
+			return "VA PERMATA"
+		}
+		return "VA Bank Transfer"
+	case "qris":
+		issuer := strings.TrimSpace(webhook.Issuer)
+		if issuer == "" {
+			issuer = strings.TrimSpace(webhook.Acquirer)
+		}
+		if issuer != "" {
+			return "QRIS " + strings.ToUpper(issuer)
+		}
+		return "QRIS"
+	case "shopeepay":
+		return "ShopeePay"
+	case "gopay":
+		return "GoPay"
+	case "credit_card":
+		return "Credit Card"
+	case "cstore":
+		store := strings.TrimSpace(webhook.Store)
+		if store != "" {
+			return strings.ToUpper(store)
+		}
+		return "Convenience Store"
+	}
+
+	if paymentType == "" {
+		return ""
+	}
+	return strings.ToUpper(strings.ReplaceAll(paymentType, "_", " "))
 }
 
 func buildWebhookEventID(webhook *PaymentWebhookRequest) string {

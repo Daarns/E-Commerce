@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { validateEmail } from '@/utils/auth.validation';
 import { ForgotPasswordFormState, ForgotPasswordActions } from '@/types/auth';
 
+const RESET_LINK_RESEND_COOLDOWN_SECONDS = 60;
+
 export const useForgotPasswordForm = (): ForgotPasswordFormState & ForgotPasswordActions => {
   const [state, setState] = useState<ForgotPasswordFormState>({
     email: '',
@@ -30,7 +32,7 @@ export const useForgotPasswordForm = (): ForgotPasswordFormState & ForgotPasswor
   const handleRateLimitOrError = (errMsg: string): void => {
     if (errMsg.startsWith('reset_rate_limit:')) {
       const match = errMsg.match(/\d+/);
-      const remaining = match ? parseInt(match[0]) : 300;
+      const remaining = match ? parseInt(match[0], 10) : RESET_LINK_RESEND_COOLDOWN_SECONDS;
       setState(prev => ({
         ...prev,
         resendCountdown: remaining,
@@ -60,7 +62,7 @@ export const useForgotPasswordForm = (): ForgotPasswordFormState & ForgotPasswor
         ...prev,
         submitted: true,
         canResend: false,
-        resendCountdown: 300,
+        resendCountdown: RESET_LINK_RESEND_COOLDOWN_SECONDS,
       }));
       toast.success('Reset link sent!', {
         description: 'Check your inbox for a link to reset your password.',
@@ -82,7 +84,7 @@ export const useForgotPasswordForm = (): ForgotPasswordFormState & ForgotPasswor
       setState(prev => ({
         ...prev,
         canResend: false,
-        resendCountdown: 300,
+        resendCountdown: RESET_LINK_RESEND_COOLDOWN_SECONDS,
       }));
       toast.success('Reset link resent!', {
         description: 'Check your inbox. The new link expires in 1 hour.',

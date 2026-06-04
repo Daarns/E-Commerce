@@ -20,12 +20,6 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Add session ID for guest cart
-    const sessionId = Cookies.get('session_id');
-    if (sessionId && config.headers) {
-      config.headers['X-Session-ID'] = sessionId;
-    }
-    
     return config;
   },
   (error) => Promise.reject(error)
@@ -74,13 +68,3 @@ api.interceptors.response.use(
 );
 
 export default api;
-
-// Helper to generate session ID for guest users
-export function getOrCreateSessionId(): string {
-  let sessionId = Cookies.get('session_id');
-  if (!sessionId) {
-    sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-    Cookies.set('session_id', sessionId, { expires: 30 }); // 30 days
-  }
-  return sessionId;
-}

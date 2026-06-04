@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -55,6 +56,7 @@ func main() {
 			}
 		}
 	}
+	configureAppTimezone()
 
 	// Initialize Database
 	db, err := initDB()
@@ -135,7 +137,7 @@ func main() {
 		Password: os.Getenv("SMTP_PASSWORD"),
 		FromAddr: os.Getenv("EMAIL_FROM"),
 	}
-	
+
 	// Use defaults for Gmail if not configured
 	if emailConfig.Host == "" {
 		emailConfig.Host = "smtp.gmail.com"
@@ -149,7 +151,7 @@ func main() {
 	if emailConfig.FromAddr == "" {
 		emailConfig.FromAddr = emailConfig.Username
 	}
-	
+
 	emailSvc, err := emailService.NewEmailService(emailConfig)
 	if err != nil {
 		log.Printf("Warning: failed to initialize email service: %v\n", err)
@@ -172,6 +174,7 @@ func main() {
 	var snapSvc *paymentService.SnapService
 	var webhookSvc *paymentService.PaymentWebhookService
 	var syncSvc *paymentService.PaymentSyncService
+	var refundSvc *paymentService.RefundService
 	if paymentConfig != nil {
 		if err := paymentConfig.Validate(); err != nil {
 			log.Printf("Warning: payment config invalid: %v", err)
@@ -180,19 +183,20 @@ func main() {
 			webhookSvc = paymentService.NewPaymentWebhookService(orderRepo, promoCodeRepo, paymentConfig.ServerKey)
 			webhookSvc.SetWebhookEventRepository(webhookEventRepo)
 			syncSvc = paymentService.NewPaymentSyncService(paymentConfig, orderRepo, promoCodeRepo)
+			refundSvc = paymentService.NewRefundService(paymentConfig)
 			log.Printf("✅ Midtrans payment gateway initialized (sandbox=%v)", paymentConfig.IsSandbox())
 		}
 	}
 
 	// Initialize Services
 	authSvc := authService.NewAuthService(userRepo, emailQueueRepo, jwtManager, emailSvc)
-	
+
 	// Get underlying SQL DB from GORM DB for DashboardService
 	sqlDB, err := db.DB()
 	if err != nil {
 		log.Fatalf("Failed to get SQL database from GORM: %v", err)
 	}
-	
+
 	dashboardSvc := adminService.NewDashboardService(nil, nil, nil, sqlDB)
 	productSvc := productService.NewProductService(productRepo, categoryRepo)
 	productSvc.SetDB(db)
@@ -200,7 +204,7 @@ func main() {
 	categorySvc := productService.NewCategoryService(categoryRepo, productRepo)
 	cartSvc := cartService.NewCartService(cartRepo, addressRepo, productRepo)
 	addressSvc := cartService.NewAddressService(addressRepo)
-	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo, shippingRepo, snapSvc)
+	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo, shippingRepo, snapSvc, refundSvc)
 	newsletterSvc := newsletterService.NewNewsletterService(newsletterRepo)
 	searchSvc := searchService.NewSearchService(searchRepo, productRepo, categoryRepo)
 	chatSvc := chatService.NewChatService(chatRepo, userRepo)
@@ -216,7 +220,7 @@ func main() {
 	categoryH := productHandler.NewCategoryHandler(categorySvc, productSvc)
 	cartH := cartHandler.NewCartHandler(cartSvc)
 	addressH := cartHandler.NewAddressHandler(addressSvc)
-	orderH := orderHandler.NewOrderHandler(orderSvc, syncSvc)
+	orderH := orderHandler.NewOrderHandler(orderSvc, syncSvc, imageSvc)
 	shippingH := orderHandler.NewShippingHandler(shippingRepo)
 	searchH := handlers.NewSearchHandler(searchSvc)
 	chatH := handlers.NewChatHandler(chatSvc)
@@ -386,9 +390,15 @@ func initRedis() *redis.Client {
 }
 
 func corsMiddleware() gin.HandlerFunc {
+	allowedOrigins := parseAllowedOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))
+
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		origin := c.GetHeader("Origin")
+		if allowedOrigins[origin] {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			c.Writer.Header().Set("Vary", "Origin")
+		}
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Session-ID")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
@@ -399,6 +409,43 @@ func corsMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func configureAppTimezone() {
+	timezone := strings.TrimSpace(os.Getenv("APP_TIMEZONE"))
+	if timezone == "" {
+		timezone = "Asia/Jakarta"
+	}
+
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		log.Fatalf("Invalid APP_TIMEZONE %q: %v", timezone, err)
+	}
+
+	time.Local = location
+	if err := os.Setenv("TZ", timezone); err != nil {
+		log.Fatalf("Failed to set TZ: %v", err)
+	}
+	if err := os.Setenv("PGTZ", timezone); err != nil {
+		log.Fatalf("Failed to set PGTZ: %v", err)
+	}
+	log.Printf("✅ Application timezone set to %s", timezone)
+}
+
+func parseAllowedOrigins(raw string) map[string]bool {
+	allowed := map[string]bool{
+		"http://localhost:3000": true,
+		"http://localhost:3001": true,
+	}
+
+	for _, origin := range strings.Split(raw, ",") {
+		origin = strings.TrimSpace(origin)
+		if origin != "" {
+			allowed[origin] = true
+		}
+	}
+
+	return allowed
 }
 
 // SecurityHeadersMiddleware adds standard security headers to every response
@@ -413,4 +460,3 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-

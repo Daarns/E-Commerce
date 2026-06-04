@@ -38,7 +38,7 @@ export default function AnalyticsPage() {
         {
           label: 'Total Pesanan',
           value: orders.total_orders.toLocaleString('id-ID'),
-          sub: `${orders.pending_orders} pending · ${orders.delivered_orders} terkirim`,
+          sub: `${orders.pending_orders} pending · ${orders.completed_orders} selesai · ${orders.refund_requested_orders} refund`,
           icon: ShoppingCart,
           accent: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
         },

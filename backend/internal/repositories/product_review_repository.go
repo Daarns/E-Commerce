@@ -100,10 +100,10 @@ func (r *ProductReviewRepository) GetUserOrderForProduct(userID, productID uuid.
 	var order models.Order
 	err := r.db.
 		Joins("JOIN order_items ON orders.id = order_items.order_id").
-		Where("orders.user_id = ? AND order_items.product_id = ? AND orders.status = ?", 
-			userID, productID, "delivered").
+		Where("orders.user_id = ? AND order_items.product_id = ? AND orders.order_status = ?",
+			userID, productID, models.OrderStatusCompleted).
 		First(&order).Error
-	
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil // No completed order

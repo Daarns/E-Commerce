@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { AdminOrder } from '@/services/admin';
 import type { OrderStatus } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { StatusUpdateDialog } from '@/components/admin/order/status-update-dialog';
-import { RefundForm } from '@/components/admin/order/refund-form';
 
 interface OrderDetailActionsProps {
   order: AdminOrder;
@@ -34,12 +35,12 @@ function getFulfillmentAction(status: OrderStatus): FulfillmentAction | null {
 
 export function OrderDetailActions({ order, onOrderUpdated }: OrderDetailActionsProps) {
   const [fulfillmentDialogOpen, setFulfillmentDialogOpen] = useState(false);
-  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
 
   const currentStatus = order.status || order.order_status;
   const fulfillmentAction = getFulfillmentAction(currentStatus);
   const isPaid = order.payment_status === 'paid';
-  const canRefund = currentStatus === 'delivered' && isPaid;
+  const canRefund = currentStatus === 'refund_requested' && isPaid;
+  const refundImages = order.refund_images ?? [];
 
   return (
     <>
@@ -66,13 +67,38 @@ export function OrderDetailActions({ order, onOrderUpdated }: OrderDetailActions
             </p>
           )}
           {canRefund && (
-            <Button
-              onClick={() => setRefundDialogOpen(true)}
-              variant="destructive"
-              className="w-full"
-            >
-              Process Refund
-            </Button>
+            <div className="space-y-3">
+              {refundImages.length > 0 && (
+                <div className="rounded-md border bg-gray-50 p-3">
+                  <p className="mb-2 text-sm font-medium text-gray-700">Bukti refund</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {refundImages.map((image) => (
+                      <a
+                        key={image.id}
+                        href={image.image_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block overflow-hidden rounded border bg-white"
+                      >
+                        <Image
+                          src={image.image_url}
+                          alt="Bukti refund"
+                          width={120}
+                          height={80}
+                          unoptimized
+                          className="h-20 w-full object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <Link href={`/admin/orders/refunds/${order.id}`}>
+                <Button variant="destructive" className="w-full">
+                  Review Refund Request
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
       </Card>
@@ -89,13 +115,6 @@ export function OrderDetailActions({ order, onOrderUpdated }: OrderDetailActions
           onStatusUpdated={onOrderUpdated}
         />
       )}
-
-      <RefundForm
-        order={order}
-        open={refundDialogOpen}
-        onOpenChange={setRefundDialogOpen}
-        onRefundProcessed={onOrderUpdated}
-      />
     </>
   );
 }

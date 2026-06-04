@@ -42,6 +42,24 @@ export function OrderStatusChart({ orders }: OrderStatusChartProps) {
       pct: orders.total_orders ? (orders.delivered_orders / orders.total_orders) * 100 : 0,
     },
     {
+      label: 'Selesai',
+      count: orders.completed_orders,
+      color: 'bg-teal-500',
+      pct: orders.total_orders ? (orders.completed_orders / orders.total_orders) * 100 : 0,
+    },
+    {
+      label: 'Refund Request',
+      count: orders.refund_requested_orders,
+      color: 'bg-orange-500',
+      pct: orders.total_orders ? (orders.refund_requested_orders / orders.total_orders) * 100 : 0,
+    },
+    {
+      label: 'Refunded',
+      count: orders.refunded_orders,
+      color: 'bg-slate-500',
+      pct: orders.total_orders ? (orders.refunded_orders / orders.total_orders) * 100 : 0,
+    },
+    {
       label: 'Dibatalkan',
       count: orders.cancelled_orders,
       color: 'bg-rose-500',

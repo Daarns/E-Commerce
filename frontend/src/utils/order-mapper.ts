@@ -34,10 +34,13 @@ export function normalizePrice(value: string | number): number {
  * Normalizes order item prices
  */
 export function normalizeOrderItem(item: OrderItem): OrderItem {
+  const subtotal = normalizePrice(item.subtotal);
+
   return {
     ...item,
     unit_price: normalizePrice(item.unit_price),
-    subtotal: normalizePrice(item.subtotal),
+    subtotal,
+    total_price: normalizePrice(item.total_price ?? subtotal),
   };
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import Link from 'next/link';
 import { AnimatePresence } from 'framer-motion';
 import { Search } from 'lucide-react';
@@ -13,21 +13,21 @@ import { useOrderActions } from '@/hooks/useOrderActions';
 import { useMidtransPaymentModal } from '@/hooks/useMidtransPaymentModal';
 import {
   OrderCard,
-  OrderDetailModal,
   OrdersEmpty,
   OrdersSkeleton,
 } from '@/components/orders';
 import { SHOP_ORDER_STATUS_TABS } from '@/constants/order.constants';
-import { Order } from '@/types';
+import type { Order } from '@/types';
 
 function OrdersPageContent() {
   const { isAuthenticated, user } = useAuthStore();
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   React.useEffect(() => {
     const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
     if (searchParams.get('success') === 'true') {
       toast.success('Order placed successfully!');
+    } else if (searchParams.get('payment') === 'finish') {
+      toast.info('Pembayaran diterima oleh Midtrans. Status order akan diperbarui setelah konfirmasi selesai.');
     }
   }, []);
 
@@ -41,14 +41,19 @@ function OrdersPageContent() {
     if (result.snapToken) {
       const success = payWithMidtrans(result.snapToken, {
         onSuccess: () => {
-          toast.success('Pembayaran berhasil!');
-          setSelectedOrder(null);
-          ordersList.setOrders([]);
-          ordersList.setCurrentPage(1);
+          void (async (): Promise<void> => {
+            const newOrders = await orderActions.syncPayment(order, ordersList.currentPage);
+            if (newOrders.length > 0) {
+              ordersList.setOrders(newOrders);
+            } else {
+              ordersList.setOrders([]);
+              ordersList.setCurrentPage(1);
+            }
+            toast.success('Pembayaran berhasil!');
+          })();
         },
         onPending: () => {
           toast.info('Menunggu konfirmasi pembayaran...');
-          setSelectedOrder(null);
         },
         onError: () => toast.error('Pembayaran gagal. Silakan coba lagi.'),
         onClose: () => toast.info('Popup pembayaran ditutup. Anda masih bisa melanjutkan pembayaran dari halaman order.'),
@@ -65,7 +70,6 @@ function OrdersPageContent() {
     const newOrders = await orderActions.syncPayment(order, ordersList.currentPage);
     if (newOrders.length > 0) {
       ordersList.setOrders(newOrders);
-      setSelectedOrder(null);
     }
   };
 
@@ -75,7 +79,6 @@ function OrdersPageContent() {
       ordersList.setOrders((prev) =>
         prev.map((o) => (o.id === updated.id ? updated : o))
       );
-      if (selectedOrder?.id === orderId) setSelectedOrder(updated);
     }
   };
 
@@ -152,7 +155,6 @@ function OrdersPageContent() {
                   isPayingOrder={orderActions.isPayingOrder === order.id}
                   isSyncingOrder={orderActions.isSyncingOrder === order.id}
                   isCancelling={orderActions.isCancelling === order.id}
-                  onViewDetails={setSelectedOrder}
                   onPay={handlePayOrder}
                   onSync={handleSyncPayment}
                   onCancel={handleCancelOrder}
@@ -190,19 +192,6 @@ function OrdersPageContent() {
             )}
           </div>
         )}
-
-        {/* Order Detail Modal */}
-        <OrderDetailModal
-          order={selectedOrder}
-          isOpen={!!selectedOrder}
-          isPayingOrder={orderActions.isPayingOrder === selectedOrder?.id}
-          isSyncingOrder={orderActions.isSyncingOrder === selectedOrder?.id}
-          isCancelling={orderActions.isCancelling === selectedOrder?.id}
-          onClose={() => setSelectedOrder(null)}
-          onPay={handlePayOrder}
-          onSync={handleSyncPayment}
-          onCancel={handleCancelOrder}
-        />
       </div>
     </div>
   );

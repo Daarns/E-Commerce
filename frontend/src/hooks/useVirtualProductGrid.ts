@@ -1,7 +1,7 @@
 import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const VIRTUAL_GRID_OVERSCAN_ROWS = 3;
-const DEFAULT_ROW_HEIGHT = 360;
+const DEFAULT_ROW_HEIGHT = 390;
 
 type ProductGridColumnCount = 2 | 3 | 4 | 5;
 
@@ -30,9 +30,9 @@ function getResponsiveColumnCount(columns: ProductGridColumnCount, width: number
 }
 
 function getEstimatedRowHeight(width: number): number {
-  if (width >= 1024) return 370;
-  if (width >= 768) return 350;
-  return 330;
+  if (width >= 1024) return 400;
+  if (width >= 768) return 380;
+  return 360;
 }
 
 export function useVirtualProductGrid({

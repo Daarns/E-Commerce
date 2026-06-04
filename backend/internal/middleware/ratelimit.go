@@ -136,3 +136,9 @@ func PerUserRateLimit(redisClient *redis.Client, maxRequests int, window time.Du
 func ImageUploadRateLimit(redisClient *redis.Client) gin.HandlerFunc {
 	return PerUserRateLimit(redisClient, 10, time.Minute, "rl:image-upload")
 }
+
+// RefundEvidenceUploadRateLimit is stricter because refund evidence upload is a
+// low-frequency customer action with potentially large request bodies.
+func RefundEvidenceUploadRateLimit(redisClient *redis.Client) gin.HandlerFunc {
+	return PerUserRateLimit(redisClient, 3, time.Minute, "rl:refund-evidence-upload")
+}

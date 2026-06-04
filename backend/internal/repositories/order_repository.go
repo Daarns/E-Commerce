@@ -25,6 +25,16 @@ func preloadOrderItems(query *gorm.DB) *gorm.DB {
 		Preload("Items.Combination.Options.VariantType")
 }
 
+func preloadOrderRelations(query *gorm.DB) *gorm.DB {
+	return preloadOrderItems(query).
+		Preload("StatusHistory", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at ASC")
+		}).
+		Preload("RefundImages", func(db *gorm.DB) *gorm.DB {
+			return db.Order("refund_attempt ASC, position ASC, created_at ASC")
+		})
+}
+
 // NewOrderRepository creates a new order repository
 func NewOrderRepository(db *gorm.DB) *OrderRepository {
 	return &OrderRepository{db: db}
@@ -109,6 +119,9 @@ func (r *OrderRepository) GetByIdempotencyKeyTx(tx *gorm.DB, idempotencyKey stri
 		Preload("StatusHistory", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at ASC")
 		}).
+		Preload("RefundImages", func(db *gorm.DB) *gorm.DB {
+			return db.Order("refund_attempt ASC, position ASC, created_at ASC")
+		}).
 		Preload("PromoCode").
 		First(&order, "idempotency_key = ?", idempotencyKey).Error
 	if err != nil {
@@ -129,6 +142,9 @@ func (r *OrderRepository) GetByIDTx(tx *gorm.DB, id uuid.UUID) (*models.Order, e
 		Preload("StatusHistory", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at ASC")
 		}).
+		Preload("RefundImages", func(db *gorm.DB) *gorm.DB {
+			return db.Order("refund_attempt ASC, position ASC, created_at ASC")
+		}).
 		Preload("PromoCode").
 		First(&order, "id = ?", id).Error
 
@@ -147,6 +163,9 @@ func (r *OrderRepository) GetByOrderNumber(orderNumber string) (*models.Order, e
 	err := preloadOrderItems(r.db).
 		Preload("StatusHistory", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at ASC")
+		}).
+		Preload("RefundImages", func(db *gorm.DB) *gorm.DB {
+			return db.Order("refund_attempt ASC, position ASC, created_at ASC")
 		}).
 		Preload("PromoCode").
 		First(&order, "order_number = ?", orderNumber).Error
@@ -235,7 +254,7 @@ func (r *OrderRepository) List(filter OrderFilter) (*OrderListResult, error) {
 
 	// Execute query
 	var orders []models.Order
-	err := preloadOrderItems(query).Find(&orders).Error
+	err := preloadOrderRelations(query).Find(&orders).Error
 	if err != nil {
 		return nil, err
 	}
@@ -272,49 +291,87 @@ func (r *OrderRepository) UpdateSnapToken(orderID uuid.UUID, token string, creat
 		}).Error
 }
 
+// UpdatePaymentStatusWithMethod updates payment status and stores the selected gateway method.
+func (r *OrderRepository) UpdatePaymentStatusWithMethod(
+	orderID uuid.UUID,
+	paymentStatus string,
+	transactionID string,
+	paymentMethod string,
+	paymentProvider string,
+) error {
+	updates := map[string]interface{}{
+		"payment_status": paymentStatus,
+	}
+
+	if transactionID != "" {
+		updates["payment_transaction_id"] = transactionID
+	}
+	if paymentMethod != "" {
+		updates["payment_method"] = paymentMethod
+	}
+	if paymentProvider != "" {
+		updates["payment_provider"] = paymentProvider
+	}
+
+	if paymentStatus == models.PaymentStatusPaid {
+		updates["paid_at"] = time.Now()
+		updates["payment_expires_at"] = nil
+	}
+
+	if paymentStatus == models.PaymentStatusExpired || paymentStatus == models.PaymentStatusFailed {
+		updates["snap_token"] = ""
+		updates["snap_token_created_at"] = nil
+	}
+
+	return r.db.Model(&models.Order{}).
+		Where("id = ?", orderID).
+		Updates(updates).Error
+}
+
 // UpdateStatus updates order status with history
 func (r *OrderRepository) UpdateStatus(orderID uuid.UUID, newStatus string, notes string, changedBy *uuid.UUID) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Get current status
-		var order models.Order
-		if err := tx.Select("order_status").First(&order, "id = ?", orderID).Error; err != nil {
-			return err
-		}
-
-		// Update order status
-		updates := map[string]interface{}{
-			"order_status": newStatus,
-		}
-
-		// Set timestamps based on status
-		now := time.Now()
-		switch newStatus {
-		case models.OrderStatusShipped:
-			updates["shipped_at"] = now
-		case models.OrderStatusDelivered:
-			updates["delivered_at"] = now
-		case models.OrderStatusCancelled:
-			updates["cancelled_at"] = now
-			if notes != "" {
-				updates["cancellation_reason"] = notes
-			}
-		}
-
-		if err := tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(updates).Error; err != nil {
-			return err
-		}
-
-		// Add status history
-		history := &models.OrderStatusHistory{
-			OrderID:    orderID,
-			FromStatus: order.OrderStatus,
-			ToStatus:   newStatus,
-			Notes:      notes,
-			ChangedBy:  changedBy,
-			ChangedAt:  now,
-		}
-		return tx.Create(history).Error
+		return r.UpdateStatusTx(tx, orderID, newStatus, notes, changedBy)
 	})
+}
+
+// UpdateStatusTx updates order status with history using an existing transaction.
+func (r *OrderRepository) UpdateStatusTx(tx *gorm.DB, orderID uuid.UUID, newStatus string, notes string, changedBy *uuid.UUID) error {
+	var order models.Order
+	if err := tx.Select("order_status").First(&order, "id = ?", orderID).Error; err != nil {
+		return err
+	}
+
+	updates := map[string]interface{}{
+		"order_status": newStatus,
+	}
+
+	now := time.Now()
+	switch newStatus {
+	case models.OrderStatusShipped:
+		updates["shipped_at"] = now
+	case models.OrderStatusDelivered:
+		updates["delivered_at"] = now
+	case models.OrderStatusCancelled:
+		updates["cancelled_at"] = now
+		if notes != "" {
+			updates["cancellation_reason"] = notes
+		}
+	}
+
+	if err := tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(updates).Error; err != nil {
+		return err
+	}
+
+	history := &models.OrderStatusHistory{
+		OrderID:    orderID,
+		FromStatus: order.OrderStatus,
+		ToStatus:   newStatus,
+		Notes:      notes,
+		ChangedBy:  changedBy,
+		ChangedAt:  now,
+	}
+	return tx.Create(history).Error
 }
 
 // UpdatePaymentStatus updates payment status
@@ -351,13 +408,16 @@ func (r *OrderRepository) GetUserOrderCount(userID uuid.UUID) (int64, error) {
 
 // GetOrderSummary gets order statistics
 type OrderSummary struct {
-	TotalOrders      int64   `json:"total_orders"`
-	PendingOrders    int64   `json:"pending_orders"`
-	ProcessingOrders int64   `json:"processing_orders"`
-	ShippedOrders    int64   `json:"shipped_orders"`
-	DeliveredOrders  int64   `json:"delivered_orders"`
-	CancelledOrders  int64   `json:"cancelled_orders"`
-	TotalRevenue     float64 `json:"total_revenue"`
+	TotalOrders           int64   `json:"total_orders"`
+	PendingOrders         int64   `json:"pending_orders"`
+	ProcessingOrders      int64   `json:"processing_orders"`
+	ShippedOrders         int64   `json:"shipped_orders"`
+	DeliveredOrders       int64   `json:"delivered_orders"`
+	CompletedOrders       int64   `json:"completed_orders"`
+	RefundRequestedOrders int64   `json:"refund_requested_orders"`
+	RefundedOrders        int64   `json:"refunded_orders"`
+	CancelledOrders       int64   `json:"cancelled_orders"`
+	TotalRevenue          float64 `json:"total_revenue"`
 }
 
 func (r *OrderRepository) GetOrderSummary(userID *uuid.UUID) (*OrderSummary, error) {
@@ -403,6 +463,12 @@ func (r *OrderRepository) GetOrderSummary(userID *uuid.UUID) (*OrderSummary, err
 			summary.ShippedOrders += sc.Count
 		case models.OrderStatusDelivered:
 			summary.DeliveredOrders += sc.Count
+		case models.OrderStatusCompleted:
+			summary.CompletedOrders += sc.Count
+		case models.OrderStatusRefundRequested:
+			summary.RefundRequestedOrders += sc.Count
+		case models.OrderStatusRefunded:
+			summary.RefundedOrders += sc.Count
 		case models.OrderStatusCancelled:
 			summary.CancelledOrders += sc.Count
 		}
@@ -413,7 +479,7 @@ func (r *OrderRepository) GetOrderSummary(userID *uuid.UUID) (*OrderSummary, err
 		Total float64
 	}
 	revenueQuery := r.db.Model(&models.Order{}).
-		Where("payment_status = ?", models.PaymentStatusPaid)
+		Where("payment_status = ? AND order_status <> ?", models.PaymentStatusPaid, models.OrderStatusRefunded)
 	if userID != nil {
 		revenueQuery = revenueQuery.Where("user_id = ?", *userID)
 	}

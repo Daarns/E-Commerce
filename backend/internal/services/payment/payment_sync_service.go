@@ -114,7 +114,8 @@ func (s *PaymentSyncService) SyncOrderPayment(orderID uuid.UUID, userID uuid.UUI
 	}
 
 	if paymentStatus != order.PaymentStatus {
-		if err := s.orderRepo.UpdatePaymentStatus(order.ID, paymentStatus, ""); err != nil {
+		paymentMethod := formatMidtransStatusPaymentMethod(result)
+		if err := s.orderRepo.UpdatePaymentStatusWithMethod(order.ID, paymentStatus, "", paymentMethod, "midtrans"); err != nil {
 			return nil, fmt.Errorf("failed to update payment status: %w", err)
 		}
 		if newOrderStatus != "" {
@@ -156,7 +157,7 @@ func (s *PaymentSyncService) SyncOrderPaymentByMidtransID(orderID uuid.UUID, use
 		return nil, fmt.Errorf("forbidden")
 	}
 
-	_, transactionStatus, paymentStatus := s.checkMidtransStatus(midtransOrderID)
+	result, transactionStatus, paymentStatus := s.checkMidtransStatus(midtransOrderID)
 	if paymentStatus == "" {
 		return nil, fmt.Errorf("could not retrieve payment status from Midtrans for %s", midtransOrderID)
 	}
@@ -178,7 +179,8 @@ func (s *PaymentSyncService) SyncOrderPaymentByMidtransID(orderID uuid.UUID, use
 	}
 
 	if paymentStatus != order.PaymentStatus {
-		if err := s.orderRepo.UpdatePaymentStatus(order.ID, paymentStatus, ""); err != nil {
+		paymentMethod := formatMidtransStatusPaymentMethod(result)
+		if err := s.orderRepo.UpdatePaymentStatusWithMethod(order.ID, paymentStatus, "", paymentMethod, "midtrans"); err != nil {
 			return nil, fmt.Errorf("failed to update payment status: %w", err)
 		}
 		if newOrderStatus != "" {
@@ -210,7 +212,7 @@ func (s *PaymentSyncService) SyncOrderPaymentByMidtransID(orderID uuid.UUID, use
 
 // checkMidtransStatus queries Midtrans Core API for transaction status.
 // Returns (rawResponse, transactionStatus, mappedPaymentStatus).
-func (s *PaymentSyncService) checkMidtransStatus(midtransOrderID string) (interface{}, string, string) {
+func (s *PaymentSyncService) checkMidtransStatus(midtransOrderID string) (*coreapi.TransactionStatusResponse, string, string) {
 	resp, err := s.coreClient.CheckTransaction(midtransOrderID)
 	if err != nil {
 		return nil, "", ""
@@ -222,6 +224,50 @@ func (s *PaymentSyncService) checkMidtransStatus(midtransOrderID string) (interf
 	txStatus := strings.ToLower(resp.TransactionStatus)
 	paymentStatus := syncMapTxStatus(txStatus)
 	return resp, txStatus, paymentStatus
+}
+
+func formatMidtransStatusPaymentMethod(resp *coreapi.TransactionStatusResponse) string {
+	if resp == nil {
+		return ""
+	}
+
+	paymentType := strings.TrimSpace(strings.ToLower(resp.PaymentType))
+	switch paymentType {
+	case "bank_transfer":
+		if len(resp.VaNumbers) > 0 && strings.TrimSpace(resp.VaNumbers[0].Bank) != "" {
+			return "VA " + strings.ToUpper(strings.TrimSpace(resp.VaNumbers[0].Bank))
+		}
+		if strings.TrimSpace(resp.PermataVaNumber) != "" {
+			return "VA PERMATA"
+		}
+		return "VA Bank Transfer"
+	case "qris":
+		issuer := strings.TrimSpace(resp.Issuer)
+		if issuer == "" {
+			issuer = strings.TrimSpace(resp.Acquirer)
+		}
+		if issuer != "" {
+			return "QRIS " + strings.ToUpper(issuer)
+		}
+		return "QRIS"
+	case "shopeepay":
+		return "ShopeePay"
+	case "gopay":
+		return "GoPay"
+	case "credit_card":
+		return "Credit Card"
+	case "cstore":
+		store := strings.TrimSpace(resp.Store)
+		if store != "" {
+			return strings.ToUpper(store)
+		}
+		return "Convenience Store"
+	}
+
+	if paymentType == "" {
+		return ""
+	}
+	return strings.ToUpper(strings.ReplaceAll(paymentType, "_", " "))
 }
 
 // syncMapTxStatus maps Midtrans transaction_status to our PaymentStatus constants.
