@@ -1,15 +1,17 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { LogOut, Bell, Settings } from 'lucide-react';
+import { LogOut, Bell, Settings, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { BurgerButton } from '@/components/admin/layout/sidebar';
 import { toast } from 'sonner';
+import { useAdminChatSummary } from '@/hooks/useAdminChatSummary';
 
 export function AdminHeader() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const { unreadAgentCount } = useAdminChatSummary();
 
   const handleLogout = async () => {
     try {
@@ -37,6 +39,21 @@ export function AdminHeader() {
 
         {/* Right: actions */}
         <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Chat CS"
+            className="relative h-8 w-8"
+            onClick={() => router.push('/admin/chat')}
+          >
+            <MessageSquare className="h-4 w-4" />
+            {unreadAgentCount > 0 && (
+              <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-blue-600 px-1 text-[10px] font-semibold leading-4 text-white">
+                {unreadAgentCount > 99 ? '99+' : unreadAgentCount}
+              </span>
+            )}
+          </Button>
+
           <Button variant="ghost" size="icon" title="Notifications" className="relative h-8 w-8">
             <Bell className="h-4 w-4" />
             <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-red-500 rounded-full" />

@@ -60,7 +60,12 @@ export function useOrderDetailActions(order: Order, onOrderUpdated?: (updatedOrd
   };
 
   const handleContactSupport = () => {
-    window.location.href = `mailto:support@ecommerce.com?subject=Order%20${order.order_number}`;
+    window.dispatchEvent(new CustomEvent('open-chat-support', {
+      detail: {
+        subject: `Bantuan order ${order.order_number}`,
+        message: `Halo CS, saya butuh bantuan untuk order ${order.order_number}.`,
+      },
+    }));
   };
 
   const handleViewInvoice = () => {

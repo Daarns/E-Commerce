@@ -142,3 +142,18 @@ func ImageUploadRateLimit(redisClient *redis.Client) gin.HandlerFunc {
 func RefundEvidenceUploadRateLimit(redisClient *redis.Client) gin.HandlerFunc {
 	return PerUserRateLimit(redisClient, 3, time.Minute, "rl:refund-evidence-upload")
 }
+
+// ChatConversationCreateRateLimit protects support inbox from conversation spam.
+func ChatConversationCreateRateLimit(redisClient *redis.Client) gin.HandlerFunc {
+	return PerUserRateLimit(redisClient, 5, time.Minute, "rl:chat-conversation-create")
+}
+
+// ChatSendMessageRateLimit limits message bursts while keeping normal support chat usable.
+func ChatSendMessageRateLimit(redisClient *redis.Client) gin.HandlerFunc {
+	return PerUserRateLimit(redisClient, 20, time.Minute, "rl:chat-send-message")
+}
+
+// ChatTypingRateLimit keeps typing indicators cheap and prevents socket/API noise.
+func ChatTypingRateLimit(redisClient *redis.Client) gin.HandlerFunc {
+	return PerUserRateLimit(redisClient, 30, time.Minute, "rl:chat-typing")
+}

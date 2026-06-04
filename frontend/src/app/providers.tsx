@@ -36,6 +36,8 @@ function RouteMemory() {
 function AuthInitializer({ children }: { children: React.ReactNode }) {
   const { checkAuth, isAuthenticated } = useAuthStore();
   const { fetchCart } = useCartStore();
+  const pathname = usePathname();
+  const user = useAuthStore((state) => state.user);
 
   // Step 1: Check auth on mount
   useEffect(() => {
@@ -53,7 +55,7 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
     <>
       <RouteMemory />
       {children}
-      <ChatWidget />
+      {!pathname?.startsWith('/admin') && user?.role !== 'admin' && <ChatWidget />}
     </>
   );
 }

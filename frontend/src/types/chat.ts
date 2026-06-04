@@ -1,14 +1,22 @@
-// Chat types and interfaces
+export interface ChatUser {
+  id: string;
+  email: string;
+  full_name: string;
+  avatar?: string;
+}
+
 export interface ChatMessage {
   id: string;
   conversation_id: string;
   sender_id: string;
-  sender_type: 'customer' | 'agent';
-  message_text: string;
+  sender?: ChatUser;
+  message: string;
+  message_type: 'text';
   created_at: string;
   is_read: boolean;
+  read_at?: string;
+  reaction_count?: number;
   reactions?: Array<{ emoji: string; user_ids: string[] }>;
-  attachments?: ChatAttachment[];
 }
 
 export interface ChatAttachment {
@@ -20,30 +28,47 @@ export interface ChatAttachment {
   file_size: number;
 }
 
+export type ConversationStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+export type ConversationCategory = 'general' | 'billing' | 'support' | 'product' | 'complaint';
+export type ConversationPriority = 'low' | 'normal' | 'high' | 'urgent';
+
 export interface Conversation {
   id: string;
   user_id: string;
+  user?: ChatUser;
   agent_id?: string;
-  status: 'open' | 'closed' | 'pending' | 'resolved';
-  subject?: string;
+  agent?: ChatUser;
+  status: ConversationStatus;
+  subject: string;
+  category: ConversationCategory;
+  priority: ConversationPriority;
   created_at: string;
   updated_at: string;
   last_message?: string;
   last_message_at?: string;
   unread_count: number;
+  unread_customer_count?: number;
+  unread_agent_count?: number;
   messages?: ChatMessage[];
-  tags?: string[];
 }
 
 export interface CreateConversationInput {
-  subject?: string;
-  initial_message: string;
-  tags?: string[];
+  subject: string;
+  message: string;
+  category?: ConversationCategory;
+  priority?: ConversationPriority;
 }
 
 export interface SendMessageInput {
-  message_text: string;
-  attachments?: File[];
+  message: string;
+}
+
+export interface ChatPaginationMeta {
+  page: number;
+  per_page?: number;
+  limit?: number;
+  total: number;
+  total_pages: number;
 }
 
 export interface AgentStatus {
@@ -64,4 +89,8 @@ export interface MessageReaction {
   message_id: string;
   emoji: string;
   user_id: string;
+}
+
+export interface ChatAdminSummary {
+  unread_agent_count: number;
 }

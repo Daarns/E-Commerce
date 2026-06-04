@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { chatService } from '@/services/chat';
-import { Conversation, ChatMessage, TypingIndicator, MessageReaction } from '@/types/chat';
+import { chatService, getChatErrorMessage } from '@/services/chat';
+import { Conversation, ChatMessage, TypingIndicator } from '@/types/chat';
+import { uniqueChatMessages } from '@/utils/chat.utils';
 import { toast } from 'sonner';
 
 interface ChatState {
+  ownerUserId: string | null;
   conversations: Conversation[];
   currentConversation: Conversation | null;
   messages: ChatMessage[];
@@ -15,9 +17,12 @@ interface ChatState {
   // Actions
   loadConversations: (page?: number) => Promise<void>;
   loadConversation: (conversationId: string) => Promise<void>;
+  refreshConversationMessages: (conversationId: string) => Promise<void>;
   createConversation: (subject: string, initialMessage: string) => Promise<Conversation | null>;
   sendMessage: (conversationId: string, text: string) => Promise<void>;
   addMessage: (message: ChatMessage) => void;
+  prependMessages: (messages: ChatMessage[]) => void;
+  upsertConversation: (conversation: Conversation) => void;
   setTypingUser: (data: TypingIndicator) => void;
   removeTypingUser: (userId: string) => void;
   addReaction: (messageId: string, emoji: string) => Promise<void>;
@@ -25,12 +30,14 @@ interface ChatState {
   markConversationAsRead: (conversationId: string) => Promise<void>;
   closeConversation: (conversationId: string) => Promise<void>;
   setCurrentConversation: (conversation: Conversation | null) => void;
+  resetForUser: (userId: string | null) => void;
   clearMessages: () => void;
 }
 
 export const useChatStore = create<ChatState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
+      ownerUserId: null,
       conversations: [],
       currentConversation: null,
       messages: [],
@@ -59,16 +66,16 @@ export const useChatStore = create<ChatState>()(
         try {
           const [conversation, messagesData] = await Promise.all([
             chatService.getConversation(conversationId),
-            chatService.getMessages(conversationId, 1, 50),
+            chatService.getMessages(conversationId, { limit: 50, offset: 0 }),
           ]);
 
           set({
             currentConversation: conversation,
-            messages: messagesData.messages,
+            messages: uniqueChatMessages([...messagesData.messages].reverse()),
           });
 
           // Mark as read
-          await chatService.markMessagesAsRead(conversationId);
+          await chatService.markConversationAsRead(conversationId);
         } catch (error) {
           console.error('Failed to load conversation:', error);
           toast.error('Failed to load conversation');
@@ -77,11 +84,27 @@ export const useChatStore = create<ChatState>()(
         }
       },
 
+      refreshConversationMessages: async (conversationId: string) => {
+        try {
+          const messagesData = await chatService.getMessages(conversationId, {
+            limit: 50,
+            offset: 0,
+          });
+
+          set({
+            messages: uniqueChatMessages([...messagesData.messages].reverse()),
+          });
+        } catch (error) {
+          console.error('Failed to refresh conversation messages:', error);
+        }
+      },
+
       createConversation: async (subject: string, initialMessage: string) => {
         try {
           const conversation = await chatService.createConversation({
             subject,
-            initial_message: initialMessage,
+            message: initialMessage,
+            category: 'support',
           });
 
           set((state) => ({
@@ -92,8 +115,7 @@ export const useChatStore = create<ChatState>()(
           toast.success('Conversation created');
           return conversation;
         } catch (error) {
-          console.error('Failed to create conversation:', error);
-          toast.error('Failed to create conversation');
+          toast.error(getChatErrorMessage(error));
           return null;
         }
       },
@@ -101,16 +123,14 @@ export const useChatStore = create<ChatState>()(
       sendMessage: async (conversationId: string, text: string) => {
         try {
           const message = await chatService.sendMessage(conversationId, {
-            message_text: text,
+            message: text,
           });
 
           set((state) => ({
-            messages: [...state.messages, message],
+            messages: uniqueChatMessages([...state.messages, message]),
           }));
         } catch (error) {
-          console.error('Failed to send message:', error);
-          toast.error('Failed to send message');
-          throw error;
+          toast.error(getChatErrorMessage(error));
         }
       },
 
@@ -118,10 +138,34 @@ export const useChatStore = create<ChatState>()(
         set((state) => {
           // Check if message already exists (avoid duplicates from socket events)
           if (state.messages.some((m) => m.id === message.id)) {
-            return state;
+            return {
+              messages: uniqueChatMessages(state.messages),
+            };
           }
           return {
-            messages: [...state.messages, message],
+            messages: uniqueChatMessages([...state.messages, message]),
+          };
+        });
+      },
+
+      prependMessages: (messages: ChatMessage[]) => {
+        set((state) => ({
+          messages: uniqueChatMessages([...messages, ...state.messages]),
+        }));
+      },
+
+      upsertConversation: (conversation: Conversation) => {
+        set((state) => {
+          const exists = state.conversations.some((entry) => entry.id === conversation.id);
+          return {
+            conversations: exists
+              ? state.conversations.map((entry) => (
+                entry.id === conversation.id ? { ...entry, ...conversation } : entry
+              ))
+              : [conversation, ...state.conversations],
+            currentConversation: state.currentConversation?.id === conversation.id
+              ? { ...state.currentConversation, ...conversation }
+              : state.currentConversation,
           };
         });
       },
@@ -206,7 +250,7 @@ export const useChatStore = create<ChatState>()(
 
       markConversationAsRead: async (conversationId: string) => {
         try {
-          await chatService.markMessagesAsRead(conversationId);
+          await chatService.markConversationAsRead(conversationId);
           set((state) => ({
             conversations: state.conversations.map((conv) =>
               conv.id === conversationId ? { ...conv, unread_count: 0 } : conv
@@ -238,6 +282,24 @@ export const useChatStore = create<ChatState>()(
         set({ currentConversation: conversation });
       },
 
+      resetForUser: (userId: string | null) => {
+        set((state) => {
+          if (state.ownerUserId === userId) {
+            return state;
+          }
+
+          return {
+            ownerUserId: userId,
+            conversations: [],
+            currentConversation: null,
+            messages: [],
+            typingUsers: [],
+            unreadCount: 0,
+            isLoading: false,
+          };
+        });
+      },
+
       clearMessages: () => {
         set({ messages: [] });
       },
@@ -245,6 +307,7 @@ export const useChatStore = create<ChatState>()(
     {
       name: 'chat-store',
       partialize: (state) => ({
+        ownerUserId: state.ownerUserId,
         conversations: state.conversations,
         currentConversation: state.currentConversation,
         messages: state.messages,

@@ -8,23 +8,26 @@ import (
 
 // Conversation represents a chat session between user and agent
 type Conversation struct {
-	ID             uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
-	UserID         uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
-	User           *User      `gorm:"constraint:OnDelete:CASCADE" json:"user,omitempty"`
-	AgentID        *uuid.UUID `gorm:"type:uuid;index" json:"agent_id,omitempty"`
-	Agent          *User      `gorm:"constraint:OnDelete:SET NULL" json:"agent,omitempty"`
-	Subject        string     `gorm:"type:text;not null" json:"subject"`
-	Status         string     `gorm:"type:varchar(20);default:'open'" json:"status"` // open, in_progress, resolved, closed
-	Priority       string     `gorm:"type:varchar(20);default:'normal'" json:"priority"` // low, normal, high, urgent
-	Category       string     `gorm:"type:varchar(50);default:'general'" json:"category"` // general, billing, support, product, complaint
-	AssignedAt     *time.Time `json:"assigned_at,omitempty"`
-	ResolvedAt     *time.Time `json:"resolved_at,omitempty"`
-	ClosedAt       *time.Time `json:"closed_at,omitempty"`
-	LastMessageAt  *time.Time `json:"last_message_at,omitempty"`
-	CreatedAt      time.Time  `gorm:"type:timestamp;default:now()" json:"created_at"`
-	UpdatedAt      time.Time  `gorm:"type:timestamp" json:"updated_at"`
-	Messages       []ChatMessage `gorm:"constraint:OnDelete:CASCADE" json:"messages,omitempty"`
-	Metadata       *ConversationMetadata `gorm:"constraint:OnDelete:CASCADE" json:"metadata,omitempty"`
+	ID                  uuid.UUID             `gorm:"type:uuid;primaryKey" json:"id"`
+	UserID              uuid.UUID             `gorm:"type:uuid;not null;index" json:"user_id"`
+	User                *User                 `gorm:"constraint:OnDelete:CASCADE" json:"user,omitempty"`
+	AgentID             *uuid.UUID            `gorm:"type:uuid;index" json:"agent_id,omitempty"`
+	Agent               *User                 `gorm:"constraint:OnDelete:SET NULL" json:"agent,omitempty"`
+	Subject             string                `gorm:"type:text;not null" json:"subject"`
+	Status              string                `gorm:"type:varchar(20);default:'open'" json:"status"`      // open, in_progress, resolved, closed
+	Priority            string                `gorm:"type:varchar(20);default:'normal'" json:"priority"`  // low, normal, high, urgent
+	Category            string                `gorm:"type:varchar(50);default:'general'" json:"category"` // general, billing, support, product, complaint
+	AssignedAt          *time.Time            `json:"assigned_at,omitempty"`
+	ResolvedAt          *time.Time            `json:"resolved_at,omitempty"`
+	ClosedAt            *time.Time            `json:"closed_at,omitempty"`
+	LastMessage         *string               `gorm:"type:text" json:"last_message,omitempty"`
+	LastMessageAt       *time.Time            `json:"last_message_at,omitempty"`
+	UnreadCustomerCount int                   `gorm:"default:0" json:"unread_customer_count"`
+	UnreadAgentCount    int                   `gorm:"default:0" json:"unread_agent_count"`
+	CreatedAt           time.Time             `gorm:"type:timestamp;default:now()" json:"created_at"`
+	UpdatedAt           time.Time             `gorm:"type:timestamp" json:"updated_at"`
+	Messages            []ChatMessage         `gorm:"constraint:OnDelete:CASCADE" json:"messages,omitempty"`
+	Metadata            *ConversationMetadata `gorm:"constraint:OnDelete:CASCADE" json:"metadata,omitempty"`
 }
 
 // TableName specifies the table name
@@ -34,21 +37,21 @@ func (Conversation) TableName() string {
 
 // ChatMessage represents a single message in a conversation
 type ChatMessage struct {
-	ID               uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
-	ConversationID   uuid.UUID      `gorm:"type:uuid;not null;index" json:"conversation_id"`
-	Conversation     *Conversation  `gorm:"constraint:OnDelete:CASCADE" json:"conversation,omitempty"`
-	SenderID         uuid.UUID      `gorm:"type:uuid;not null;index" json:"sender_id"`
-	Sender           *User          `gorm:"constraint:OnDelete:SET NULL" json:"sender,omitempty"`
-	Message          string         `gorm:"type:text;not null" json:"message"`
-	MessageType      string         `gorm:"type:varchar(20);default:'text'" json:"message_type"` // text, image, file, system
-	FileURL          *string        `gorm:"type:text" json:"file_url,omitempty"`
-	FileName         *string        `gorm:"type:text" json:"file_name,omitempty"`
-	IsRead           bool           `gorm:"default:false" json:"is_read"`
-	ReadAt           *time.Time     `json:"read_at,omitempty"`
-	CreatedAt        time.Time      `gorm:"type:timestamp;default:now()" json:"created_at"`
-	UpdatedAt        time.Time      `gorm:"type:timestamp" json:"updated_at"`
-	Attachments      []ChatAttachment `gorm:"constraint:OnDelete:CASCADE" json:"attachments,omitempty"`
-	Reactions        []MessageReaction `gorm:"constraint:OnDelete:CASCADE" json:"reactions,omitempty"`
+	ID             uuid.UUID         `gorm:"type:uuid;primaryKey" json:"id"`
+	ConversationID uuid.UUID         `gorm:"type:uuid;not null;index" json:"conversation_id"`
+	Conversation   *Conversation     `gorm:"constraint:OnDelete:CASCADE" json:"conversation,omitempty"`
+	SenderID       uuid.UUID         `gorm:"type:uuid;not null;index" json:"sender_id"`
+	Sender         *User             `gorm:"constraint:OnDelete:SET NULL" json:"sender,omitempty"`
+	Message        string            `gorm:"type:text;not null" json:"message"`
+	MessageType    string            `gorm:"type:varchar(20);default:'text'" json:"message_type"` // text, image, file, system
+	FileURL        *string           `gorm:"type:text" json:"file_url,omitempty"`
+	FileName       *string           `gorm:"type:text" json:"file_name,omitempty"`
+	IsRead         bool              `gorm:"default:false" json:"is_read"`
+	ReadAt         *time.Time        `json:"read_at,omitempty"`
+	CreatedAt      time.Time         `gorm:"type:timestamp;default:now()" json:"created_at"`
+	UpdatedAt      time.Time         `gorm:"type:timestamp" json:"updated_at"`
+	Attachments    []ChatAttachment  `gorm:"foreignKey:MessageID;constraint:OnDelete:CASCADE" json:"attachments,omitempty"`
+	Reactions      []MessageReaction `gorm:"foreignKey:MessageID;constraint:OnDelete:CASCADE" json:"reactions,omitempty"`
 }
 
 // TableName specifies the table name
@@ -58,12 +61,12 @@ func (ChatMessage) TableName() string {
 
 // ChatAttachment represents a file attachment to a message
 type ChatAttachment struct {
-	ID        uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
-	MessageID uuid.UUID  `gorm:"type:uuid;not null;index" json:"message_id"`
-	FileURL   string     `gorm:"type:text;not null" json:"file_url"`
-	FileName  string     `gorm:"type:text;not null" json:"file_name"`
-	FileSize  *int       `json:"file_size,omitempty"`
-	FileType  *string    `gorm:"type:varchar(50)" json:"file_type,omitempty"`
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	MessageID  uuid.UUID `gorm:"type:uuid;not null;index" json:"message_id"`
+	FileURL    string    `gorm:"type:text;not null" json:"file_url"`
+	FileName   string    `gorm:"type:text;not null" json:"file_name"`
+	FileSize   *int      `json:"file_size,omitempty"`
+	FileType   *string   `gorm:"type:varchar(50)" json:"file_type,omitempty"`
 	UploadedAt time.Time `gorm:"type:timestamp;default:now()" json:"uploaded_at"`
 }
 
@@ -131,18 +134,18 @@ func (MessageReaction) TableName() string {
 
 // ConversationMetadata represents analytics for a conversation
 type ConversationMetadata struct {
-	ID                   uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	ConversationID       uuid.UUID `gorm:"type:uuid;not null;uniqueIndex" json:"conversation_id"`
-	MessageCount         int       `gorm:"default:0" json:"message_count"`
-	UserMessageCount     int       `gorm:"default:0" json:"user_message_count"`
-	AgentMessageCount    int       `gorm:"default:0" json:"agent_message_count"`
-	AvgResponseTimeSeconds *int    `json:"avg_response_time_seconds,omitempty"`
-	SatisfactionScore    *int      `json:"satisfaction_score,omitempty"`
-	FeedbackText         *string   `gorm:"type:text" json:"feedback_text,omitempty"`
-	ResolvedByAgent      *bool     `json:"resolved_by_agent,omitempty"`
-	ResolutionCategory   *string   `gorm:"type:text" json:"resolution_category,omitempty"`
-	CreatedAt            time.Time `gorm:"type:timestamp;default:now()" json:"created_at"`
-	UpdatedAt            time.Time `gorm:"type:timestamp" json:"updated_at"`
+	ID                     uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	ConversationID         uuid.UUID `gorm:"type:uuid;not null;uniqueIndex" json:"conversation_id"`
+	MessageCount           int       `gorm:"default:0" json:"message_count"`
+	UserMessageCount       int       `gorm:"default:0" json:"user_message_count"`
+	AgentMessageCount      int       `gorm:"default:0" json:"agent_message_count"`
+	AvgResponseTimeSeconds *int      `json:"avg_response_time_seconds,omitempty"`
+	SatisfactionScore      *int      `json:"satisfaction_score,omitempty"`
+	FeedbackText           *string   `gorm:"type:text" json:"feedback_text,omitempty"`
+	ResolvedByAgent        *bool     `json:"resolved_by_agent,omitempty"`
+	ResolutionCategory     *string   `gorm:"type:text" json:"resolution_category,omitempty"`
+	CreatedAt              time.Time `gorm:"type:timestamp;default:now()" json:"created_at"`
+	UpdatedAt              time.Time `gorm:"type:timestamp" json:"updated_at"`
 }
 
 // TableName specifies the table name
@@ -154,24 +157,27 @@ func (ConversationMetadata) TableName() string {
 
 // ConversationResponse is the API response for a conversation
 type ConversationResponse struct {
-	ID            uuid.UUID                `json:"id"`
-	UserID        uuid.UUID                `json:"user_id"`
-	User          *UserResponse            `json:"user,omitempty"`
-	AgentID       *uuid.UUID               `json:"agent_id,omitempty"`
-	Agent         *UserResponse            `json:"agent,omitempty"`
-	Subject       string                   `json:"subject"`
-	Status        string                   `json:"status"`
-	Priority      string                   `json:"priority"`
-	Category      string                   `json:"category"`
-	AssignedAt    *time.Time               `json:"assigned_at,omitempty"`
-	ResolvedAt    *time.Time               `json:"resolved_at,omitempty"`
-	ClosedAt      *time.Time               `json:"closed_at,omitempty"`
-	LastMessageAt *time.Time               `json:"last_message_at,omitempty"`
-	CreatedAt     time.Time                `json:"created_at"`
-	UpdatedAt     time.Time                `json:"updated_at"`
-	Messages      []ChatMessageResponse    `json:"messages,omitempty"`
-	Metadata      *ConversationMetadata    `json:"metadata,omitempty"`
-	UnreadCount   int                      `json:"unread_count"`
+	ID                  uuid.UUID             `json:"id"`
+	UserID              uuid.UUID             `json:"user_id"`
+	User                *UserResponse         `json:"user,omitempty"`
+	AgentID             *uuid.UUID            `json:"agent_id,omitempty"`
+	Agent               *UserResponse         `json:"agent,omitempty"`
+	Subject             string                `json:"subject"`
+	Status              string                `json:"status"`
+	Priority            string                `json:"priority"`
+	Category            string                `json:"category"`
+	AssignedAt          *time.Time            `json:"assigned_at,omitempty"`
+	ResolvedAt          *time.Time            `json:"resolved_at,omitempty"`
+	ClosedAt            *time.Time            `json:"closed_at,omitempty"`
+	LastMessageAt       *time.Time            `json:"last_message_at,omitempty"`
+	LastMessage         *string               `json:"last_message,omitempty"`
+	UnreadCustomerCount int                   `json:"unread_customer_count"`
+	UnreadAgentCount    int                   `json:"unread_agent_count"`
+	CreatedAt           time.Time             `json:"created_at"`
+	UpdatedAt           time.Time             `json:"updated_at"`
+	Messages            []ChatMessageResponse `json:"messages,omitempty"`
+	Metadata            *ConversationMetadata `json:"metadata,omitempty"`
+	UnreadCount         int                   `json:"unread_count"`
 }
 
 // ChatMessageResponse is the API response for a message
@@ -193,19 +199,21 @@ type ChatMessageResponse struct {
 
 // SendMessageRequest is the request to send a message
 type SendMessageRequest struct {
-	ConversationID string `json:"conversation_id" binding:"required"`
-	Message        string `json:"message" binding:"required,min=1,max=5000"`
-	MessageType    string `json:"message_type" binding:"omitempty,oneof=text image file system"`
+	ConversationID string  `json:"conversation_id,omitempty"`
+	Message        string  `json:"message" binding:"omitempty,max=2000"`
+	MessageText    string  `json:"message_text" binding:"omitempty,max=2000"`
+	MessageType    string  `json:"message_type" binding:"omitempty,oneof=text"`
 	FileURL        *string `json:"file_url,omitempty"`
 	FileName       *string `json:"file_name,omitempty"`
 }
 
 // CreateConversationRequest is the request to start a new conversation
 type CreateConversationRequest struct {
-	Subject  string `json:"subject" binding:"required,min=3,max=200"`
-	Category string `json:"category" binding:"required,oneof=general billing support product complaint"`
-	Priority string `json:"priority" binding:"omitempty,oneof=low normal high urgent"`
-	Message  string `json:"message" binding:"required,min=1,max=5000"`
+	Subject        string `json:"subject" binding:"required,min=3,max=200"`
+	Category       string `json:"category" binding:"omitempty,oneof=general billing support product complaint"`
+	Priority       string `json:"priority" binding:"omitempty,oneof=low normal high urgent"`
+	Message        string `json:"message" binding:"omitempty,max=2000"`
+	InitialMessage string `json:"initial_message" binding:"omitempty,max=2000"`
 }
 
 // AssignConversationRequest is the request to assign a conversation to an agent
@@ -244,6 +252,11 @@ type ConversationListResponse struct {
 	TotalPages    int                    `json:"total_pages"`
 }
 
+// ChatAdminSummaryResponse is the lightweight admin sidebar/header summary.
+type ChatAdminSummaryResponse struct {
+	UnreadAgentCount int `json:"unread_agent_count"`
+}
+
 // TypingIndicatorEvent is sent via WebSocket when someone types
 type TypingIndicatorEvent struct {
 	ConversationID string    `json:"conversation_id"`
@@ -254,9 +267,9 @@ type TypingIndicatorEvent struct {
 
 // MessageEvent is sent via WebSocket for new messages
 type MessageEvent struct {
-	Type      string                `json:"type"` // "message"
-	Message   ChatMessageResponse   `json:"message"`
-	Timestamp time.Time             `json:"timestamp"`
+	Type      string              `json:"type"` // "message"
+	Message   ChatMessageResponse `json:"message"`
+	Timestamp time.Time           `json:"timestamp"`
 }
 
 // ConnectionEvent is sent via WebSocket for connection updates
@@ -268,8 +281,8 @@ type ConnectionEvent struct {
 
 // WebSocketMessage is the generic WebSocket message format
 type WebSocketMessage struct {
-	Type    string          `json:"type"` // message, typing, read, reaction, connect, disconnect
-	Payload interface{}     `json:"payload"`
+	Type    string      `json:"type"` // message, typing, read, reaction, connect, disconnect
+	Payload interface{} `json:"payload"`
 }
 
 // UserResponse is simplified user info for chat

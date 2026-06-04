@@ -1,1 +1,1 @@
-export { chatService } from './chat.service';
+export { chatService, getChatErrorMessage } from './chat.service';

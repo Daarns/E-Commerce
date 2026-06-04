@@ -1,12 +1,35 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { useAuthStore } from '@/stores/auth-store';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Cookies from 'js-cookie';
+import { useAuthStore } from '@/stores/auth-store';
 
-const SOCKET_URL = 'http://localhost:8081';
+type SocketPayload = Record<string, unknown>;
+type SocketCallback = (payload: unknown, event: SocketEvent) => void;
+
+interface SocketEvent {
+  type: string;
+  conversation_id?: string;
+  payload?: SocketPayload;
+  timestamp?: string;
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
+
+function getWebSocketUrl(token: string): string {
+  const apiUrl = new URL(API_URL);
+  apiUrl.protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+  apiUrl.pathname = `${apiUrl.pathname.replace(/\/$/, '')}/chat/ws`;
+  apiUrl.search = new URLSearchParams({ token }).toString();
+  return apiUrl.toString();
+}
+
+function isSocketEvent(value: unknown): value is SocketEvent {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'type' in value && typeof (value as { type?: unknown }).type === 'string';
+}
 
 export function useSocket() {
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const listenersRef = useRef<Map<string, Set<SocketCallback>>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
   const user = useAuthStore((state) => state.user);
 
@@ -20,64 +43,79 @@ export function useSocket() {
       return;
     }
 
-    // Initialize Socket.io connection
-    socketRef.current = io(SOCKET_URL, {
-      auth: {
-        token,
-        userId: user.id,
-      },
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 10,
-      transports: ['polling', 'websocket'], // Fallback to polling if WebSocket not available
-    });
+    const socket = new WebSocket(getWebSocketUrl(token));
+    socketRef.current = socket;
 
-    socketRef.current.on('connect', () => {
-      console.log('Socket connected:', socketRef.current?.id);
+    socket.onopen = () => {
       setIsConnected(true);
-    });
+    };
 
-    socketRef.current.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
+    socket.onclose = () => {
       setIsConnected(false);
-    });
+    };
 
-    socketRef.current.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-    });
+    socket.onerror = () => {
+      setIsConnected(false);
+    };
+
+    socket.onmessage = (messageEvent: MessageEvent<string>) => {
+      try {
+        const parsed: unknown = JSON.parse(messageEvent.data);
+        if (!isSocketEvent(parsed)) return;
+
+        const callbacks = listenersRef.current.get(parsed.type);
+        if (!callbacks) return;
+
+        callbacks.forEach((callback) => {
+          callback(parsed.payload ?? {}, parsed);
+        });
+      } catch (error) {
+        console.error('Failed to parse chat socket event:', error);
+      }
+    };
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
+      socket.close();
+      if (socketRef.current === socket) {
+        socketRef.current = null;
       }
+      setIsConnected(false);
     };
   }, [user]);
 
-  const emit = useCallback(
-    (event: string, data?: Record<string, unknown>) => {
-      if (socketRef.current?.connected) {
-        socketRef.current.emit(event, data);
-      } else {
-        console.warn('Socket not connected, cannot emit event:', event);
-      }
-    },
-    []
-  );
-
-  const on = useCallback((event: string, callback: (...args: unknown[]) => void) => {
-    if (socketRef.current) {
-      socketRef.current.on(event, callback);
-      return () => {
-        socketRef.current?.off(event, callback);
-      };
+  const emit = useCallback((event: string, data?: SocketPayload): void => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return;
     }
+
+    socket.send(JSON.stringify({
+      type: event,
+      ...(data ?? {}),
+    }));
   }, []);
 
-  const off = useCallback((event: string, callback?: (...args: unknown[]) => void) => {
-    if (socketRef.current) {
-      socketRef.current.off(event, callback);
+  const on = useCallback((event: string, callback: SocketCallback): (() => void) => {
+    const callbacks = listenersRef.current.get(event) ?? new Set<SocketCallback>();
+    callbacks.add(callback);
+    listenersRef.current.set(event, callbacks);
+
+    return () => {
+      callbacks.delete(callback);
+      if (callbacks.size === 0) {
+        listenersRef.current.delete(event);
+      }
+    };
+  }, []);
+
+  const off = useCallback((event: string, callback?: SocketCallback): void => {
+    if (!callback) {
+      listenersRef.current.delete(event);
+      return;
     }
+
+    const callbacks = listenersRef.current.get(event);
+    callbacks?.delete(callback);
   }, []);
 
   return {
@@ -88,23 +126,20 @@ export function useSocket() {
   };
 }
 
-// Helper hook for chat-specific events
 export function useChatSocket(conversationId: string) {
   const { emit, on, off, isConnected } = useSocket();
 
-  const sendMessage = useCallback(
-    (message: string) => {
-      emit('chat:send-message', {
-        conversation_id: conversationId,
-        message_text: message,
-      });
-    },
-    [conversationId, emit]
-  );
+  const joinConversation = useCallback((): void => {
+    if (!conversationId) return;
+    emit('conversation:join', {
+      conversation_id: conversationId,
+    });
+  }, [conversationId, emit]);
 
   const setTyping = useCallback(
-    (isTyping: boolean) => {
-      emit('chat:typing', {
+    (isTyping: boolean): void => {
+      if (!conversationId) return;
+      emit('typing:update', {
         conversation_id: conversationId,
         is_typing: isTyping,
       });
@@ -112,26 +147,16 @@ export function useChatSocket(conversationId: string) {
     [conversationId, emit]
   );
 
-  const addReaction = useCallback(
-    (messageId: string, emoji: string) => {
-      emit('chat:reaction', {
-        message_id: messageId,
-        emoji,
-      });
-    },
-    [emit]
-  );
-
-  const markAsRead = useCallback(() => {
-    emit('chat:mark-read', {
+  const markAsRead = useCallback((): void => {
+    if (!conversationId) return;
+    emit('read:updated', {
       conversation_id: conversationId,
     });
   }, [conversationId, emit]);
 
   return {
-    sendMessage,
+    joinConversation,
     setTyping,
-    addReaction,
     markAsRead,
     on,
     off,

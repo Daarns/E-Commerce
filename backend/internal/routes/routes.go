@@ -16,6 +16,7 @@ import (
 	orderHandler "ecommerce-backend/internal/handlers/order"
 	productHandler "ecommerce-backend/internal/handlers/product"
 	"ecommerce-backend/internal/middleware"
+	"ecommerce-backend/internal/realtime"
 	newsletterService "ecommerce-backend/internal/services/newsletter"
 	paymentService "ecommerce-backend/internal/services/payment"
 	"ecommerce-backend/internal/webhook"
@@ -77,6 +78,12 @@ func Setup(c Config) {
 				"message": "pong",
 			})
 		})
+
+		if c.ChatH != nil && c.JWTManager != nil {
+			chatHub := realtime.NewChatHub(c.JWTManager, c.ChatH)
+			c.ChatH.SetEventPublisher(chatHub)
+			v1.GET("/chat/ws", chatHub.HandleWebSocket)
+		}
 
 		// Auth routes use per-endpoint limits so forgot/resend flows do not inherit
 		// a long login penalty. Login has its own credential backoff in service layer.
@@ -199,13 +206,14 @@ func Setup(c Config) {
 			// Chat routes (protected - require authentication)
 			chatRoutes := protected.Group("/chat")
 			{
-				chatRoutes.POST("/conversations", c.ChatH.CreateConversation)
+				chatRoutes.POST("/conversations", middleware.ChatConversationCreateRateLimit(c.RedisClient), c.ChatH.CreateConversation)
 				chatRoutes.GET("/conversations", c.ChatH.GetConversations)
 				chatRoutes.GET("/conversations/:id", c.ChatH.GetConversation)
-				chatRoutes.POST("/conversations/:id/messages", c.ChatH.SendMessage)
+				chatRoutes.POST("/conversations/:id/messages", middleware.ChatSendMessageRateLimit(c.RedisClient), c.ChatH.SendMessage)
 				chatRoutes.GET("/conversations/:id/messages", c.ChatH.GetMessages)
+				chatRoutes.PUT("/conversations/:id/read", c.ChatH.MarkConversationAsRead)
 				chatRoutes.PUT("/messages/:id/read", c.ChatH.MarkAsRead)
-				chatRoutes.POST("/conversations/:id/typing", c.ChatH.SetTypingIndicator)
+				chatRoutes.POST("/conversations/:id/typing", middleware.ChatTypingRateLimit(c.RedisClient), c.ChatH.SetTypingIndicator)
 				chatRoutes.GET("/conversations/:id/typing", c.ChatH.GetTypingUsers)
 				chatRoutes.POST("/messages/:id/reactions", c.ChatH.AddReaction)
 				chatRoutes.DELETE("/messages/:id/reactions/:reaction", c.ChatH.RemoveReaction)
@@ -314,6 +322,18 @@ func Setup(c Config) {
 			adminSearchRoutes := admin.Group("/search")
 			{
 				adminSearchRoutes.GET("/metrics", c.AdminSearchH.GetSearchMetrics)
+			}
+
+			// Admin Chat routes
+			adminChatRoutes := admin.Group("/chat")
+			{
+				adminChatRoutes.GET("/summary", c.ChatH.AdminGetSummary)
+				adminChatRoutes.GET("/conversations", c.ChatH.AdminGetConversations)
+				adminChatRoutes.GET("/conversations/:id", c.ChatH.AdminGetConversation)
+				adminChatRoutes.GET("/conversations/:id/messages", c.ChatH.AdminGetMessages)
+				adminChatRoutes.POST("/conversations/:id/messages", middleware.ChatSendMessageRateLimit(c.RedisClient), c.ChatH.AdminSendMessage)
+				adminChatRoutes.PUT("/conversations/:id/read", c.ChatH.AdminMarkConversationAsRead)
+				adminChatRoutes.PUT("/conversations/:id/status", c.ChatH.AdminUpdateConversationStatus)
 			}
 
 			// Admin Promo Code routes

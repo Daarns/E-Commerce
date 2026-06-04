@@ -98,7 +98,7 @@ export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
           className="flex items-center gap-2"
         >
           <Phone className="w-4 h-4" />
-          Contact Support
+          Chat CS
         </Button>
 
         {/* View Invoice */}

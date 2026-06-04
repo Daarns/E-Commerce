@@ -16,8 +16,10 @@ import {
   Settings,
   Ticket,
   FolderTree,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAdminChatSummary } from '@/hooks/useAdminChatSummary';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 interface SidebarCtx {
@@ -129,6 +131,7 @@ const navItems = [
     ],
   },
   { label: 'Users', href: '/admin/users', icon: Users },
+  { label: 'Chat CS', href: '/admin/chat', icon: MessageSquare },
   { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
   { label: 'Promo Codes', href: '/admin/promo-codes', icon: Ticket },
   { label: 'Settings', href: '/admin/settings', icon: Settings },
@@ -152,6 +155,7 @@ function getActiveChildHref(
 export function AdminSidebar() {
   const pathname = usePathname();
   const { isCollapsed, isMobileOpen, closeMobile } = useSidebar();
+  const { unreadAgentCount } = useAdminChatSummary();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ Catalog: true });
 
   const toggleGroup = useCallback((label: string): void => {
@@ -223,6 +227,7 @@ export function AdminSidebar() {
                   ? activeChildHref !== null
                   : pathname === item.href || pathname.startsWith(item.href + '/');
             const isOpen = hasChildren && openGroups[item.label] !== false;
+            const unreadCount = item.href === '/admin/chat' ? unreadAgentCount : 0;
 
             if (hasChildren) {
               return (
@@ -320,6 +325,9 @@ export function AdminSidebar() {
                 )}
 
                 <Icon className="h-[18px] w-[18px] shrink-0" />
+                {isCollapsed && unreadCount > 0 && (
+                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-600" />
+                )}
 
                 {/* Label: max-width transition is GPU-friendly (no reflow) */}
                 <span className={cn(
@@ -329,6 +337,15 @@ export function AdminSidebar() {
                 )}>
                   {item.label}
                 </span>
+
+                {!isCollapsed && unreadCount > 0 && (
+                  <span className={cn(
+                    'ml-auto min-w-5 rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold leading-none',
+                    isActive ? 'bg-primary-foreground text-primary' : 'bg-blue-600 text-white'
+                  )}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
 
                 {/* Tooltip (desktop collapsed only) */}
                 {isCollapsed && (

@@ -136,7 +136,7 @@ export function Header() {
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
-                        <Link href="/admin">Admin Dashboard</Link>
+                        <Link href="/admin">Dashboard</Link>
                       </DropdownMenuItem>
                     </>
                   )}
@@ -146,6 +146,11 @@ export function Header() {
                   <DropdownMenuItem asChild>
                     <Link href="/orders">My Orders</Link>
                   </DropdownMenuItem>
+                  {user?.role !== 'admin' && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/chat">Chat CS</Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem asChild>
                     <Link href="/wishlist">My Wishlist</Link>
                   </DropdownMenuItem>

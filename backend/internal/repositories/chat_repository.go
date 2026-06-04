@@ -26,6 +26,18 @@ func (r *ChatRepository) CreateConversation(conversation *models.Conversation) e
 	return r.db.Create(conversation).Error
 }
 
+// CreateConversationWithInitialMessage stores a new conversation and its first
+// message in one transaction so failed message writes do not leave empty inbox rows.
+func (r *ChatRepository) CreateConversationWithInitialMessage(conversation *models.Conversation, message *models.ChatMessage, senderIsCustomer bool) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(conversation).Error; err != nil {
+			return err
+		}
+
+		return createMessageWithSummaryTx(tx, message, senderIsCustomer)
+	})
+}
+
 // GetConversationByID retrieves a conversation by ID
 func (r *ChatRepository) GetConversationByID(id uuid.UUID) (*models.Conversation, error) {
 	var conversation models.Conversation
@@ -37,7 +49,22 @@ func (r *ChatRepository) GetConversationByID(id uuid.UUID) (*models.Conversation
 		}).
 		Preload("Metadata").
 		First(&conversation, id).Error
-	
+
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &conversation, err
+}
+
+// GetConversationHeaderByID retrieves a conversation without loading messages.
+func (r *ChatRepository) GetConversationHeaderByID(id uuid.UUID) (*models.Conversation, error) {
+	var conversation models.Conversation
+	err := r.db.
+		Preload("User").
+		Preload("Agent").
+		Preload("Metadata").
+		First(&conversation, id).Error
+
 	if err == gorm.ErrRecordNotFound {
 		return nil, nil
 	}
@@ -67,6 +94,53 @@ func (r *ChatRepository) GetUserConversations(userID uuid.UUID, page, pageSize i
 		Find(&conversations).Error
 
 	return conversations, total, err
+}
+
+// GetAdminConversations retrieves conversations for admin inbox.
+func (r *ChatRepository) GetAdminConversations(status, query string, page, pageSize int) ([]models.Conversation, int64, error) {
+	var conversations []models.Conversation
+	var total int64
+
+	offset := (page - 1) * pageSize
+	q := r.db.Model(&models.Conversation{}).
+		Joins("LEFT JOIN users ON users.id = conversations.user_id")
+
+	if status != "" && status != "all" {
+		q = q.Where("conversations.status = ?", status)
+	}
+	if query != "" {
+		like := "%" + query + "%"
+		q = q.Where(
+			"conversations.subject ILIKE ? OR users.name ILIKE ? OR users.email ILIKE ?",
+			like,
+			like,
+			like,
+		)
+	}
+
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := q.
+		Preload("User").
+		Preload("Agent").
+		Preload("Metadata").
+		Order("COALESCE(conversations.last_message_at, conversations.created_at) DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&conversations).Error
+
+	return conversations, total, err
+}
+
+// GetAdminUnreadAgentCount returns total unread customer messages for admin inbox.
+func (r *ChatRepository) GetAdminUnreadAgentCount() (int64, error) {
+	var total int64
+	err := r.db.Model(&models.Conversation{}).
+		Select("COALESCE(SUM(unread_agent_count), 0)").
+		Scan(&total).Error
+	return total, err
 }
 
 // GetAgentConversations retrieves conversations assigned to an agent
@@ -120,8 +194,8 @@ func (r *ChatRepository) AssignConversation(conversationID uuid.UUID, agentID uu
 	return r.db.Model(&models.Conversation{}).
 		Where("id = ?", conversationID).
 		Updates(map[string]interface{}{
-			"agent_id":   agentID,
-			"status":     "in_progress",
+			"agent_id":    agentID,
+			"status":      "in_progress",
 			"assigned_at": time.Now(),
 		}).Error
 }
@@ -131,6 +205,58 @@ func (r *ChatRepository) AssignConversation(conversationID uuid.UUID, agentID uu
 // CreateMessage creates a new chat message
 func (r *ChatRepository) CreateMessage(message *models.ChatMessage) error {
 	return r.db.Create(message).Error
+}
+
+// CreateMessageWithSummary stores a message and updates inbox summary fields atomically.
+func (r *ChatRepository) CreateMessageWithSummary(message *models.ChatMessage, senderIsCustomer bool) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return createMessageWithSummaryTx(tx, message, senderIsCustomer)
+	})
+}
+
+func createMessageWithSummaryTx(tx *gorm.DB, message *models.ChatMessage, senderIsCustomer bool) error {
+	if err := tx.Create(message).Error; err != nil {
+		return err
+	}
+
+	updates := map[string]interface{}{
+		"last_message":    message.Message,
+		"last_message_at": message.CreatedAt,
+		"updated_at":      time.Now(),
+	}
+	if senderIsCustomer {
+		updates["unread_agent_count"] = gorm.Expr("unread_agent_count + 1")
+	} else {
+		updates["unread_customer_count"] = gorm.Expr("unread_customer_count + 1")
+	}
+
+	if err := tx.Model(&models.Conversation{}).
+		Where("id = ?", message.ConversationID).
+		Updates(updates).Error; err != nil {
+		return err
+	}
+
+	metadata := &models.ConversationMetadata{
+		ID:             uuid.New(),
+		ConversationID: message.ConversationID,
+	}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(metadata).Error; err != nil {
+		return err
+	}
+
+	metadataUpdates := map[string]interface{}{
+		"message_count": gorm.Expr("message_count + 1"),
+		"updated_at":    time.Now(),
+	}
+	if senderIsCustomer {
+		metadataUpdates["user_message_count"] = gorm.Expr("user_message_count + 1")
+	} else {
+		metadataUpdates["agent_message_count"] = gorm.Expr("agent_message_count + 1")
+	}
+
+	return tx.Model(&models.ConversationMetadata{}).
+		Where("conversation_id = ?", message.ConversationID).
+		Updates(metadataUpdates).Error
 }
 
 // GetConversationMessages retrieves messages for a conversation
@@ -146,6 +272,40 @@ func (r *ChatRepository) GetConversationMessages(conversationID uuid.UUID, limit
 		Offset(offset).
 		Find(&messages).Error
 	return messages, err
+}
+
+// GetMessageByID retrieves a message by ID.
+func (r *ChatRepository) GetMessageByID(messageID uuid.UUID) (*models.ChatMessage, error) {
+	var message models.ChatMessage
+	err := r.db.First(&message, messageID).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &message, err
+}
+
+// MarkConversationMessagesAsRead marks unread messages from the other participant as read.
+func (r *ChatRepository) MarkConversationMessagesAsRead(conversationID uuid.UUID, readerID uuid.UUID, readerIsCustomer bool) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		if err := tx.Model(&models.ChatMessage{}).
+			Where("conversation_id = ? AND sender_id != ? AND is_read = ?", conversationID, readerID, false).
+			Updates(map[string]interface{}{
+				"is_read": true,
+				"read_at": now,
+			}).Error; err != nil {
+			return err
+		}
+
+		resetField := "unread_agent_count"
+		if readerIsCustomer {
+			resetField = "unread_customer_count"
+		}
+
+		return tx.Model(&models.Conversation{}).
+			Where("id = ?", conversationID).
+			Update(resetField, 0).Error
+	})
 }
 
 // MarkMessageAsRead marks a message as read

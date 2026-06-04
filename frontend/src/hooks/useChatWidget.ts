@@ -5,13 +5,20 @@ import { DEFAULT_CHAT_SUBJECT } from '@/constants/chat.constants';
 import { useChatSocket } from '@/hooks/use-socket';
 import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore } from '@/stores/chat-store';
-import type { Conversation } from '@/types/chat';
+import type { ChatMessage, Conversation, TypingIndicator } from '@/types/chat';
+import { isChatConversationReadOnly } from '@/utils/chat.utils';
+
+interface OpenChatSupportEventDetail {
+  subject?: string;
+  message?: string;
+}
 
 interface UseChatWidgetReturn {
   user: ReturnType<typeof useAuthStore.getState>['user'];
   conversations: Conversation[];
   currentConversation: Conversation | null;
   messages: ReturnType<typeof useChatStore.getState>['messages'];
+  typingUsers: TypingIndicator[];
   isLoading: boolean;
   isOpen: boolean;
   isMinimized: boolean;
@@ -27,6 +34,7 @@ interface UseChatWidgetReturn {
   setNewConversationSubject: (value: string) => void;
   setShowNewConversationForm: (show: boolean) => void;
   selectConversation: (conversation: Conversation) => void;
+  startNewConversation: () => void;
   cancelNewConversation: () => void;
   handleSendMessage: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   handleStartConversation: (event?: FormEvent) => Promise<void>;
@@ -34,15 +42,24 @@ interface UseChatWidgetReturn {
 
 export function useChatWidget(): UseChatWidgetReturn {
   const user = useAuthStore((state) => state.user);
+  const userId = user?.id ?? null;
   const {
+    ownerUserId,
     conversations,
     currentConversation,
     messages,
+    typingUsers,
     isLoading,
     createConversation,
     sendMessage,
+    addMessage,
+    upsertConversation,
     loadConversation,
+    refreshConversationMessages,
+    setTypingUser,
+    removeTypingUser,
     setCurrentConversation,
+    resetForUser,
   } = useChatStore();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -52,18 +69,110 @@ export function useChatWidget(): UseChatWidgetReturn {
   const [newConversationSubject, setNewConversationSubject] = useState('');
   const [showNewConversationForm, setShowNewConversationForm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimerRef = useRef<number | null>(null);
 
-  const { isConnected } = useChatSocket(currentConversation?.id || '');
+  const { isConnected, joinConversation, on, setTyping } = useChatSocket(currentConversation?.id || '');
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   useEffect(() => {
-    if (isOpen && user && conversations.length === 0) {
+    return () => {
+      if (typingTimerRef.current) {
+        window.clearTimeout(typingTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    resetForUser(userId);
+  }, [resetForUser, userId]);
+
+  useEffect(() => {
+    if (isOpen && userId && ownerUserId === userId) {
       void useChatStore.getState().loadConversations();
     }
-  }, [conversations.length, isOpen, user]);
+  }, [isOpen, ownerUserId, userId]);
+
+  useEffect(() => {
+    const handleOpenSupport = (event: Event): void => {
+      const detail = (event as CustomEvent<OpenChatSupportEventDetail>).detail;
+      setIsOpen(true);
+      setIsMinimized(false);
+      setCurrentConversation(null);
+      setShowNewConversationForm(true);
+      setNewConversationSubject(detail?.subject ?? DEFAULT_CHAT_SUBJECT);
+      if (detail?.message) {
+        setMessageInput(detail.message);
+      }
+    };
+
+    window.addEventListener('open-chat-support', handleOpenSupport);
+    return () => window.removeEventListener('open-chat-support', handleOpenSupport);
+  }, [setCurrentConversation]);
+
+  useEffect(() => {
+    if (!isOpen || !currentConversation) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void refreshConversationMessages(currentConversation.id);
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [currentConversation, isOpen, refreshConversationMessages]);
+
+  useEffect(() => {
+    if (!isOpen || !currentConversation || !isConnected) {
+      return;
+    }
+
+    joinConversation();
+  }, [currentConversation, isConnected, isOpen, joinConversation]);
+
+  useEffect(() => {
+    const removeMessageListener = on('message:new', (payload) => {
+      if (isChatMessage(payload) && payload.conversation_id === currentConversation?.id) {
+        addMessage(payload);
+      }
+    });
+    const removeConversationListener = on('conversation:updated', (payload) => {
+      if (isConversation(payload)) {
+        upsertConversation(payload);
+      }
+    });
+    const removeTypingListener = on('typing:update', (payload) => {
+      if (!isTypingPayload(payload)) return;
+      if (payload.conversation_id !== currentConversation?.id || payload.user_id === userId) return;
+
+      const typingData: TypingIndicator = {
+        conversation_id: payload.conversation_id,
+        user_id: payload.user_id,
+        is_typing: payload.is_typing,
+      };
+      if (payload.is_typing) {
+        setTypingUser(typingData);
+      } else {
+        removeTypingUser(payload.user_id);
+      }
+    });
+
+    return () => {
+      removeMessageListener();
+      removeConversationListener();
+      removeTypingListener();
+    };
+  }, [
+    addMessage,
+    currentConversation?.id,
+    on,
+    removeTypingUser,
+    setTypingUser,
+    upsertConversation,
+    userId,
+  ]);
 
   const handleSendMessage = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -71,16 +180,20 @@ export function useChatWidget(): UseChatWidgetReturn {
     if (!messageInput.trim()) return;
 
     if (!currentConversation) {
-      toast.error('No conversation selected');
+      toast.error('Pilih percakapan dulu ya.');
+      return;
+    }
+
+    if (isChatConversationReadOnly(currentConversation.status)) {
+      toast.error('Percakapan ini sudah selesai. Mulai chat baru ya kalau masih butuh bantuan.');
       return;
     }
 
     setIsSending(true);
     try {
       await sendMessage(currentConversation.id, messageInput);
+      setTyping(false);
       setMessageInput('');
-    } catch (error) {
-      console.error('Error sending message:', error);
     } finally {
       setIsSending(false);
     }
@@ -90,7 +203,7 @@ export function useChatWidget(): UseChatWidgetReturn {
     event?.preventDefault();
 
     if (!messageInput.trim()) {
-      toast.error('Please enter a message');
+      toast.error('Tulis pesan dulu ya.');
       return;
     }
 
@@ -108,8 +221,6 @@ export function useChatWidget(): UseChatWidgetReturn {
         setShowNewConversationForm(false);
         void loadConversation(conversation.id);
       }
-    } catch (error) {
-      console.error('Error creating conversation:', error);
     } finally {
       setIsSending(false);
     }
@@ -118,6 +229,30 @@ export function useChatWidget(): UseChatWidgetReturn {
   const selectConversation = (conversation: Conversation): void => {
     setCurrentConversation(conversation);
     void loadConversation(conversation.id);
+  };
+
+  const startNewConversation = (): void => {
+    setCurrentConversation(null);
+    setShowNewConversationForm(true);
+    setNewConversationSubject(DEFAULT_CHAT_SUBJECT);
+    setMessageInput('');
+  };
+
+  const updateMessageInput = (value: string): void => {
+    setMessageInput(value);
+    if (!currentConversation || isChatConversationReadOnly(currentConversation.status) || !isConnected) {
+      return;
+    }
+
+    if (value.trim()) {
+      setTyping(true);
+    }
+    if (typingTimerRef.current) {
+      window.clearTimeout(typingTimerRef.current);
+    }
+    typingTimerRef.current = window.setTimeout(() => {
+      setTyping(false);
+    }, 1500);
   };
 
   const cancelNewConversation = (): void => {
@@ -130,6 +265,7 @@ export function useChatWidget(): UseChatWidgetReturn {
     conversations,
     currentConversation,
     messages,
+    typingUsers,
     isLoading,
     isOpen,
     isMinimized,
@@ -141,12 +277,44 @@ export function useChatWidget(): UseChatWidgetReturn {
     messagesEndRef,
     setIsOpen,
     setIsMinimized,
-    setMessageInput,
+    setMessageInput: updateMessageInput,
     setNewConversationSubject,
     setShowNewConversationForm,
     selectConversation,
+    startNewConversation,
     cancelNewConversation,
     handleSendMessage,
     handleStartConversation,
   };
+}
+
+function isChatMessage(payload: unknown): payload is ChatMessage {
+  if (typeof payload !== 'object' || payload === null) return false;
+  const candidate = payload as Record<string, unknown>;
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.conversation_id === 'string' &&
+    typeof candidate.sender_id === 'string' &&
+    typeof candidate.message === 'string'
+  );
+}
+
+function isConversation(payload: unknown): payload is Conversation {
+  if (typeof payload !== 'object' || payload === null) return false;
+  const candidate = payload as Record<string, unknown>;
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.user_id === 'string' &&
+    typeof candidate.status === 'string'
+  );
+}
+
+function isTypingPayload(payload: unknown): payload is TypingIndicator {
+  if (typeof payload !== 'object' || payload === null) return false;
+  const candidate = payload as Record<string, unknown>;
+  return (
+    typeof candidate.conversation_id === 'string' &&
+    typeof candidate.user_id === 'string' &&
+    typeof candidate.is_typing === 'boolean'
+  );
 }
