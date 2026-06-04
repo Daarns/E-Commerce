@@ -10,6 +10,29 @@ CREATE TABLE IF NOT EXISTS notifications (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE notifications
+    ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE notifications
+    ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL;
+
+ALTER TABLE notifications
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'notifications'
+          AND column_name = 'is_read'
+    ) THEN
+        EXECUTE 'UPDATE notifications
+                 SET read_at = COALESCE(read_at, updated_at, created_at)
+                 WHERE read_at IS NULL AND is_read = TRUE';
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created
     ON notifications (user_id, created_at DESC);
 
