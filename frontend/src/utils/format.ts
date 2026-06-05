@@ -20,6 +20,7 @@ export function formatCurrency(amount: number | string, currency: string = 'IDR'
 
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -28,6 +29,7 @@ export function formatDate(date: string | Date): string {
 
 export function formatDateTime(date: string | Date): string {
   return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: 'short',
     day: 'numeric',

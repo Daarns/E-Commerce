@@ -20,9 +20,9 @@ type Notification struct {
 	Title     string     `json:"title" gorm:"size:160;not null"`
 	Message   string     `json:"message" gorm:"type:text;not null"`
 	Metadata  string     `json:"metadata,omitempty" gorm:"type:jsonb;default:'{}'"`
-	ReadAt    *time.Time `json:"read_at,omitempty" gorm:"index"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ReadAt    *time.Time `json:"read_at,omitempty" gorm:"type:timestamptz;index"`
+	CreatedAt time.Time  `json:"created_at" gorm:"type:timestamptz"`
+	UpdatedAt time.Time  `json:"updated_at" gorm:"type:timestamptz"`
 }
 
 func (Notification) TableName() string {

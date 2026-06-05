@@ -68,24 +68,24 @@ type Order struct {
 	PaymentMethod        string     `gorm:"column:payment_method;size:50" json:"payment_method"`
 	PaymentProvider      string     `gorm:"column:payment_provider;size:50" json:"payment_provider"`
 	PaymentTransactionID string     `gorm:"column:payment_transaction_id;size:255" json:"payment_transaction_id"`
-	PaidAt               *time.Time `gorm:"column:paid_at" json:"paid_at"`
+	PaidAt               *time.Time `gorm:"column:paid_at;type:timestamptz" json:"paid_at"`
 	SnapToken            string     `gorm:"column:snap_token;size:512" json:"snap_token,omitempty"` // Midtrans token, valid 24h
-	SnapTokenCreatedAt   *time.Time `gorm:"column:snap_token_created_at" json:"snap_token_created_at,omitempty"`
-	PaymentExpiresAt     *time.Time `gorm:"column:payment_expires_at" json:"payment_expires_at,omitempty"`
+	SnapTokenCreatedAt   *time.Time `gorm:"column:snap_token_created_at;type:timestamptz" json:"snap_token_created_at,omitempty"`
+	PaymentExpiresAt     *time.Time `gorm:"column:payment_expires_at;type:timestamptz" json:"payment_expires_at,omitempty"`
 	CustomerEmail        string     `gorm:"column:customer_email;size:255" json:"customer_email,omitempty"` // Stored at checkout for retry
 
 	// Shipping
 	ShippingMethod string     `gorm:"column:shipping_method;size:50" json:"shipping_method"`
 	TrackingNumber string     `gorm:"column:tracking_number;size:255" json:"tracking_number"`
-	ShippedAt      *time.Time `gorm:"column:shipped_at" json:"shipped_at"`
-	DeliveredAt    *time.Time `gorm:"column:delivered_at" json:"delivered_at"`
+	ShippedAt      *time.Time `gorm:"column:shipped_at;type:timestamptz" json:"shipped_at"`
+	DeliveredAt    *time.Time `gorm:"column:delivered_at;type:timestamptz" json:"delivered_at"`
 
 	// Notes
 	CustomerNotes string `gorm:"column:customer_notes;type:text" json:"customer_notes"`
 	AdminNotes    string `gorm:"column:admin_notes;type:text" json:"admin_notes"`
 
 	// Cancellation
-	CancelledAt        *time.Time `gorm:"column:cancelled_at" json:"cancelled_at"`
+	CancelledAt        *time.Time `gorm:"column:cancelled_at;type:timestamptz" json:"cancelled_at"`
 	CancellationReason string     `gorm:"column:cancellation_reason;type:text" json:"cancellation_reason"`
 
 	// Idempotency
@@ -98,8 +98,8 @@ type Order struct {
 	StatusHistory []OrderStatusHistory `gorm:"foreignKey:OrderID" json:"status_history,omitempty"`
 	RefundImages  []OrderRefundImage   `gorm:"foreignKey:OrderID" json:"refund_images,omitempty"`
 
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time `json:"created_at" gorm:"type:timestamptz"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"type:timestamptz"`
 }
 
 // TableName sets the table name
@@ -201,7 +201,7 @@ type OrderStatusHistory struct {
 	ToStatus   string     `gorm:"column:to_status;size:50;not null" json:"to_status"`
 	Notes      string     `gorm:"type:text" json:"notes"`
 	ChangedBy  *uuid.UUID `gorm:"-" json:"changed_by,omitempty"` // not in order_status_workflows, ignored
-	ChangedAt  time.Time  `gorm:"column:created_at;default:CURRENT_TIMESTAMP" json:"changed_at"`
+	ChangedAt  time.Time  `gorm:"column:created_at;type:timestamptz;default:CURRENT_TIMESTAMP" json:"changed_at"`
 }
 
 // TableName maps to the existing order_status_workflows table

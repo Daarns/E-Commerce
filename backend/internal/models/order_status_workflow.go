@@ -15,10 +15,10 @@ type OrderStatusWorkflow struct {
 	ToStatus       string     `gorm:"column:to_status;size:50;not null;index" json:"to_status"`
 	EmailTriggered bool       `gorm:"column:email_triggered;default:false;index" json:"email_triggered"`
 	EmailType      *string    `gorm:"column:email_type;size:50" json:"email_type"`
-	TriggeredAt    *time.Time `gorm:"column:triggered_at" json:"triggered_at,omitempty"`
+	TriggeredAt    *time.Time `gorm:"column:triggered_at;type:timestamptz" json:"triggered_at,omitempty"`
 	Notes          string     `gorm:"type:text" json:"notes,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	CreatedAt      time.Time  `json:"created_at" gorm:"type:timestamptz"`
+	UpdatedAt      time.Time  `json:"updated_at" gorm:"type:timestamptz"`
 }
 
 // TableName sets the table name
