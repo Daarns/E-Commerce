@@ -36,6 +36,7 @@ export type {
   CreateAdminCategoryRequest,
   UpdateAdminCategoryRequest,
 } from './category.service';
+export type { AdminReviewListResult, AdminReviewStatus } from './review.service';
 
 // ─── Re-export all domain services ───────────────────────────────────────────
 export { analyticsService } from './analytics.service';
@@ -45,6 +46,7 @@ export { adminOrderService } from './order.service';
 export { adminUserService } from './user.service';
 export { adminPromoService } from './promo.service';
 export { adminCategoryService } from './category.service';
+export { adminReviewService } from './review.service';
 
 // ─── Legacy unified adminService ─────────────────────────────────────────────
 // Kept for backward compatibility — components using adminService.X continue

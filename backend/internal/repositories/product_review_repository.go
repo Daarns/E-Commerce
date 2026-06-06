@@ -28,7 +28,7 @@ func (r *ProductReviewRepository) Create(review *models.ProductReview) error {
 // GetByID gets a review by ID
 func (r *ProductReviewRepository) GetByID(id uuid.UUID) (*models.ProductReview, error) {
 	var review models.ProductReview
-	err := r.db.Preload("User").Preload("Product").First(&review, "id = ?", id).Error
+	err := r.db.Preload("User").Preload("Product").Preload("Images").First(&review, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("review not found")
@@ -56,7 +56,7 @@ func (r *ProductReviewRepository) GetByProductID(productID uuid.UUID, page, page
 	var reviews []models.ProductReview
 	var total int64
 
-	query := r.db.Where("product_id = ?", productID).Preload("User")
+	query := r.db.Where("product_id = ? AND status = ?", productID, models.ReviewStatusApproved).Preload("User").Preload("Images")
 
 	// Apply sorting
 	switch sortBy {
@@ -85,9 +85,63 @@ func (r *ProductReviewRepository) GetByProductID(productID uuid.UUID, page, page
 	return reviews, total, nil
 }
 
+func (r *ProductReviewRepository) ListAdmin(status string, page, pageSize int) ([]models.ProductReview, int64, error) {
+	var reviews []models.ProductReview
+	var total int64
+
+	query := r.db.Model(&models.ProductReview{}).Preload("User").Preload("Product").Preload("Images")
+	if status != "" && status != "all" {
+		query = query.Where("status = ?", status)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.
+		Order("created_at DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&reviews).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return reviews, total, nil
+}
+
 // Update updates a product review
 func (r *ProductReviewRepository) Update(review *models.ProductReview) error {
 	return r.db.Model(review).Updates(review).Error
+}
+
+func (r *ProductReviewRepository) UpdateStatus(id uuid.UUID, status string) error {
+	return r.db.Model(&models.ProductReview{}).
+		Where("id = ?", id).
+		Update("status", status).Error
+}
+
+func (r *ProductReviewRepository) CreateImages(reviewID uuid.UUID, imageURLs []string) error {
+	if len(imageURLs) == 0 {
+		return nil
+	}
+
+	images := make([]models.ReviewImage, 0, len(imageURLs))
+	for _, imageURL := range imageURLs {
+		if imageURL == "" {
+			continue
+		}
+		images = append(images, models.ReviewImage{
+			ID:       uuid.New(),
+			ReviewID: reviewID,
+			ImageURL: imageURL,
+		})
+	}
+	if len(images) == 0 {
+		return nil
+	}
+
+	return r.db.Create(&images).Error
 }
 
 // Delete deletes a product review
@@ -100,8 +154,8 @@ func (r *ProductReviewRepository) GetUserOrderForProduct(userID, productID uuid.
 	var order models.Order
 	err := r.db.
 		Joins("JOIN order_items ON orders.id = order_items.order_id").
-		Where("orders.user_id = ? AND order_items.product_id = ? AND orders.order_status = ?",
-			userID, productID, models.OrderStatusCompleted).
+		Where("orders.user_id = ? AND order_items.product_id = ? AND orders.order_status = ? AND orders.payment_status = ?",
+			userID, productID, models.OrderStatusCompleted, models.PaymentStatusPaid).
 		First(&order).Error
 
 	if err != nil {
@@ -120,7 +174,7 @@ func (r *ProductReviewRepository) CalculateProductStats(productID uuid.UUID) (fl
 
 	// Get average rating
 	err := r.db.Model(&models.ProductReview{}).
-		Where("product_id = ?", productID).
+		Where("product_id = ? AND status = ?", productID, models.ReviewStatusApproved).
 		Select("COALESCE(AVG(CAST(rating AS DECIMAL)), 0)").
 		Row().
 		Scan(&avgRating)
@@ -130,7 +184,7 @@ func (r *ProductReviewRepository) CalculateProductStats(productID uuid.UUID) (fl
 
 	// Get review count
 	err = r.db.Model(&models.ProductReview{}).
-		Where("product_id = ?", productID).
+		Where("product_id = ? AND status = ?", productID, models.ReviewStatusApproved).
 		Count(&count).Error
 	if err != nil {
 		return 0, 0, err
@@ -147,7 +201,7 @@ func (r *ProductReviewRepository) GetRatingBreakdown(productID uuid.UUID) (map[i
 	}
 
 	err := r.db.Model(&models.ProductReview{}).
-		Where("product_id = ?", productID).
+		Where("product_id = ? AND status = ?", productID, models.ReviewStatusApproved).
 		Select("rating, COUNT(*) as count").
 		Group("rating").
 		Order("rating DESC").

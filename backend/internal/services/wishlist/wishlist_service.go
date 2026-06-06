@@ -57,6 +57,7 @@ func (s *WishlistService) AddToWishlist(ctx context.Context, userID, productID u
 	return &models.WishlistResponse{
 		ID:        wishlist.ID,
 		UserID:    wishlist.UserID,
+		ProductID: wishlist.ProductID,
 		Product:   convertProductToWishlistDisplay(product),
 		CreatedAt: wishlist.CreatedAt,
 	}, nil
@@ -97,6 +98,7 @@ func (s *WishlistService) GetWishlist(ctx context.Context, userID uuid.UUID, pag
 		items = append(items, models.WishlistResponse{
 			ID:        w.ID,
 			UserID:    w.UserID,
+			ProductID: w.ProductID,
 			Product:   convertProductToWishlistDisplay(product),
 			CreatedAt: w.CreatedAt,
 		})
@@ -156,4 +158,3 @@ func convertProductToWishlistDisplay(product *models.Product) *models.Product {
 	}
 	return product
 }
-

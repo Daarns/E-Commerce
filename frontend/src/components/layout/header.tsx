@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion} from 'framer-motion';
 import { 
@@ -36,13 +35,8 @@ const navLinks = [
 
 export function Header() {
   const { user, isAuthenticated, logout } = useAuthStore();
-  const { itemCount } = useCartStore();
-  const { getWishlistCount } = useWishlistStore();
-  const [wishlistCount, setWishlistCount] = useState(0);
-
-  useEffect(() => {
-    setWishlistCount(getWishlistCount());
-  }, [getWishlistCount]);
+  const itemCount = useCartStore((state) => state.itemCount);
+  const wishlistCount = useWishlistStore((state) => state.items.length);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -112,8 +106,8 @@ export function Header() {
               <Link href="/wishlist">
                 <Heart className="h-5 w-5" />
                 {wishlistCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
-                    {wishlistCount}
+                  <Badge className="absolute -top-2 -right-2 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs">
+                    {wishlistCount > 99 ? '99+' : wishlistCount}
                   </Badge>
                 )}
               </Link>

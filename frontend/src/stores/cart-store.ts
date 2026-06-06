@@ -19,6 +19,7 @@ interface CartState {
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
+  resetCart: () => void;
   getCartTotal: () => number;
 }
 
@@ -108,6 +109,10 @@ export const useCartStore = create<CartState>()((set, get) => ({
     } catch (error) {
       console.error('Failed to clear cart:', error);
     }
+  },
+
+  resetCart: () => {
+    set({ cart: null, itemCount: 0, isLoading: false });
   },
 
   getCartTotal: () => {

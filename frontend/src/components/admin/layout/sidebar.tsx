@@ -17,6 +17,7 @@ import {
   Ticket,
   FolderTree,
   MessageSquare,
+  Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminChatSummary } from '@/hooks/useAdminChatSummary';
@@ -119,6 +120,7 @@ const navItems = [
       { label: 'All Products', href: '/admin/products', icon: List },
       { label: 'Add Product', href: '/admin/products/create', icon: PlusCircle },
       { label: 'Categories', href: '/admin/products/categories', icon: FolderTree },
+      { label: 'Reviews', href: '/admin/reviews', icon: Star },
     ],
   },
   {

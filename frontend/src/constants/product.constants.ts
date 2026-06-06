@@ -6,9 +6,9 @@ export const PRODUCT_CARD_IMAGE_FRAME_CLASS =
   'relative aspect-[4/5] w-full overflow-hidden rounded-t-lg bg-muted';
 
 export const PRODUCT_DETAIL_IMAGE_FRAME_CLASS =
-  'relative aspect-[4/5] sm:aspect-[3/4] lg:aspect-[4/5] overflow-hidden rounded-2xl bg-muted';
+  'relative mx-auto aspect-[4/5] w-full max-w-[420px] overflow-hidden rounded-2xl bg-muted lg:max-w-[460px]';
 
-export const PRODUCT_IMAGE_FIT_CLASS = 'object-contain p-2';
+export const PRODUCT_IMAGE_FIT_CLASS = 'object-contain p-3';
 
 export const PRODUCT_CARD_IMAGE_FIT_CLASS = 'object-cover object-center';
 

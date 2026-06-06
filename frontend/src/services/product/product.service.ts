@@ -30,12 +30,17 @@ interface ProductListData {
 export interface ProductReview {
   id: string;
   product_id: string;
+  product_name?: string;
   user_id: string;
+  order_id?: string;
+  user_name?: string;
+  user_email?: string;
   rating: number;
   title?: string;
   review_text?: string;
   helpful_count: number;
   unhelpful_count: number;
+  is_verified_purchase?: boolean;
   user?: {
     id: string;
     name: string;
@@ -43,6 +48,8 @@ export interface ProductReview {
   };
   created_at: string;
   updated_at?: string;
+  status?: 'pending' | 'approved' | 'rejected';
+  image_urls?: string[];
 }
 
 export interface ReviewStats {
@@ -51,10 +58,17 @@ export interface ReviewStats {
   rating_breakdown: Record<number, number>;
 }
 
+export interface ReviewEligibility {
+  can_review: boolean;
+  reason?: 'eligible' | 'already_reviewed' | 'no_completed_order' | string;
+  order_id?: string;
+}
+
 export interface CreateReviewInput {
   rating: number;
   title?: string;
   review_text?: string;
+  images?: File[];
 }
 
 // ─── Search Types ──────────────────────────────────────────────────────────────
@@ -161,12 +175,29 @@ export const productService = {
     limit: number = 10,
     sort_by: string = 'helpful'
   ): Promise<{ reviews: ProductReview[]; meta: { page: number; limit: number; total: number; total_pages: number } }> {
+    const backendSort =
+      sort_by === 'rating_high' ? 'highest_rating' :
+      sort_by === 'rating_low' ? 'lowest_rating' :
+      sort_by;
     const response = await api.get<ApiResponse<{ reviews: ProductReview[] }>>(
-      `/products/${productId}/reviews?page=${page}&limit=${limit}&sort_by=${sort_by}`
+      `/products/${productId}/reviews?page=${page}&limit=${limit}&sort_by=${backendSort}`
     );
+    const data = response.data.data as ({ reviews?: ProductReview[]; page?: number; page_size?: number; total?: number; total_pages?: number } | undefined);
     return {
-      reviews: response.data.data?.reviews || [],
-      meta: response.data.meta || { page, limit, total: 0, total_pages: 0 },
+      reviews: data?.reviews || [],
+      meta: response.data.meta
+        ? {
+            page: response.data.meta.page,
+            limit: response.data.meta.limit ?? limit,
+            total: response.data.meta.total,
+            total_pages: response.data.meta.total_pages,
+          }
+        : {
+            page: data?.page ?? page,
+            limit: data?.page_size ?? limit,
+            total: data?.total ?? 0,
+            total_pages: data?.total_pages ?? 0,
+          },
     };
   },
 
@@ -175,8 +206,30 @@ export const productService = {
     return response.data.data!;
   },
 
+  async getReviewEligibility(productId: string): Promise<ReviewEligibility> {
+    const response = await api.get<ApiResponse<ReviewEligibility>>(`/products/${productId}/review-eligibility`);
+    return response.data.data ?? { can_review: false };
+  },
+
   async createReview(productId: string, input: CreateReviewInput): Promise<ProductReview> {
-    const response = await api.post<ApiResponse<ProductReview>>(`/products/${productId}/reviews`, input);
+    if (input.images && input.images.length > 0) {
+      const formData = new FormData();
+      formData.append('rating', String(input.rating));
+      if (input.title) formData.append('title', input.title);
+      if (input.review_text) formData.append('review_text', input.review_text);
+      input.images.forEach((image) => formData.append('images', image));
+
+      const response = await api.post<ApiResponse<ProductReview>>(`/products/${productId}/reviews`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data.data!;
+    }
+
+    const response = await api.post<ApiResponse<ProductReview>>(`/products/${productId}/reviews`, {
+      rating: input.rating,
+      title: input.title,
+      review_text: input.review_text,
+    });
     return response.data.data!;
   },
 

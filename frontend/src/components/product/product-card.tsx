@@ -121,21 +121,24 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                 <motion.div
                   className="absolute top-2 right-2 flex flex-col gap-2"
                   initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: isHovered ? 1 : 0, x: isHovered ? 0 : 10 }}
+                  animate={{
+                    opacity: isHovered || isWishlisted ? 1 : 0,
+                    x: isHovered || isWishlisted ? 0 : 10,
+                  }}
                   transition={{ duration: 0.2 }}
                 >
                   <Button
                     size="icon"
                     variant="ghost"
                     className={`h-8 w-8 rounded-full shadow-lg transition-colors ${
-                      isWishlisted ? 'bg-red-500 hover:bg-red-600' : ''
+                      isWishlisted ? 'bg-white text-red-500 hover:bg-white hover:text-red-600' : 'bg-white/90 hover:bg-white'
                     }`}
                     onClick={(event) => void handleToggleWishlist(event)}
                     disabled={isToggling}
                   >
                     <Heart
                       className={`h-4 w-4 ${
-                        isWishlisted ? 'fill-white text-white' : ''
+                        isWishlisted ? 'fill-red-500 text-red-500' : ''
                       }`}
                     />
                   </Button>

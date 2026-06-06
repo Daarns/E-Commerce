@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Star, Loader2 } from 'lucide-react';
+import { ImagePlus, Loader2, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,11 +20,13 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
     rating,
     title,
     reviewText,
+    images,
     hoveredRating,
     isSubmitting,
     setRating,
     setTitle,
     setReviewText,
+    setImages,
     setHoveredRating,
     handleSubmit,
   } = useProductReviewForm({ productId, onSuccess });
@@ -52,8 +54,8 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
               <Star
                 className={`h-8 w-8 ${
                   star <= (hoveredRating || rating)
-                    ? 'fill-yellow-400 text-yellow-400'
-                    : 'text-muted'
+                    ? 'fill-amber-400 text-amber-400'
+                    : 'fill-transparent text-gray-300'
                 }`}
               />
             </button>
@@ -62,26 +64,76 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
       </div>
 
       <div>
-        <Label htmlFor="title">Title *</Label>
+        <Label htmlFor="title">Judul (opsional)</Label>
         <Input
           id="title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Sum up your experience in one line"
+          placeholder="Ringkas pengalaman Anda dalam satu kalimat"
           disabled={isSubmitting}
         />
       </div>
 
       <div>
-        <Label htmlFor="review">Your Review *</Label>
+        <Label htmlFor="review">Review (opsional)</Label>
         <Textarea
           id="review"
           value={reviewText}
           onChange={(e) => setReviewText(e.target.value)}
-          placeholder="Share your experience with this product..."
+          placeholder="Bagikan pengalaman Anda dengan produk ini"
           rows={5}
           disabled={isSubmitting}
         />
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <Label htmlFor="review-images">Foto Produk (opsional)</Label>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Maksimal 3 gambar. Gunakan foto produk jika ingin memperjelas review.
+          </p>
+        </div>
+        <label
+          htmlFor="review-images"
+          className="flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-4 text-center transition-colors hover:border-gray-400"
+        >
+          <ImagePlus className="mb-2 h-5 w-5 text-gray-500" />
+          <span className="text-sm font-medium text-gray-700">Upload foto review</span>
+          <span className="text-xs text-gray-500">JPG, PNG, WebP, atau GIF</span>
+        </label>
+        <Input
+          id="review-images"
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          disabled={isSubmitting}
+          onChange={(event) => {
+            const selectedImages = Array.from(event.target.files ?? []);
+            setImages([...images, ...selectedImages].slice(0, 3));
+            event.target.value = '';
+          }}
+        />
+        {images.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {images.map((image, index) => (
+              <span
+                key={`${image.name}-${image.lastModified}-${index}`}
+                className="inline-flex max-w-full items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-700"
+              >
+                <span className="max-w-40 truncate">{image.name}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove image ${index + 1}`}
+                  onClick={() => setImages(images.filter((_, imageIndex) => imageIndex !== index))}
+                  className="rounded-full text-gray-500 hover:text-gray-900"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex gap-3 justify-end">
@@ -91,7 +143,7 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
           onClick={onCancel}
           disabled={isSubmitting}
         >
-          Cancel
+          Batal
         </Button>
         <Button
           type="submit"
@@ -99,7 +151,7 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
           className="gap-2"
         >
           {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          {isSubmitting ? 'Posting...' : 'Post Review'}
+          {isSubmitting ? 'Mengirim...' : 'Kirim Review'}
         </Button>
       </div>
     </motion.form>

@@ -104,7 +104,7 @@ export default function ProductDetailPage() {
           <span className="text-foreground">{product.name}</span>
         </nav>
 
-        <div className="grid lg:grid-cols-2 gap-12">
+        <div className="grid gap-8 lg:grid-cols-[minmax(280px,0.86fr)_minmax(0,1.14fr)] lg:items-start xl:gap-10">
           {/* Image Gallery */}
           <ProductDetailGallery
             images={images}
@@ -149,7 +149,7 @@ export default function ProductDetailPage() {
         <ProductDetailTabs
           productId={product.id}
           description={product.description || ''}
-          reviewCount={24}
+          reviewCount={product.review_count ?? 0}
         />
 
         {/* Related Products */}

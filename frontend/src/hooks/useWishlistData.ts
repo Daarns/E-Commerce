@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useWishlistStore } from '@/stores/wishlist-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { Product } from '@/types';
@@ -34,9 +34,12 @@ export function useWishlistData() {
   }, [handleLoadWishlist]);
 
   // Extract products from wishlist items
-  const products = items
-    .map((item) => item.product)
-    .filter((product): product is Product => product !== null && product !== undefined);
+  const products = useMemo(
+    () => items
+      .map((item) => item.product)
+      .filter((product): product is Product => product !== null && product !== undefined),
+    [items]
+  );
 
   return {
     user,

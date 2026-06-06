@@ -130,6 +130,7 @@ func main() {
 	tempUploadRepo := repositories.NewTempUploadRepository(db)
 	webhookEventRepo := repositories.NewWebhookEventRepository(db)
 	notificationRepo := repositories.NewNotificationRepository(db)
+	productReviewRepo := repositories.NewProductReviewRepository(db)
 
 	// Initialize Email Service
 	emailConfig := emailService.EmailConfig{
@@ -203,12 +204,15 @@ func main() {
 	productSvc := productService.NewProductService(productRepo, categoryRepo)
 	productSvc.SetDB(db)
 	productSvc.SetImageService(imageSvc)
+	notificationSvc := notificationService.NewService(notificationRepo)
+	productReviewSvc := productService.NewProductReviewService(productReviewRepo, userRepo, orderRepo, productRepo)
+	productReviewSvc.SetNotificationWriter(notificationSvc)
+	productReviewSvc.SetAdminUserProvider(userRepo)
 	categorySvc := productService.NewCategoryService(categoryRepo, productRepo)
 	cartSvc := cartService.NewCartService(cartRepo, addressRepo, productRepo)
 	addressSvc := cartService.NewAddressService(addressRepo)
 	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo, shippingRepo, snapSvc, refundSvc)
 	newsletterSvc := newsletterService.NewNewsletterService(newsletterRepo)
-	notificationSvc := notificationService.NewService(notificationRepo)
 	orderSvc.SetNotificationWriter(notificationSvc)
 	orderSvc.SetAdminUserProvider(userRepo)
 	if webhookSvc != nil {
@@ -229,6 +233,7 @@ func main() {
 	authH := authHandler.NewAuthHandler(authSvc)
 	dashboardH := adminHandler.NewDashboardHandler(dashboardSvc)
 	productH := productHandler.NewProductHandler(productSvc)
+	productReviewH := productHandler.NewProductReviewHandler(productReviewSvc, imageSvc)
 	categoryH := productHandler.NewCategoryHandler(categorySvc, productSvc)
 	cartH := cartHandler.NewCartHandler(cartSvc)
 	addressH := cartHandler.NewAddressHandler(addressSvc)
@@ -270,6 +275,7 @@ func main() {
 		AuthH:          authH,
 		DashboardH:     dashboardH,
 		ProductH:       productH,
+		ProductReviewH: productReviewH,
 		AdminProductH:  adminProductH,
 		CategoryH:      categoryH,
 		AdminCategoryH: adminCategoryH,

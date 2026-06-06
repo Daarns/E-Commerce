@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
+import { useWishlistStore } from '@/stores/wishlist-store';
 import { ChatWidget } from '@/components/chat/chat-widget';
 
 const queryClient = new QueryClient({
@@ -35,7 +36,8 @@ function RouteMemory() {
 
 function AuthInitializer({ children }: { children: React.ReactNode }) {
   const { checkAuth, isAuthenticated } = useAuthStore();
-  const { fetchCart } = useCartStore();
+  const { fetchCart, resetCart } = useCartStore();
+  const { loadWishlist, clearWishlist } = useWishlistStore();
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
 
@@ -48,8 +50,12 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isAuthenticated) {
       fetchCart();
+      loadWishlist();
+      return;
     }
-  }, [isAuthenticated, fetchCart]);
+    resetCart();
+    clearWishlist();
+  }, [isAuthenticated, fetchCart, resetCart, loadWishlist, clearWishlist]);
 
   return (
     <>

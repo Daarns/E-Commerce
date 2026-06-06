@@ -1,10 +1,13 @@
 'use client';
 
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star, ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/auth-store';
 import { ReviewForm } from './review-form';
+import { ReviewStars } from './review-stars';
 import { useProductReviews, type ProductReviewSort } from '@/hooks/useProductReviews';
 
 interface ReviewsSectionProps {
@@ -18,23 +21,34 @@ const REVIEW_SORT_OPTIONS: ProductReviewSort[] = [
   'rating_low',
 ];
 
+const REVIEW_SORT_LABELS: Record<ProductReviewSort, string> = {
+  helpful: 'Paling Membantu',
+  recent: 'Terbaru',
+  rating_high: 'Rating Tertinggi',
+  rating_low: 'Rating Terendah',
+};
+
 export function ReviewsSection({ productId }: ReviewsSectionProps) {
   const user = useAuthStore((state) => state.user);
   const {
     reviews,
+    visibleReviews,
     stats,
+    eligibility,
     isLoading,
     currentPage,
     totalPages,
     sortBy,
+    ratingFilter,
     showReviewForm,
     votedReviews,
-    setCurrentPage,
     setShowReviewForm,
     setSortBy,
+    setRatingFilter,
     handleVote,
     handleReviewCreated,
-  } = useProductReviews({ productId });
+    handleLoadMore,
+  } = useProductReviews({ productId, canCheckEligibility: Boolean(user) });
 
   if (isLoading) {
     return (
@@ -51,171 +65,201 @@ export function ReviewsSection({ productId }: ReviewsSectionProps) {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-8 pb-8 border-b"
+          className="rounded-lg border border-orange-100 bg-orange-50/60 p-5"
         >
-          <div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-4xl font-bold">{stats.average_rating.toFixed(1)}</span>
-              <div className="flex items-center gap-1">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`h-4 w-4 ${
-                      i < Math.round(stats.average_rating)
-                        ? 'fill-yellow-400 text-yellow-400'
-                        : 'text-muted'
-                    }`}
-                  />
+          <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
+            <div className="flex flex-col justify-center">
+              <div className="flex items-end gap-1 text-orange-600">
+                <span className="text-5xl font-semibold leading-none">
+                  {stats.average_rating.toFixed(1)}
+                </span>
+                <span className="pb-1 text-lg">/ 5</span>
+              </div>
+              <ReviewStars rating={stats.average_rating} size="md" className="mt-2" />
+              <p className="mt-2 text-sm text-muted-foreground">
+                {stats.total_reviews} review disetujui
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={ratingFilter === null ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setRatingFilter(null)}
+                  className={ratingFilter === null ? 'bg-orange-600 hover:bg-orange-700' : 'bg-white'}
+                >
+                  Semua
+                </Button>
+                {[5, 4, 3, 2, 1].map((rating) => (
+                  <Button
+                    key={rating}
+                    type="button"
+                    variant={ratingFilter === rating ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setRatingFilter(rating)}
+                    className={ratingFilter === rating ? 'bg-orange-600 hover:bg-orange-700' : 'bg-white'}
+                  >
+                    {rating} Bintang
+                  </Button>
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                {[5, 4, 3, 2, 1].map((rating) => (
+                  <div key={rating} className="flex items-center gap-3">
+                    <span className="w-16 text-sm text-gray-700">{rating} Bintang</span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-white">
+                      <div
+                        className="h-full bg-orange-500"
+                        style={{
+                          width: `${
+                            stats.total_reviews > 0
+                              ? ((stats.rating_breakdown[rating] || 0) / stats.total_reviews) * 100
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+                    <span className="w-8 text-right text-sm text-muted-foreground">
+                      {stats.rating_breakdown[rating] || 0}
+                    </span>
+                  </div>
                 ))}
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              Based on {stats.total_reviews} review{stats.total_reviews !== 1 ? 's' : ''}
-            </p>
           </div>
+        </motion.div>
+      )}
 
-          {/* Rating Breakdown */}
-          <div className="space-y-2">
-            {[5, 4, 3, 2, 1].map((rating) => (
-              <div key={rating} className="flex items-center gap-2">
-                <span className="text-sm w-12">{rating} star</span>
-                <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-yellow-400"
-                    style={{
-                      width: `${
-                        stats.total_reviews > 0
-                          ? ((stats.rating_breakdown[rating] || 0) / stats.total_reviews) * 100
-                          : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-                <span className="text-sm text-muted-foreground w-8 text-right">
-                  {stats.rating_breakdown[rating] || 0}
-                </span>
-              </div>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        {/* Write Review Button */}
+        {user && eligibility?.can_review && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className={showReviewForm ? 'w-full' : undefined}
+          >
+            {showReviewForm ? (
+              <ReviewForm
+                productId={productId}
+                onSuccess={handleReviewCreated}
+                onCancel={() => setShowReviewForm(false)}
+              />
+            ) : (
+              <Button onClick={() => setShowReviewForm(true)} className="w-full md:w-auto">
+                Tulis Review
+              </Button>
+            )}
+          </motion.div>
+        )}
+
+        {/* Sort Options */}
+        {reviews.length > 0 && !showReviewForm && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted-foreground">Urutkan:</span>
+            {REVIEW_SORT_OPTIONS.map((option) => (
+              <Button
+                key={option}
+                variant={sortBy === option ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSortBy(option)}
+              >
+                {REVIEW_SORT_LABELS[option]}
+              </Button>
             ))}
           </div>
-        </motion.div>
-      )}
-
-      {/* Write Review Button */}
-      {user && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-          {showReviewForm ? (
-            <ReviewForm
-              productId={productId}
-              onSuccess={handleReviewCreated}
-              onCancel={() => setShowReviewForm(false)}
-            />
-          ) : (
-            <Button onClick={() => setShowReviewForm(true)} className="w-full md:w-auto">
-              Write a Review
-            </Button>
-          )}
-        </motion.div>
-      )}
-
-      {/* Sort Options */}
-      {reviews.length > 0 && (
-        <div className="flex gap-2">
-          <span className="text-sm text-muted-foreground">Sort by:</span>
-          {REVIEW_SORT_OPTIONS.map((option) => (
-            <Button
-              key={option}
-              variant={sortBy === option ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSortBy(option)}
-            >
-              {option === 'helpful' && 'Most Helpful'}
-              {option === 'recent' && 'Most Recent'}
-              {option === 'rating_high' && 'Highest Rating'}
-              {option === 'rating_low' && 'Lowest Rating'}
-            </Button>
-          ))}
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Reviews List */}
       <AnimatePresence mode="wait">
-        {reviews.length > 0 ? (
-          <div className="space-y-4">
-            {reviews.map((review, index) => (
+        {visibleReviews.length > 0 ? (
+          <div className="divide-y rounded-lg border bg-white">
+            {visibleReviews.map((review, index) => (
               <motion.div
                 key={review.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                transition={{ delay: index * 0.05 }}
-                className="p-4 rounded-lg border"
+                transition={{ delay: index * 0.04 }}
+                className="p-4"
               >
                 <div className="space-y-3">
-                  {/* Header */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-4 w-4 ${
-                              i < review.rating
-                                ? 'fill-yellow-400 text-yellow-400'
-                                : 'text-muted'
-                            }`}
-                          />
-                        ))}
-                      </div>
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <ReviewStars rating={review.rating} />
                       {review.title && (
-                        <h4 className="font-semibold mt-1">{review.title}</h4>
+                        <h4 className="mt-1 font-semibold text-gray-900">{review.title}</h4>
                       )}
                     </div>
+                    {review.is_verified_purchase && (
+                      <Badge variant="outline" className="w-fit gap-1 border-green-200 bg-green-50 text-green-700">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Pembelian terverifikasi
+                      </Badge>
+                    )}
                   </div>
 
-                  {/* Review Text */}
                   {review.review_text && (
-                    <p className="text-sm text-foreground">{review.review_text}</p>
+                    <p className="text-sm leading-relaxed text-gray-700">{review.review_text}</p>
                   )}
 
-                  {/* Reviewer Info */}
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>
-                      by {review.user?.name || 'Anonymous'} • {new Date(review.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
+                  {review.image_urls && review.image_urls.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 sm:w-fit">
+                      {review.image_urls.slice(0, 3).map((imageUrl) => (
+                        <div key={imageUrl} className="relative h-20 w-full overflow-hidden rounded-md border bg-gray-50 sm:w-20">
+                          <Image
+                            src={imageUrl}
+                            alt="Foto review produk"
+                            fill
+                            sizes="80px"
+                            className="object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-                  {/* Helpful Votes */}
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-1 gap-1"
-                      onClick={() => void handleVote(review.id, true)}
-                    >
-                      <ThumbsUp
-                        className={`h-4 w-4 ${
-                          votedReviews[review.id] === 'helpful'
-                            ? 'fill-primary text-primary'
-                            : ''
-                        }`}
-                      />
-                      <span className="text-xs">{review.helpful_count}</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-1 gap-1"
-                      onClick={() => void handleVote(review.id, false)}
-                    >
-                      <ThumbsDown
-                        className={`h-4 w-4 ${
-                          votedReviews[review.id] === 'unhelpful'
-                            ? 'fill-primary text-primary'
-                            : ''
-                        }`}
-                      />
-                      <span className="text-xs">{review.unhelpful_count}</span>
-                    </Button>
+                  <div className="flex flex-col gap-3 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
+                    <span>
+                      oleh {review.user_name || review.user?.name || 'Anonymous'} • {new Date(review.created_at).toLocaleDateString('id-ID')}
+                    </span>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto gap-1 p-1"
+                        onClick={() => void handleVote(review.id, true)}
+                      >
+                        <ThumbsUp
+                          className={`h-4 w-4 ${
+                            votedReviews[review.id] === 'helpful'
+                              ? 'fill-primary text-primary'
+                              : ''
+                          }`}
+                        />
+                        <span className="text-xs">{review.helpful_count}</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto gap-1 p-1"
+                        onClick={() => void handleVote(review.id, false)}
+                      >
+                        <ThumbsDown
+                          className={`h-4 w-4 ${
+                            votedReviews[review.id] === 'unhelpful'
+                              ? 'fill-primary text-primary'
+                              : ''
+                          }`}
+                        />
+                        <span className="text-xs">{review.unhelpful_count}</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -227,36 +271,23 @@ export function ReviewsSection({ productId }: ReviewsSectionProps) {
             animate={{ opacity: 1 }}
             className="text-center py-8"
           >
-            <p className="text-muted-foreground">No reviews yet. Be the first to review!</p>
+            <p className="text-muted-foreground">
+              {reviews.length > 0 ? 'Tidak ada review pada filter ini.' : 'Belum ada review yang disetujui.'}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2 pt-4">
+      {currentPage < totalPages && (
+        <div className="flex justify-center pt-4">
           <Button
             variant="outline"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            className="gap-2"
+            onClick={handleLoadMore}
           >
-            Previous
-          </Button>
-          {[...Array(totalPages)].map((_, i) => (
-            <Button
-              key={i + 1}
-              variant={currentPage === i + 1 ? 'default' : 'outline'}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </Button>
-          ))}
-          <Button
-            variant="outline"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-          >
-            Next
+            Muat review lainnya
+            <ChevronDown className="h-4 w-4" />
           </Button>
         </div>
       )}

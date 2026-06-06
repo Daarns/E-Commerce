@@ -23,6 +23,7 @@ func (Wishlist) TableName() string {
 type WishlistResponse struct {
 	ID        uuid.UUID `json:"id"`
 	UserID    uuid.UUID `json:"user_id"`
+	ProductID uuid.UUID `json:"product_id"`
 	Product   *Product  `json:"product"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -38,7 +39,7 @@ type WishlistListResponse struct {
 
 // CheckWishlistResponse represents check wishlist result
 type CheckWishlistResponse struct {
-	IsInWishlist bool      `json:"is_in_wishlist"`
+	IsInWishlist bool       `json:"is_in_wishlist"`
 	AddedAt      *time.Time `json:"added_at,omitempty"`
 }
 

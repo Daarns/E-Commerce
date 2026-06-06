@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, ShoppingBag, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,12 +41,12 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     handleToggleWishlist,
   } = useQuickViewProduct({ product });
 
-  if (!product) return null;
+  if (!product || typeof document === 'undefined') return null;
 
   const images = product.images || [];
   const currentImage = images[currentImageIndex];
 
-  return (
+  const modal = (
     <>
       <AnimatePresence>
         {isOpen && (
@@ -65,27 +66,27 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-background rounded-lg shadow-lg z-50 p-6"
+              className="fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100vh-2rem)] w-[calc(100vw-1.5rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg bg-background shadow-xl"
             >
               {/* Close Button */}
               <button
                 onClick={onClose}
-                className="absolute top-4 right-4 p-1 hover:bg-muted rounded-full transition-colors"
+                className="absolute right-4 top-4 z-10 rounded-full p-1 transition-colors hover:bg-muted"
               >
                 <X className="h-5 w-5" />
               </button>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid min-h-0 grid-cols-1 gap-5 overflow-y-auto p-5 md:grid-cols-[minmax(220px,0.9fr)_1fr] md:p-6">
                 {/* Image Section */}
                 <div className="space-y-4">
                   {/* Main Image */}
-                  <div className="relative aspect-square rounded-lg overflow-hidden bg-muted">
+                  <div className="relative mx-auto aspect-square w-full max-w-[320px] overflow-hidden rounded-lg bg-muted md:max-w-none">
                     {currentImage ? (
                       <Image
                         src={getProductImageUrl(currentImage) ?? PLACEHOLDER_PRODUCT_IMAGE}
                         alt={product.name}
                         fill
-                        className="object-cover"
+                        className="object-contain p-2"
                         sizes="(max-width: 768px) 100vw, 50vw"
                       />
                     ) : (
@@ -154,10 +155,10 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                 </div>
 
                 {/* Details Section */}
-                <div className="space-y-4">
+                <div className="space-y-4 pr-1">
                   {/* Product Info */}
                   <div>
-                    <h2 className="text-2xl font-bold mb-2">{product.name}</h2>
+                    <h2 className="mb-2 pr-8 text-2xl font-bold">{product.name}</h2>
                     {product.brand && (
                       <p className="text-sm text-muted-foreground mb-2">{product.brand}</p>
                     )}
@@ -239,11 +240,10 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                       size="icon"
                       onClick={() => void handleToggleWishlist()}
                       disabled={isAddingToWishlist}
-                      className={isWishlisted ? 'bg-red-500 hover:bg-red-600' : ''}
+                      className={isWishlisted ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100' : ''}
                     >
                       <Heart
-                        className="h-4 w-4"
-                        fill={isWishlisted ? 'currentColor' : 'none'}
+                        className={`h-4 w-4 ${isWishlisted ? 'fill-red-500 text-red-500' : ''}`}
                       />
                     </Button>
                   </div>
@@ -266,4 +266,6 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
       />
     </>
   );
+
+  return createPortal(modal, document.body);
 }

@@ -1,6 +1,6 @@
-import { Star } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { VariantSelector } from '@/components/product/variant-selector';
+import { ReviewStars } from '@/components/product/review-stars';
 import { Product } from '@/types';
 import { formatCurrency } from '@/utils';
 
@@ -24,6 +24,8 @@ export function ProductDetailInfo({
   hasDiscount,
 }: ProductDetailInfoProps) {
   const hasVariantAdjustment = priceAdjustment > 0;
+  const averageRating = product.avg_rating ?? 0;
+  const reviewCount = product.review_count ?? 0;
 
   return (
     <div className="space-y-6">
@@ -36,15 +38,10 @@ export function ProductDetailInfo({
 
         {/* Rating */}
         <div className="flex items-center gap-2">
-          <div className="flex">
-            {[...Array(5)].map((_, i) => (
-              <Star
-                key={i}
-                className={`h-4 w-4 ${i < 4 ? 'fill-yellow-400 text-yellow-400' : 'text-muted'}`}
-              />
-            ))}
-          </div>
-          <span className="text-sm text-muted-foreground">(24 reviews)</span>
+          <ReviewStars rating={averageRating} />
+          <span className="text-sm text-muted-foreground">
+            {averageRating.toFixed(1)} ({reviewCount} review)
+          </span>
         </div>
       </div>
 

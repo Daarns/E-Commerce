@@ -11,6 +11,7 @@ const (
 	NotificationTypeOrder   = "order_update"
 	NotificationTypePayment = "payment_update"
 	NotificationTypeRefund  = "refund_update"
+	NotificationTypeReview  = "review_update"
 )
 
 type Notification struct {

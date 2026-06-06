@@ -22,6 +22,8 @@ export interface Product {
   variant_types?: ProductVariantType[];
   combinations?: ProductVariantCombination[];
   effective_price?: string | number;
+  avg_rating?: number;
+  review_count?: number;
   created_at: string;
   updated_at: string;
 }

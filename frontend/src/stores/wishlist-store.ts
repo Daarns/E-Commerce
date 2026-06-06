@@ -4,6 +4,17 @@ import { wishlistService, Wishlist } from '@/services/wishlist';
 import { toast } from 'sonner';
 import axios from 'axios';
 
+function normalizeWishlistItem(item: Wishlist): Wishlist {
+  return {
+    ...item,
+    product_id: item.product_id || item.product?.id || '',
+  };
+}
+
+function wishlistProductId(item: Wishlist): string {
+  return item.product_id || item.product?.id || '';
+}
+
 interface WishlistState {
   items: Wishlist[];
   isLoading: boolean;
@@ -31,7 +42,7 @@ export const useWishlistStore = create<WishlistState>()(
         set({ isLoading: true });
         try {
           const response = await wishlistService.getWishlist(100);
-          set({ items: response.items });
+          set({ items: response.items.map(normalizeWishlistItem) });
         } catch (error) {
           console.error('Failed to load wishlist:', error);
           toast.error('Failed to load wishlist');
@@ -44,7 +55,7 @@ export const useWishlistStore = create<WishlistState>()(
         try {
           const item = await wishlistService.addToWishlist(productId);
           set((state) => ({
-            items: [item, ...state.items],
+            items: [normalizeWishlistItem(item), ...state.items.filter((existing) => wishlistProductId(existing) !== productId)],
           }));
           toast.success('Added to wishlist');
           return item;
@@ -66,13 +77,13 @@ export const useWishlistStore = create<WishlistState>()(
 
       removeFromWishlist: async (wishlistId: string) => {
         try {
-          // Find the product_id from the wishlist item
-          const wishlistItem = get().items.find((item) => item.id === wishlistId);
-          if (wishlistItem) {
-            await wishlistService.removeFromWishlist(wishlistItem.product_id);
+          const wishlistItem = get().items.find((item) => item.id === wishlistId || wishlistProductId(item) === wishlistId);
+          const productId = wishlistItem ? wishlistProductId(wishlistItem) : wishlistId;
+          if (productId) {
+            await wishlistService.removeFromWishlist(productId);
           }
           set((state) => ({
-            items: state.items.filter((item) => item.id !== wishlistId),
+            items: state.items.filter((item) => item.id !== wishlistId && wishlistProductId(item) !== productId),
           }));
           toast.success('Removed from wishlist');
         } catch (error) {
@@ -96,7 +107,7 @@ export const useWishlistStore = create<WishlistState>()(
           if (isCurrentlyInWishlist) {
             // Remove from wishlist optimistically
             set((state) => ({
-              items: state.items.filter((item) => item.product_id !== productId),
+              items: state.items.filter((item) => wishlistProductId(item) !== productId),
             }));
           } else {
             // Add to wishlist optimistically
@@ -107,7 +118,7 @@ export const useWishlistStore = create<WishlistState>()(
               created_at: new Date().toISOString(),
             };
             set((state) => ({
-              items: [tempItem, ...state.items],
+              items: [tempItem, ...state.items.filter((item) => wishlistProductId(item) !== productId)],
             }));
           }
 
@@ -119,14 +130,14 @@ export const useWishlistStore = create<WishlistState>()(
             // Server says it's wishlisted, ensure it's in the list
             if (!get().isInWishlist(productId) && result.product) {
               set((state) => ({
-                items: [result.product!, ...state.items],
+                items: [normalizeWishlistItem(result.product!), ...state.items.filter((item) => wishlistProductId(item) !== productId)],
               }));
             }
             toast.success('Added to wishlist');
           } else {
             // Server says it's not wishlisted, remove it from the list
             set((state) => ({
-              items: state.items.filter((item) => item.product_id !== productId),
+              items: state.items.filter((item) => wishlistProductId(item) !== productId),
             }));
             toast.success('Removed from wishlist');
           }
@@ -134,7 +145,7 @@ export const useWishlistStore = create<WishlistState>()(
           // Rollback on error
           if (isCurrentlyInWishlist) {
             // Was in wishlist, but toggle failed—add it back
-            const item = get().items.find((i) => i.product_id === productId);
+            const item = get().items.find((i) => wishlistProductId(i) === productId);
             if (!item) {
               // Need to reload from server if we can't find it
               get().loadWishlist();
@@ -142,7 +153,7 @@ export const useWishlistStore = create<WishlistState>()(
           } else {
             // Was not in wishlist, but toggle failed—remove the temp item
             set((state) => ({
-              items: state.items.filter((item) => item.product_id !== productId),
+              items: state.items.filter((item) => wishlistProductId(item) !== productId),
             }));
           }
           console.error('Failed to toggle wishlist:', error);
@@ -157,7 +168,7 @@ export const useWishlistStore = create<WishlistState>()(
       },
 
       isInWishlist: (productId: string) => {
-        return get().items.some((item) => item.product_id === productId);
+        return get().items.some((item) => wishlistProductId(item) === productId);
       },
 
       isToggling: (productId: string) => {

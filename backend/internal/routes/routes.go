@@ -34,6 +34,7 @@ type Config struct {
 	DashboardH     *adminHandler.DashboardHandler
 	NotificationH  *handlers.NotificationHandler
 	ProductH       *productHandler.ProductHandler
+	ProductReviewH *productHandler.ProductReviewHandler
 	AdminProductH  *adminProductHandler.AdminProductHandler
 	CategoryH      *productHandler.CategoryHandler
 	AdminCategoryH *adminProductHandler.AdminCategoryHandler
@@ -118,6 +119,10 @@ func Setup(c Config) {
 			productRoutes.GET("", c.ProductH.ListProducts)
 			productRoutes.GET("/search", c.ProductH.SearchProducts)
 			productRoutes.GET("/featured", c.ProductH.GetFeaturedProducts)
+			if c.ProductReviewH != nil {
+				productRoutes.GET("/:identifier/reviews", c.ProductReviewH.GetProductReviews)
+				productRoutes.GET("/:identifier/review-stats", c.ProductReviewH.GetReviewStats)
+			}
 			productRoutes.GET("/:identifier", c.ProductH.GetProduct)
 			productRoutes.GET("/:identifier/related", c.ProductH.GetRelatedProducts)
 		}
@@ -203,6 +208,13 @@ func Setup(c Config) {
 			// Checkout
 			protected.POST("/checkout", c.OrderH.Checkout)
 			protected.POST("/promo-codes/validate", c.OrderH.ValidatePromoCode)
+			if c.ProductReviewH != nil {
+				protected.POST("/products/:identifier/reviews", middleware.ImageUploadRateLimit(c.RedisClient), c.ProductReviewH.CreateReview)
+				protected.GET("/products/:identifier/review-eligibility", c.ProductReviewH.GetReviewEligibility)
+				protected.PUT("/products/:identifier/reviews/:reviewID", c.ProductReviewH.UpdateReview)
+				protected.DELETE("/products/:identifier/reviews/:reviewID", c.ProductReviewH.DeleteReview)
+				protected.POST("/reviews/:reviewID/helpful", c.ProductReviewH.VoteHelpful)
+			}
 
 			if c.NotificationH != nil {
 				notificationRoutes := protected.Group("/notifications")
@@ -278,6 +290,14 @@ func Setup(c Config) {
 				adminProducts.PUT("/:id", c.AdminProductH.UpdateProduct)
 				adminProducts.DELETE("/:id", c.AdminProductH.DeleteProduct)
 				adminProducts.PUT("/:id/images/reorder", c.AdminProductH.ReorderProductImages)
+			}
+
+			if c.ProductReviewH != nil {
+				adminReviews := admin.Group("/reviews")
+				{
+					adminReviews.GET("", c.ProductReviewH.AdminListReviews)
+					adminReviews.PUT("/:id/status", c.ProductReviewH.AdminUpdateReviewStatus)
+				}
 			}
 
 			// Image management routes — separate group to avoid httprouter

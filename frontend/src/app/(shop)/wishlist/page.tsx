@@ -1,15 +1,15 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useWishlistData } from '@/hooks/useWishlistData';
 import { WishlistNotAuthenticated } from '@/components/wishlist/WishlistNotAuthenticated';
 import { WishlistHeader } from '@/components/wishlist/WishlistHeader';
 import { WishlistEmpty } from '@/components/wishlist/WishlistEmpty';
-import { WishlistContent } from '@/components/wishlist/WishlistContent';
+import { WishlistContent, WishlistGridSkeleton } from '@/components/wishlist/WishlistContent';
 
 export default function WishlistPage() {
-  const { user, items, products, pageLoading } = useWishlistData();
+  const { user, items, products, isLoading, pageLoading } = useWishlistData();
 
   if (!user) {
     return <WishlistNotAuthenticated />;
@@ -17,8 +17,12 @@ export default function WishlistPage() {
 
   if (pageLoading) {
     return (
-      <div className="container mx-auto px-4 py-20 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="container mx-auto space-y-8 px-4 py-12">
+        <div className="space-y-3">
+          <Skeleton className="h-9 w-56" />
+          <Skeleton className="h-4 w-72 max-w-full" />
+        </div>
+        <WishlistGridSkeleton />
       </div>
     );
   }
@@ -33,8 +37,8 @@ export default function WishlistPage() {
       >
         <WishlistHeader count={items.length} />
 
-        {items.length > 0 ? (
-          <WishlistContent products={products} />
+        {items.length > 0 || isLoading ? (
+          <WishlistContent products={products} isLoading={isLoading} />
         ) : (
           <WishlistEmpty />
         )}
