@@ -5,7 +5,6 @@ import { Footer } from '@/components/layout/footer';
 import { HeroSection } from '@/components/layout/hero-section';
 import { CategoriesSection } from '@/components/layout/categories-section';
 import { FeaturedProductsSection } from '@/components/product/featured-products-section';
-import { NewsletterSection } from '@/components/layout/newsletter-section';
 import { useHomeData } from '@/hooks/useHomeData';
 
 export default function Home() {
@@ -18,7 +17,6 @@ export default function Home() {
         <HeroSection />
         <CategoriesSection categories={categories} />
         <FeaturedProductsSection products={products} isLoading={isLoading} error={error} />
-        <NewsletterSection />
       </main>
       <Footer />
     </>

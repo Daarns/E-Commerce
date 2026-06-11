@@ -3,7 +3,6 @@ import { useState } from 'react';
 interface NotificationSettings {
   email_orders: boolean;
   email_promotions: boolean;
-  email_newsletter: boolean;
   push_orders: boolean;
   push_promotions: boolean;
 }

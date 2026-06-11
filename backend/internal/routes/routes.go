@@ -17,7 +17,6 @@ import (
 	productHandler "ecommerce-backend/internal/handlers/product"
 	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/realtime"
-	newsletterService "ecommerce-backend/internal/services/newsletter"
 	paymentService "ecommerce-backend/internal/services/payment"
 	"ecommerce-backend/internal/webhook"
 	"ecommerce-backend/pkg/jwt"
@@ -28,7 +27,6 @@ type Config struct {
 	RedisClient   *redis.Client
 	JWTManager    *jwt.Manager
 	WebhookSvc    *paymentService.PaymentWebhookService
-	NewsletterSvc *newsletterService.NewsletterService
 
 	AuthH          *authHandler.AuthHandler
 	DashboardH     *adminHandler.DashboardHandler
@@ -109,9 +107,6 @@ func Setup(c Config) {
 			categoryRoutes.GET("/:identifier", c.CategoryH.GetCategory)
 			categoryRoutes.GET("/:identifier/products", c.CategoryH.GetCategoryWithProducts)
 		}
-
-		// Newsletter routes (public - no auth required)
-		handlers.RegisterNewsletterRoutes(v1, c.NewsletterSvc)
 
 		// Product routes (public - read only)
 		productRoutes := v1.Group("/products")

@@ -27,7 +27,6 @@ import (
 	chatService "ecommerce-backend/internal/services/chat"
 	cleanupService "ecommerce-backend/internal/services/cleanup"
 	emailService "ecommerce-backend/internal/services/email"
-	newsletterService "ecommerce-backend/internal/services/newsletter"
 	notificationService "ecommerce-backend/internal/services/notification"
 	orderService "ecommerce-backend/internal/services/order"
 	paymentService "ecommerce-backend/internal/services/payment"
@@ -120,7 +119,6 @@ func main() {
 	addressRepo := repositories.NewAddressRepository(db)
 	orderRepo := repositories.NewOrderRepository(db)
 	promoCodeRepo := repositories.NewPromoCodeRepository(db)
-	newsletterRepo := repositories.NewNewsletterRepository(db)
 	searchRepo := repositories.NewSearchRepository(db)
 	chatRepo := repositories.NewChatRepository(db)
 	activityRepo := repositories.NewActivityRepository(db)
@@ -212,7 +210,6 @@ func main() {
 	cartSvc := cartService.NewCartService(cartRepo, addressRepo, productRepo)
 	addressSvc := cartService.NewAddressService(addressRepo)
 	orderSvc := orderService.NewOrderService(db, orderRepo, cartRepo, productRepo, promoCodeRepo, addressRepo, shippingRepo, snapSvc, refundSvc)
-	newsletterSvc := newsletterService.NewNewsletterService(newsletterRepo)
 	orderSvc.SetNotificationWriter(notificationSvc)
 	orderSvc.SetAdminUserProvider(userRepo)
 	if webhookSvc != nil {
@@ -270,7 +267,6 @@ func main() {
 		RedisClient:    redisClient,
 		JWTManager:     jwtManager,
 		WebhookSvc:     webhookSvc,
-		NewsletterSvc:  newsletterSvc,
 		NotificationH:  notificationH,
 		AuthH:          authH,
 		DashboardH:     dashboardH,

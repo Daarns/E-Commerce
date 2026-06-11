@@ -7,7 +7,6 @@ interface NotificationsTabProps {
   notifications: {
     email_orders: boolean;
     email_promotions: boolean;
-    email_newsletter: boolean;
     push_orders: boolean;
     push_promotions: boolean;
   };
@@ -20,11 +19,6 @@ const EMAIL_OPTIONS = [
     key: 'email_promotions',
     label: 'Promotions',
     desc: 'Receive promotional offers and discounts',
-  },
-  {
-    key: 'email_newsletter',
-    label: 'Newsletter',
-    desc: 'Weekly updates about new products and trends',
   },
 ];
 

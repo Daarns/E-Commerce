@@ -825,11 +825,9 @@ func deactivateOrDeleteStaleCombinations(tx *gorm.DB, productID uuid.UUID, desir
 			SELECT combination_id FROM cart_items WHERE combination_id IN ?
 			UNION
 			SELECT combination_id FROM order_items WHERE combination_id IN ?
-			UNION
-			SELECT combination_id FROM stock_alerts WHERE combination_id IN ?
 		) refs
 		WHERE combination_id IS NOT NULL
-	`, staleIDs, staleIDs, staleIDs).Scan(&referencedIDs).Error; err != nil {
+	`, staleIDs, staleIDs).Scan(&referencedIDs).Error; err != nil {
 		return err
 	}
 

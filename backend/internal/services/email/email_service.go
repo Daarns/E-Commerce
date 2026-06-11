@@ -40,7 +40,6 @@ type EmailSender interface {
 	SendOrderConfirmation(recipient EmailRecipient, order *models.Order) error
 	SendPaymentConfirmation(recipient EmailRecipient, order *models.Order) error
 	SendOrderStatusUpdate(recipient EmailRecipient, order *models.Order, newStatus string) error
-	SendNewsletter(recipient EmailRecipient, subject, content string) error
 	SendPasswordReset(recipient EmailRecipient, resetLink string) error
 	SendEmailVerification(recipient EmailRecipient, verificationLink string) error
 }
@@ -120,7 +119,7 @@ func (s *EmailService) SendEmail(to EmailRecipient, subject, htmlBody string) er
 	}
 
 	// Debug: Log SMTP config (without password)
-	fmt.Printf("[EMAIL] Attempting to send email via SMTP: host=%s:%d, from=%s, to=%s\n", 
+	fmt.Printf("[EMAIL] Attempting to send email via SMTP: host=%s:%d, from=%s, to=%s\n",
 		s.config.Host, s.config.Port, from, to.Email)
 
 	// Prepare email message
@@ -138,7 +137,7 @@ func (s *EmailService) SendEmail(to EmailRecipient, subject, htmlBody string) er
 	// Send email
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 	fmt.Printf("[EMAIL] Connecting to SMTP server: %s\n", addr)
-	
+
 	if err := smtp.SendMail(addr, auth, from, []string{to.Email}, []byte(msg)); err != nil {
 		fmt.Printf("[EMAIL] ❌ FAILED to send email to %s: %v\n", to.Email, err)
 		return fmt.Errorf("failed to send email: %w", err)
@@ -219,11 +218,6 @@ func (s *EmailService) SendOrderStatusUpdate(recipient EmailRecipient, order *mo
 	return s.SendEmail(recipient, "Order Status Update - "+order.OrderNumber, htmlBody)
 }
 
-// SendNewsletter sends newsletter email
-func (s *EmailService) SendNewsletter(recipient EmailRecipient, subject, content string) error {
-	return s.SendEmail(recipient, subject, content)
-}
-
 // SendPasswordReset sends password reset email
 func (s *EmailService) SendPasswordReset(recipient EmailRecipient, resetLink string) error {
 	data := EmailData{
@@ -243,9 +237,9 @@ func (s *EmailService) SendPasswordReset(recipient EmailRecipient, resetLink str
 // SendEmailVerification sends email verification email with code
 func (s *EmailService) SendEmailVerification(recipient EmailRecipient, verificationCode string) error {
 	data := EmailData{
-		"CustomerName":      recipient.Name,
-		"VerificationCode":  verificationCode,
-		"ExpiresIn":         "20 minutes",
+		"CustomerName":     recipient.Name,
+		"VerificationCode": verificationCode,
+		"ExpiresIn":        "20 minutes",
 	}
 
 	htmlBody, err := s.renderTemplate("email_verification", data)
@@ -512,4 +506,3 @@ const (
 </html>
 `
 )
-

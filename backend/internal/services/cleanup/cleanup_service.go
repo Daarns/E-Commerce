@@ -251,7 +251,6 @@ func (s *CleanupService) cleanSoftDeleted() {
 		"products",
 		"categories",
 		"addresses",
-		"newsletter_subscriptions",
 		"users",
 	}
 

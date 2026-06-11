@@ -23,7 +23,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
 
   // Data hooks
-  const { userData, addresses, isLoading, setUserData, setAddresses } = useProfileData();
+  const { userData, addresses, isLoading, setUserData } = useProfileData();
   const { isEditing, formData, handleEditStart, handleEditCancel, handleFormChange, handleSaveProfile } =
     useProfileEdit(userData ? { name: userData.name, phone: userData.phone } : { name: '', phone: '' });
   const { addresses: managedAddresses, isLoading: addressLoading, ...addressHandlers } =
@@ -32,7 +32,6 @@ export default function ProfilePage() {
   const { notifications, handleToggle } = useNotifications({
     email_orders: true,
     email_promotions: true,
-    email_newsletter: false,
     push_orders: true,
     push_promotions: false,
   });

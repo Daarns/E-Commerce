@@ -1,7 +1,4 @@
 import Link from 'next/link';
-import { Mail } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 
 const footerLinks = {
@@ -37,33 +34,17 @@ const socialLinks = [
   { name: 'Youtube', href: '#', label: 'Youtube' },
 ];
 
+const existingFooterRoutes = new Set([
+  '/products',
+  '/products?sort=newest',
+  '/products?sort=popular',
+  '/products?on_sale=true',
+]);
+
 export function Footer() {
   return (
     <footer className="bg-muted/50 mt-auto">
       <div className="container mx-auto px-4 py-12">
-        {/* Newsletter Section */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-12">
-          <div>
-            <h3 className="text-lg font-semibold mb-1">Stay in the loop</h3>
-            <p className="text-sm text-muted-foreground">
-              Get updates on new arrivals and exclusive offers
-            </p>
-          </div>
-          <form className="flex gap-2 w-full md:w-auto">
-            <Input
-              type="email"
-              placeholder="Enter your email"
-              className="w-full md:w-64"
-            />
-            <Button type="submit">
-              <Mail className="h-4 w-4 mr-2" />
-              Subscribe
-            </Button>
-          </form>
-        </div>
-
-        <Separator className="mb-12" />
-
         {/* Links Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
           <div>
@@ -73,6 +54,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
+                    prefetch={existingFooterRoutes.has(link.href)}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {link.label}
@@ -88,6 +70,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
+                    prefetch={false}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {link.label}
@@ -103,6 +86,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
+                    prefetch={false}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {link.label}
@@ -118,6 +102,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
+                    prefetch={false}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {link.label}
