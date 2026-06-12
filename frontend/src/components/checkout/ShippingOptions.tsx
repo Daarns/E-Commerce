@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ShippingMethod, formatEstimate } from '@/services/shipping';
 import { formatCurrency } from '@/utils';
@@ -23,9 +22,8 @@ export function ShippingOptions({
     >
       <div className="space-y-4">
         {shippingMethods.map((method) => (
-          <motion.div
+          <div
             key={method.code}
-            whileHover={{ scale: 1.01 }}
             className={`relative p-4 rounded-lg border-2 cursor-pointer transition-colors ${
               selectedShipping === method.code
                 ? 'border-primary bg-primary/5'
@@ -42,7 +40,7 @@ export function ShippingOptions({
               </div>
               <p className="font-semibold">{formatCurrency(method.price)}</p>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
     </RadioGroup>

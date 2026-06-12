@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Category } from '@/types';
 import { useScrollCarousel } from '@/hooks/useScrollCarousel';
+import { normalizeStorageImageUrl, shouldBypassNextImageOptimizer } from '@/utils';
 
 interface CategoriesSectionProps {
   categories: Category[];
@@ -75,13 +76,14 @@ export function CategoriesSection({ categories }: CategoriesSectionProps) {
                   href={`/products?category=${category.slug}`}
                   className="group relative aspect-square block overflow-hidden rounded-2xl bg-muted h-72"
                 >
-                  {category.image_url && (
+                  {normalizeStorageImageUrl(category.image_url) && (
                     <Image
-                      src={category.image_url}
+                      src={normalizeStorageImageUrl(category.image_url) ?? ''}
                       alt={category.name}
                       fill
                       className="object-cover transition-transform duration-500 group-hover:scale-125"
                       sizes="288px"
+                      unoptimized={shouldBypassNextImageOptimizer(category.image_url)}
                     />
                   )}
 

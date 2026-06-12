@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { promoAdminService, PromoCode, CreatePromoInput } from '@/services/admin';
 import { handleError } from '@/utils/error-handler';

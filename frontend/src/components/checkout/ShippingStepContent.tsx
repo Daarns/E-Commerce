@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ShippingOptions } from './ShippingOptions';
 import { ShippingMethod } from '@/services/shipping';
@@ -14,12 +13,6 @@ interface ShippingStepContentProps {
   onReload: () => Promise<void>;
 }
 
-const stepVariants = {
-  hidden: { opacity: 0, x: 50 },
-  visible: { opacity: 1, x: 0 },
-  exit: { opacity: 0, x: -50 },
-};
-
 export function ShippingStepContent({
   shippingMethods,
   selectedShipping,
@@ -29,14 +22,7 @@ export function ShippingStepContent({
   onReload,
 }: ShippingStepContentProps) {
   return (
-    <motion.div
-      variants={stepVariants}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       <h2 className="text-xl font-semibold">Metode Pengiriman</h2>
 
       {/* Loading Skeleton */}
@@ -76,6 +62,6 @@ export function ShippingStepContent({
           onSelectShipping={onSelectedShippingChange}
         />
       )}
-    </motion.div>
+    </div>
   );
 }

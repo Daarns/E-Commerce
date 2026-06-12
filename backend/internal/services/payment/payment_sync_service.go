@@ -3,6 +3,7 @@ package payment
 import (
 	"ecommerce-backend/internal/models"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -18,6 +19,8 @@ type SyncPaymentStatusResult struct {
 	TransactionStatus string `json:"transaction_status"`
 	PaymentStatus     string `json:"payment_status"`
 	Updated           bool   `json:"updated"`
+	Retryable         bool   `json:"retryable,omitempty"`
+	Message           string `json:"message,omitempty"`
 }
 
 // PaymentSyncService uses Midtrans Core API to check and sync transaction status.
@@ -71,9 +74,10 @@ func (s *PaymentSyncService) SyncOrderPayment(orderID uuid.UUID, userID uuid.UUI
 	}
 	if order.PaymentStatus == models.PaymentStatusPaid {
 		return &SyncPaymentStatusResult{
-			OrderID:       order.ID.String(),
-			PaymentStatus: order.PaymentStatus,
-			Updated:       false,
+			OrderID:         order.ID.String(),
+			MidtransOrderID: order.OrderNumber,
+			PaymentStatus:   order.PaymentStatus,
+			Updated:         false,
 		}, nil
 	}
 
@@ -98,7 +102,8 @@ func (s *PaymentSyncService) SyncOrderPayment(orderID uuid.UUID, userID uuid.UUI
 	}
 
 	if paymentStatus == "" {
-		return nil, fmt.Errorf("could not retrieve payment status from Midtrans for order %s", order.OrderNumber)
+		log.Printf("[PaymentSync] Midtrans status unavailable order_id=%s order_number=%s", order.ID, order.OrderNumber)
+		return newRetryableSyncResult(order, order.OrderNumber), nil
 	}
 
 	// Map to order status
@@ -168,7 +173,8 @@ func (s *PaymentSyncService) SyncOrderPaymentByMidtransID(orderID uuid.UUID, use
 
 	result, transactionStatus, paymentStatus := s.checkMidtransStatus(midtransOrderID)
 	if paymentStatus == "" {
-		return nil, fmt.Errorf("could not retrieve payment status from Midtrans for %s", midtransOrderID)
+		log.Printf("[PaymentSync] Midtrans status unavailable order_id=%s midtrans_order_id=%s", order.ID, midtransOrderID)
+		return newRetryableSyncResult(order, midtransOrderID), nil
 	}
 
 	newOrderStatus := ""
@@ -221,6 +227,18 @@ func (s *PaymentSyncService) SyncOrderPaymentByMidtransID(orderID uuid.UUID, use
 	}
 
 	return res, nil
+}
+
+func newRetryableSyncResult(order *models.Order, midtransOrderID string) *SyncPaymentStatusResult {
+	return &SyncPaymentStatusResult{
+		OrderID:           order.ID.String(),
+		MidtransOrderID:   midtransOrderID,
+		TransactionStatus: "unknown",
+		PaymentStatus:     order.PaymentStatus,
+		Updated:           false,
+		Retryable:         true,
+		Message:           "Payment status could not be confirmed from Midtrans yet",
+	}
 }
 
 func (s *PaymentSyncService) notifyPaymentSuccess(order *models.Order) {

@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,13 +9,11 @@ import { formatCurrency } from '@/utils';
 
 interface CartSummaryProps {
   subtotal: number;
-  itemCount: number;
-  summaryRef: React.RefObject<HTMLDivElement | null>;
 }
 
-export function CartSummary({ subtotal, itemCount, summaryRef }: CartSummaryProps) {
+export function CartSummary({ subtotal }: CartSummaryProps) {
   return (
-    <div ref={summaryRef} className="sticky top-24">
+    <div className="sticky top-24">
       <Card>
         <CardContent className="p-6 space-y-4">
           <h2 className="text-lg font-semibold">Order Summary</h2>

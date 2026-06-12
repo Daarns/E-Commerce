@@ -1,11 +1,11 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DEFAULT_CHAT_SUBJECT } from '@/constants/chat.constants';
 import { useChatSocket } from '@/hooks/use-socket';
 import { chatService } from '@/services/chat';
 import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore } from '@/stores/chat-store';
-import type { ChatMessage, Conversation } from '@/types/chat';
+import type { ChatMessage, Conversation, TypingIndicator } from '@/types/chat';
 import { isChatConversationReadOnly } from '@/utils/chat.utils';
 
 const MESSAGE_PAGE_SIZE = 50;
@@ -22,11 +22,13 @@ interface UseChatHistoryReturn {
   isCreatingNew: boolean;
   isLoadingOlderMessages: boolean;
   hasOlderMessages: boolean;
+  typingUsers: TypingIndicator[];
   messageInput: string;
   newConversationSubject: string;
   newConversationMessage: string;
   isCurrentConversationReadOnly: boolean;
   setMessageInput: (value: string) => void;
+  handleMessageInputChange: (value: string) => void;
   setNewConversationSubject: (value: string) => void;
   setNewConversationMessage: (value: string) => void;
   selectConversation: (conversation: Conversation) => void;
@@ -67,7 +69,9 @@ export function useChatHistory(): UseChatHistoryReturn {
   const [messageOffset, setMessageOffset] = useState(MESSAGE_PAGE_SIZE);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
-  const { isConnected, joinConversation, on } = useChatSocket(currentConversation?.id || '');
+  const [typingUsers, setTypingUsers] = useState<TypingIndicator[]>([]);
+  const typingTimerRef = useRef<number | null>(null);
+  const { isConnected, joinConversation, on, setTyping } = useChatSocket(currentConversation?.id || '');
 
   const isCurrentConversationReadOnly = currentConversation
     ? isChatConversationReadOnly(currentConversation.status)
@@ -82,6 +86,13 @@ export function useChatHistory(): UseChatHistoryReturn {
       void useChatStore.getState().loadConversations();
     }
   }, [isAuthenticated, ownerUserId, userId]);
+
+  const clearTypingTimer = useCallback((): void => {
+    if (typingTimerRef.current !== null) {
+      window.clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (currentConversation && messages.length < MESSAGE_PAGE_SIZE) {
@@ -98,6 +109,13 @@ export function useChatHistory(): UseChatHistoryReturn {
   }, [currentConversation, isConnected, joinConversation]);
 
   useEffect(() => {
+    return () => {
+      clearTypingTimer();
+      setTyping(false);
+    };
+  }, [clearTypingTimer, setTyping]);
+
+  useEffect(() => {
     const removeMessageListener = on('message:new', (payload) => {
       if (isChatMessage(payload) && payload.conversation_id === currentConversation?.id) {
         addMessage(payload);
@@ -108,19 +126,53 @@ export function useChatHistory(): UseChatHistoryReturn {
         upsertConversation(payload);
       }
     });
+    const removeTypingListener = on('typing:update', (payload) => {
+      if (!isTypingPayload(payload) || payload.user_id === userId) {
+        return;
+      }
+
+      setTypingUsers((current) => {
+        const otherTypingUsers = current.filter(
+          (entry) =>
+            entry.conversation_id !== payload.conversation_id ||
+            entry.user_id !== payload.user_id
+        );
+
+        return payload.is_typing ? [...otherTypingUsers, payload] : otherTypingUsers;
+      });
+    });
 
     return () => {
       removeMessageListener();
       removeConversationListener();
+      removeTypingListener();
     };
-  }, [addMessage, currentConversation?.id, on, upsertConversation]);
+  }, [addMessage, currentConversation?.id, on, upsertConversation, userId]);
 
   const selectConversation = (conversation: Conversation): void => {
     setIsCreatingNew(false);
     setMessageInput('');
+    setTypingUsers([]);
+    clearTypingTimer();
+    setTyping(false);
     setMessageOffset(MESSAGE_PAGE_SIZE);
     setHasOlderMessages(true);
     void loadConversation(conversation.id);
+  };
+
+  const handleMessageInputChange = (value: string): void => {
+    setMessageInput(value);
+
+    if (!currentConversation || isCurrentConversationReadOnly || !isConnected) {
+      return;
+    }
+
+    setTyping(true);
+    clearTypingTimer();
+    typingTimerRef.current = window.setTimeout(() => {
+      setTyping(false);
+      typingTimerRef.current = null;
+    }, 1500);
   };
 
   const sendCurrentMessage = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -140,6 +192,8 @@ export function useChatHistory(): UseChatHistoryReturn {
 
     setIsSending(true);
     try {
+      clearTypingTimer();
+      setTyping(false);
       await sendMessage(currentConversation.id, messageInput);
       setMessageInput('');
     } finally {
@@ -149,6 +203,9 @@ export function useChatHistory(): UseChatHistoryReturn {
 
   const openNewChat = (): void => {
     setCurrentConversation(null);
+    setTypingUsers([]);
+    clearTypingTimer();
+    setTyping(false);
     setNewConversationSubject(DEFAULT_CHAT_SUBJECT);
     setNewConversationMessage('');
     setIsCreatingNew(true);
@@ -156,6 +213,9 @@ export function useChatHistory(): UseChatHistoryReturn {
 
   const cancelNewChat = (): void => {
     setIsCreatingNew(false);
+    setTypingUsers([]);
+    clearTypingTimer();
+    setTyping(false);
     setNewConversationSubject(DEFAULT_CHAT_SUBJECT);
     setNewConversationMessage('');
   };
@@ -221,11 +281,13 @@ export function useChatHistory(): UseChatHistoryReturn {
     isCreatingNew,
     isLoadingOlderMessages,
     hasOlderMessages,
+    typingUsers,
     messageInput,
     newConversationSubject,
     newConversationMessage,
     isCurrentConversationReadOnly,
     setMessageInput,
+    handleMessageInputChange,
     setNewConversationSubject,
     setNewConversationMessage,
     selectConversation,
@@ -255,5 +317,15 @@ function isConversation(payload: unknown): payload is Conversation {
     typeof candidate.id === 'string' &&
     typeof candidate.user_id === 'string' &&
     typeof candidate.status === 'string'
+  );
+}
+
+function isTypingPayload(payload: unknown): payload is TypingIndicator {
+  if (typeof payload !== 'object' || payload === null) return false;
+  const candidate = payload as Record<string, unknown>;
+  return (
+    typeof candidate.conversation_id === 'string' &&
+    typeof candidate.user_id === 'string' &&
+    typeof candidate.is_typing === 'boolean'
   );
 }

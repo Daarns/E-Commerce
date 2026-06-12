@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Address } from '@/types';
 import { addressService } from '@/services/address';
 import { toast } from 'sonner';
@@ -6,6 +6,10 @@ import { toast } from 'sonner';
 export function useAddresses(initialAddresses: Address[]) {
   const [addresses, setAddresses] = useState<Address[]>(initialAddresses);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setAddresses(initialAddresses);
+  }, [initialAddresses]);
 
   const handleAddAddress = async (data: Partial<Address>) => {
     setIsLoading(true);

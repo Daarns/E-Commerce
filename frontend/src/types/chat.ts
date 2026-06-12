@@ -15,17 +15,6 @@ export interface ChatMessage {
   created_at: string;
   is_read: boolean;
   read_at?: string;
-  reaction_count?: number;
-  reactions?: Array<{ emoji: string; user_ids: string[] }>;
-}
-
-export interface ChatAttachment {
-  id: string;
-  message_id: string;
-  file_name: string;
-  file_url: string;
-  file_type: string;
-  file_size: number;
 }
 
 export type ConversationStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
@@ -63,32 +52,18 @@ export interface SendMessageInput {
   message: string;
 }
 
-export interface ChatPaginationMeta {
-  page: number;
-  per_page?: number;
-  limit?: number;
-  total: number;
-  total_pages: number;
-}
-
-export interface AgentStatus {
-  id: string;
-  agent_id: string;
-  status: 'online' | 'offline' | 'busy' | 'away';
-  active_conversations: number;
-  last_status_update: string;
-}
-
 export interface TypingIndicator {
   conversation_id: string;
   user_id: string;
   is_typing: boolean;
 }
 
-export interface MessageReaction {
-  message_id: string;
-  emoji: string;
-  user_id: string;
+export interface ChatPaginationMeta {
+  page: number;
+  per_page?: number;
+  limit?: number;
+  total: number;
+  total_pages: number;
 }
 
 export interface ChatAdminSummary {

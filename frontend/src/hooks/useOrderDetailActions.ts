@@ -69,7 +69,6 @@ export function useOrderDetailActions(order: Order, onOrderUpdated?: (updatedOrd
   };
 
   const handleViewInvoice = () => {
-    console.log('View invoice for order:', order.id);
   };
 
   const handleRetryPayment = async (): Promise<void> => {

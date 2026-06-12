@@ -79,22 +79,21 @@ func (s *ProductReviewService) CreateReview(productID, userID uuid.UUID, req *mo
 		return nil, errors.New("user not found")
 	}
 
-	// Check if user already reviewed this product
-	existingReview, err := s.reviewRepo.GetByProductIDAndUserID(productID, userID)
-	if err != nil {
-		return nil, fmt.Errorf("error checking existing review: %w", err)
-	}
-	if existingReview != nil {
-		return nil, errors.New("user has already reviewed this product")
-	}
-
-	// Verify user has completed order for this product (Verified Purchase)
+	// Verify user has a paid completed/rejected-refund purchase that has not been reviewed yet.
 	order, err := s.reviewRepo.GetUserOrderForProduct(userID, productID)
 	if err != nil {
 		return nil, fmt.Errorf("error checking purchase verification: %w", err)
 	}
 	if order == nil {
 		return nil, errors.New("you must have a completed order for this product to leave a review")
+	}
+
+	existingReview, err := s.reviewRepo.GetByProductIDUserIDOrderID(productID, userID, order.ID)
+	if err != nil {
+		return nil, fmt.Errorf("error checking existing review: %w", err)
+	}
+	if existingReview != nil {
+		return nil, errors.New("user has already reviewed this purchase")
 	}
 
 	status := models.ReviewStatusApproved
@@ -137,18 +136,6 @@ func (s *ProductReviewService) CreateReview(productID, userID uuid.UUID, req *mo
 }
 
 func (s *ProductReviewService) GetReviewEligibility(productID, userID uuid.UUID) (*models.ReviewEligibilityResponse, error) {
-	existingReview, err := s.reviewRepo.GetByProductIDAndUserID(productID, userID)
-	if err != nil {
-		return nil, err
-	}
-	if existingReview != nil {
-		return &models.ReviewEligibilityResponse{
-			CanReview: false,
-			Reason:    "already_reviewed",
-			OrderID:   existingReview.OrderID,
-		}, nil
-	}
-
 	order, err := s.reviewRepo.GetUserOrderForProduct(userID, productID)
 	if err != nil {
 		return nil, err

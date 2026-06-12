@@ -27,11 +27,12 @@ export function ChatHistoryPageContent() {
     isCreatingNew,
     isLoadingOlderMessages,
     hasOlderMessages,
+    typingUsers,
     messageInput,
     newConversationSubject,
     newConversationMessage,
     isCurrentConversationReadOnly,
-    setMessageInput,
+    handleMessageInputChange,
     setNewConversationSubject,
     setNewConversationMessage,
     selectConversation,
@@ -42,6 +43,9 @@ export function ChatHistoryPageContent() {
     loadOlderMessages,
   } = useChatHistory();
   const shouldShowMobileHistory = showMobileHistory || (!currentConversation && !isCreatingNew);
+  const hasTypingIndicator = currentConversation
+    ? typingUsers.some((entry) => entry.conversation_id === currentConversation.id)
+    : false;
 
   const handleSelectConversation = (conversation: Parameters<typeof selectConversation>[0]): void => {
     selectConversation(conversation);
@@ -265,6 +269,13 @@ export function ChatHistoryPageContent() {
                         </div>
                       );
                     })}
+                    {hasTypingIndicator ? (
+                      <div className="flex justify-start">
+                        <div className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                          CS sedang mengetik...
+                        </div>
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -277,7 +288,7 @@ export function ChatHistoryPageContent() {
                 <div className="flex gap-2">
                   <Input
                     value={messageInput}
-                    onChange={(event) => setMessageInput(event.target.value)}
+                    onChange={(event) => handleMessageInputChange(event.target.value)}
                     placeholder={isCurrentConversationReadOnly ? 'Riwayat hanya bisa dilihat' : 'Tulis pesan...'}
                     disabled={isSending || isCurrentConversationReadOnly}
                   />

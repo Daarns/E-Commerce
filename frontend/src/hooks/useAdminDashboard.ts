@@ -19,11 +19,6 @@ export function useAdminDashboard(): UseAdminDashboardReturn {
       if (!silent) setIsLoading(true);
       else setIsRefreshing(true);
       const data = await adminService.getDashboardSummary();
-      console.log('[Dashboard] API Response summary:', data);
-      console.log('[Dashboard] Recent orders:', data.recent_orders);
-      if (data.recent_orders && data.recent_orders.length > 0) {
-        console.log('[Dashboard] First recent order:', JSON.stringify(data.recent_orders[0], null, 2));
-      }
       setSummary(data);
     } catch (error) {
       handleError(error, { context: 'Failed to fetch dashboard' });

@@ -1,7 +1,6 @@
 'use client';
 
 import Image from 'next/image';
-import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,6 +9,7 @@ import {
   formatCurrency,
   getProductImageForCombination,
   getProductImageUrl,
+  shouldBypassNextImageOptimizer,
   toNum,
 } from '@/utils';
 import { Address, CartItem } from '@/types';
@@ -25,12 +25,6 @@ interface ReviewStepContentProps {
   onEditShipping: () => void;
 }
 
-const stepVariants = {
-  hidden: { opacity: 0, x: 50 },
-  visible: { opacity: 1, x: 0 },
-  exit: { opacity: 0, x: -50 },
-};
-
 export function ReviewStepContent({
   address,
   shippingMethod,
@@ -41,14 +35,7 @@ export function ReviewStepContent({
   onEditShipping,
 }: ReviewStepContentProps) {
   return (
-    <motion.div
-      variants={stepVariants}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       <h2 className="text-xl font-semibold">Review Your Order</h2>
 
       {/* Address Summary */}
@@ -120,6 +107,7 @@ export function ReviewStepContent({
                         fill
                         className="object-cover"
                         sizes="64px"
+                        unoptimized={shouldBypassNextImageOptimizer(itemImageUrl)}
                       />
                     )}
                   </div>
@@ -154,6 +142,6 @@ export function ReviewStepContent({
           <CheckoutPolicyDialog type="privacy" />.
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

@@ -93,7 +93,7 @@ func (uc *AuthService) Register(input RegisterInput) (map[string]interface{}, er
 
 	// Generate email verification token (6-digit code)
 	verificationCode := generateVerificationCode()
-	verificationToken := uuid.New().String() // Also save UUID for additional security
+	verificationToken := uuid.New().String()      // Also save UUID for additional security
 	expiresAt := time.Now().Add(20 * time.Minute) // Token valid for 20 minutes
 	now := time.Now()
 
@@ -108,8 +108,8 @@ func (uc *AuthService) Register(input RegisterInput) (map[string]interface{}, er
 		EmailVerificationToken:     &verificationToken,
 		EmailVerificationCode:      &verificationCode,
 		EmailVerificationExpiresAt: &expiresAt,
-		EmailVerificationAttempts: 0,
-		LastCodeSentAt:           &now,
+		EmailVerificationAttempts:  0,
+		LastCodeSentAt:             &now,
 	}
 
 	if input.Phone != "" {
@@ -131,11 +131,11 @@ func (uc *AuthService) Register(input RegisterInput) (map[string]interface{}, er
 		Body:           fmt.Sprintf("Your verification code is: %s\n\nThis code will expire in 24 hours.", verificationCode),
 		HtmlBody:       fmt.Sprintf(`<p>Your verification code is: <strong>%s</strong></p><p>This code will expire in 24 hours.</p>`, verificationCode),
 		Data: models.EmailQueueData{
-			"user_id":             user.ID.String(),
-			"email":               user.Email,
-			"verification_code":   verificationCode,
-			"verification_token":  verificationToken,
-			"expires_at":          expiresAt.Format(time.RFC3339),
+			"user_id":            user.ID.String(),
+			"email":              user.Email,
+			"verification_code":  verificationCode,
+			"verification_token": verificationToken,
+			"expires_at":         expiresAt.Format(time.RFC3339),
 		},
 		UserID:       &user.ID,
 		AttemptCount: 0,
@@ -193,9 +193,21 @@ func (uc *AuthService) Login(input LoginInput) (*AuthResponse, error) {
 		return nil, fmt.Errorf("EMAIL_NOT_VERIFIED")
 	}
 
-	// Check if user is active
-	if !user.IsActive || user.DeletedAt != nil {
-		return nil, fmt.Errorf("account is inactive or deleted")
+	if user.DeletedAt != nil {
+		return nil, fmt.Errorf("ACCOUNT_INACTIVE")
+	}
+
+	switch user.Status {
+	case "", models.UserStatusActive:
+		if !user.IsActive {
+			return nil, fmt.Errorf("ACCOUNT_SUSPENDED")
+		}
+	case models.UserStatusSuspended:
+		return nil, fmt.Errorf("ACCOUNT_SUSPENDED")
+	case models.UserStatusBanned:
+		return nil, fmt.Errorf("ACCOUNT_BANNED")
+	default:
+		return nil, fmt.Errorf("ACCOUNT_INACTIVE")
 	}
 
 	// Update last login
@@ -325,4 +337,3 @@ func (uc *AuthService) generateAuthResponse(user *models.User) (*AuthResponse, e
 		ExpiresIn:    int(uc.jwtManager.GetAccessTokenExpiry().Seconds()),
 	}, nil
 }
-

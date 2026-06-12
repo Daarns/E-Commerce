@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { ReviewForm } from './review-form';
 import { ReviewStars } from './review-stars';
 import { useProductReviews, type ProductReviewSort } from '@/hooks/useProductReviews';
+import { normalizeStorageImageUrl, shouldBypassNextImageOptimizer } from '@/utils';
 
 interface ReviewsSectionProps {
   productId: string;
@@ -209,17 +210,23 @@ export function ReviewsSection({ productId }: ReviewsSectionProps) {
 
                   {review.image_urls && review.image_urls.length > 0 && (
                     <div className="grid grid-cols-3 gap-2 sm:w-fit">
-                      {review.image_urls.slice(0, 3).map((imageUrl) => (
+                      {review.image_urls.slice(0, 3).map((imageUrl) => {
+                        const normalizedImageUrl = normalizeStorageImageUrl(imageUrl);
+                        if (!normalizedImageUrl) return null;
+
+                        return (
                         <div key={imageUrl} className="relative h-20 w-full overflow-hidden rounded-md border bg-gray-50 sm:w-20">
                           <Image
-                            src={imageUrl}
+                            src={normalizedImageUrl}
                             alt="Foto review produk"
                             fill
                             sizes="80px"
                             className="object-cover"
+                            unoptimized={shouldBypassNextImageOptimizer(imageUrl)}
                           />
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 

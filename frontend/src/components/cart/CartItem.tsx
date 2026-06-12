@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
 import { Minus, Plus, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,6 +12,7 @@ import {
   formatCurrency,
   getProductImageForCombination,
   getProductImageUrl,
+  shouldBypassNextImageOptimizer,
 } from '@/utils';
 import { ValidCartItem } from '@/types';
 
@@ -38,14 +38,7 @@ export function CartItem({
   const itemImageUrl = getProductImageUrl(itemImage);
 
   return (
-    <motion.div
-      key={item.id}
-      layout
-      data-item-id={item.id}
-      className="cart-item"
-      exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div>
       <Card className="overflow-hidden">
         <CardContent className="p-4">
           <div className="flex gap-4">
@@ -60,6 +53,7 @@ export function CartItem({
                 fill
                 className="object-cover group-hover:scale-110 transition-transform duration-300"
                 sizes="96px"
+                unoptimized={shouldBypassNextImageOptimizer(itemImageUrl ?? PLACEHOLDER_PRODUCT_IMAGE)}
               />
             </Link>
 
@@ -143,6 +137,6 @@ export function CartItem({
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   );
 }

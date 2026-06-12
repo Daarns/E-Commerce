@@ -10,12 +10,6 @@ interface RecentOrdersListProps {
 }
 
 export function RecentOrdersList({ orders, isLoading }: RecentOrdersListProps) {
-  // DEBUG: Check what data we actually received
-  if (orders.length > 0) {
-    console.log('[RecentOrdersList] Orders data:', JSON.stringify(orders[0], null, 2));
-    console.log('[RecentOrdersList] First order total:', orders[0].total);
-    console.log('[RecentOrdersList] First order total_amount:', orders[0].total_amount);
-  }
   if (isLoading) {
     return (
       <div className="space-y-3">

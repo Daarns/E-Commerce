@@ -23,10 +23,10 @@ import (
 )
 
 type Config struct {
-	Router        *gin.Engine
-	RedisClient   *redis.Client
-	JWTManager    *jwt.Manager
-	WebhookSvc    *paymentService.PaymentWebhookService
+	Router      *gin.Engine
+	RedisClient *redis.Client
+	JWTManager  *jwt.Manager
+	WebhookSvc  *paymentService.PaymentWebhookService
 
 	AuthH          *authHandler.AuthHandler
 	DashboardH     *adminHandler.DashboardHandler
@@ -229,12 +229,10 @@ func Setup(c Config) {
 				chatRoutes.GET("/conversations/:id", c.ChatH.GetConversation)
 				chatRoutes.POST("/conversations/:id/messages", middleware.ChatSendMessageRateLimit(c.RedisClient), c.ChatH.SendMessage)
 				chatRoutes.GET("/conversations/:id/messages", c.ChatH.GetMessages)
-				chatRoutes.PUT("/conversations/:id/read", c.ChatH.MarkConversationAsRead)
-				chatRoutes.PUT("/messages/:id/read", c.ChatH.MarkAsRead)
 				chatRoutes.POST("/conversations/:id/typing", middleware.ChatTypingRateLimit(c.RedisClient), c.ChatH.SetTypingIndicator)
 				chatRoutes.GET("/conversations/:id/typing", c.ChatH.GetTypingUsers)
-				chatRoutes.POST("/messages/:id/reactions", c.ChatH.AddReaction)
-				chatRoutes.DELETE("/messages/:id/reactions/:reaction", c.ChatH.RemoveReaction)
+				chatRoutes.PUT("/conversations/:id/read", c.ChatH.MarkConversationAsRead)
+				chatRoutes.PUT("/messages/:id/read", c.ChatH.MarkAsRead)
 			}
 
 			// Account search history routes
@@ -334,6 +332,9 @@ func Setup(c Config) {
 				adminUsers.GET("/metrics", c.AdminUserH.GetUserMetrics)
 				adminUsers.GET("/export", c.AdminUserH.ExportUsersToCSV)
 				adminUsers.GET("/:id", c.AdminUserH.GetUser)
+				adminUsers.GET("/:id/activity", c.AdminUserH.GetUserActivity)
+				adminUsers.PUT("/:id/status", c.AdminUserH.UpdateUserStatus)
+				adminUsers.PUT("/:id/role", c.AdminUserH.UpdateUserRole)
 			}
 
 			// Admin Activity routes
@@ -358,6 +359,8 @@ func Setup(c Config) {
 				adminChatRoutes.GET("/conversations/:id", c.ChatH.AdminGetConversation)
 				adminChatRoutes.GET("/conversations/:id/messages", c.ChatH.AdminGetMessages)
 				adminChatRoutes.POST("/conversations/:id/messages", middleware.ChatSendMessageRateLimit(c.RedisClient), c.ChatH.AdminSendMessage)
+				adminChatRoutes.POST("/conversations/:id/typing", middleware.ChatTypingRateLimit(c.RedisClient), c.ChatH.AdminSetTypingIndicator)
+				adminChatRoutes.GET("/conversations/:id/typing", c.ChatH.AdminGetTypingUsers)
 				adminChatRoutes.PUT("/conversations/:id/read", c.ChatH.AdminMarkConversationAsRead)
 				adminChatRoutes.PUT("/conversations/:id/status", c.ChatH.AdminUpdateConversationStatus)
 			}

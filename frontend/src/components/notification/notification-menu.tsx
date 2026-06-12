@@ -17,8 +17,10 @@ export function NotificationMenu() {
     notifications,
     unreadCount,
     isLoading,
-    markRead,
+    hasMore,
     markAllRead,
+    loadMore,
+    openNotification,
   } = useNotificationMenu();
 
   return (
@@ -33,7 +35,7 @@ export function NotificationMenu() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
+      <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1rem))]">
         <div className="flex items-center justify-between px-2 py-1">
           <p className="text-xs font-medium text-muted-foreground">Notifikasi</p>
           {unreadCount > 0 && (
@@ -55,14 +57,12 @@ export function NotificationMenu() {
             Memuat...
           </div>
         ) : notifications.length > 0 ? (
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-[28rem] overflow-y-auto">
             {notifications.map((notification) => (
               <DropdownMenuItem
                 key={notification.id}
                 onClick={() => {
-                  if (!notification.read_at) {
-                    void markRead(notification.id);
-                  }
+                  void openNotification(notification);
                 }}
                 className="block cursor-pointer px-3 py-2"
               >
@@ -84,10 +84,34 @@ export function NotificationMenu() {
                 </div>
               </DropdownMenuItem>
             ))}
+            {hasMore && (
+              <div className="border-t p-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-full text-xs"
+                  disabled={isLoading}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void loadMore();
+                  }}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      Memuat...
+                    </>
+                  ) : (
+                    'Lihat notifikasi lain'
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-            Belum ada notifikasi.
+            Tidak ada notifikasi baru.
           </div>
         )}
       </DropdownMenuContent>

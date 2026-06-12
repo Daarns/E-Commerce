@@ -1,6 +1,5 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AddressForm } from './AddressForm';
@@ -36,12 +35,6 @@ interface AddressStepContentProps {
   onReload: () => Promise<void>;
 }
 
-const stepVariants = {
-  hidden: { opacity: 0, x: 50 },
-  visible: { opacity: 1, x: 0 },
-  exit: { opacity: 0, x: -50 },
-};
-
 export function AddressStepContent({
   addresses,
   selectedAddress,
@@ -61,14 +54,7 @@ export function AddressStepContent({
   onReload,
 }: AddressStepContentProps) {
   return (
-    <motion.div
-      variants={stepVariants}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Shipping Address</h2>
         <Button
@@ -93,28 +79,26 @@ export function AddressStepContent({
       </div>
 
       {/* Add / Edit Address Form */}
-      <AnimatePresence>
-        <AddressForm
-          isOpen={showForm}
-          isEditing={isEditing}
-          isSaving={isSaving}
-          formData={formData}
-          onFormChange={onFormChange}
-          onSave={onSave}
-          onCancel={() => {
-            onShowFormChange(false);
-            onFormChange({
-              recipient_name: '',
-              phone: '',
-              street_address: '',
-              address_line2: '',
-              city: '',
-              province: '',
-              postal_code: '',
-            });
-          }}
-        />
-      </AnimatePresence>
+      <AddressForm
+        isOpen={showForm}
+        isEditing={isEditing}
+        isSaving={isSaving}
+        formData={formData}
+        onFormChange={onFormChange}
+        onSave={onSave}
+        onCancel={() => {
+          onShowFormChange(false);
+          onFormChange({
+            recipient_name: '',
+            phone: '',
+            street_address: '',
+            address_line2: '',
+            city: '',
+            province: '',
+            postal_code: '',
+          });
+        }}
+      />
 
       {/* Loading Skeleton */}
       {isLoading && (
@@ -156,6 +140,6 @@ export function AddressStepContent({
           onDelete={onDelete}
         />
       )}
-    </motion.div>
+    </div>
   );
 }

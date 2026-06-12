@@ -20,19 +20,23 @@ func (r *NotificationRepository) Create(notification *models.Notification) error
 	return r.db.Create(notification).Error
 }
 
-func (r *NotificationRepository) ListByUser(userID uuid.UUID, page, pageSize int) ([]models.Notification, int64, error) {
+func (r *NotificationRepository) ListByUser(userID uuid.UUID, page, pageSize int, unreadOnly bool) ([]models.Notification, int64, error) {
 	var notifications []models.Notification
 	var total int64
 	offset := (page - 1) * pageSize
+	query := r.db.Model(&models.Notification{}).Where("user_id = ?", userID)
+	listQuery := r.db.Where("user_id = ?", userID)
 
-	if err := r.db.Model(&models.Notification{}).
-		Where("user_id = ?", userID).
-		Count(&total).Error; err != nil {
+	if unreadOnly {
+		query = query.Where("read_at IS NULL")
+		listQuery = listQuery.Where("read_at IS NULL")
+	}
+
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	err := r.db.
-		Where("user_id = ?", userID).
+	err := listQuery.
 		Order("created_at DESC").
 		Offset(offset).
 		Limit(pageSize).
@@ -67,4 +71,32 @@ func (r *NotificationRepository) MarkAllRead(userID uuid.UUID) error {
 			"read_at":    now,
 			"updated_at": now,
 		}).Error
+}
+
+func (r *NotificationRepository) DeleteReadOlderThan(cutoff time.Time, limit int) (int64, error) {
+	res := r.db.Exec(`
+		DELETE FROM notifications
+		WHERE id IN (
+			SELECT id
+			FROM notifications
+			WHERE read_at IS NOT NULL AND read_at < ?
+			ORDER BY read_at ASC
+			LIMIT ?
+		)
+	`, cutoff, limit)
+	return res.RowsAffected, res.Error
+}
+
+func (r *NotificationRepository) DeleteUnreadOlderThan(cutoff time.Time, limit int) (int64, error) {
+	res := r.db.Exec(`
+		DELETE FROM notifications
+		WHERE id IN (
+			SELECT id
+			FROM notifications
+			WHERE read_at IS NULL AND created_at < ?
+			ORDER BY created_at ASC
+			LIMIT ?
+		)
+	`, cutoff, limit)
+	return res.RowsAffected, res.Error
 }

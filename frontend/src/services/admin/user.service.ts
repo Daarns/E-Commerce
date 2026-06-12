@@ -51,6 +51,34 @@ export interface UpdateUserStatusRequest {
   reason?: string;
 }
 
+interface AdminUserApiErrorShape {
+  response?: {
+    data?: ApiResponse<unknown>;
+    status?: number;
+  };
+}
+
+export function getAdminUserErrorMessage(error: unknown): string {
+  const apiError = error as AdminUserApiErrorShape;
+  const code = apiError.response?.data?.error?.code;
+  const message = apiError.response?.data?.error?.message;
+
+  if (code === 'SELF_STATUS_CHANGE_BLOCKED') {
+    return 'Status akun admin yang sedang dipakai tidak bisa diubah.';
+  }
+  if (code === 'SELF_ROLE_CHANGE_BLOCKED') {
+    return 'Role akun admin yang sedang dipakai tidak bisa diubah.';
+  }
+  if (code === 'USER_NOT_FOUND') {
+    return 'User tidak ditemukan atau sudah dihapus.';
+  }
+  if (code === 'VALIDATION_ERROR') {
+    return 'Pilihan role atau status belum valid.';
+  }
+
+  return message || 'Pengaturan user belum bisa diperbarui. Coba lagi sebentar lagi.';
+}
+
 // ─── Admin User Service ───────────────────────────────────────────────────────
 
 export const adminUserService = {

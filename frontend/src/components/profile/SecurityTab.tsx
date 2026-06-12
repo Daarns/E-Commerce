@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff } from 'lucide-react';
+import { Mail, ShieldCheck, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,35 +15,31 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { useSecurityTab } from '@/hooks/useSecurityTab';
 
 interface SecurityTabProps {
-  onPasswordChange: (current: string, newPassword: string) => Promise<void>;
+  email: string;
+  onPasswordResetRequest: (email: string) => Promise<void>;
   onDeleteAccount: (password: string) => Promise<void>;
   isLoading: boolean;
 }
 
 export function SecurityTab({
-  onPasswordChange,
+  email,
+  onPasswordResetRequest,
   onDeleteAccount,
   isLoading,
 }: SecurityTabProps) {
-  const {
-    passwordForm,
-    showPasswords,
-    showDeleteDialog,
-    deleteConfirmPassword,
-    showDeletePassword,
-    setDeleteConfirmPassword,
-    setShowDeletePassword,
-    updatePasswordField,
-    togglePasswordVisibility,
-    openDeleteDialog,
-    closeDeleteDialog,
-    setDeleteDialogOpen,
-    handlePasswordChange,
-    handleDeleteAccount,
-  } = useSecurityTab({ onPasswordChange, onDeleteAccount });
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteConfirmPassword, setDeleteConfirmPassword] = useState('');
+
+  const handlePasswordResetRequest = async (): Promise<void> => {
+    await onPasswordResetRequest(email);
+  };
+
+  const handleDeleteAccount = async (): Promise<void> => {
+    if (!deleteConfirmPassword) return;
+    await onDeleteAccount(deleteConfirmPassword);
+  };
 
   return (
     <>
@@ -51,125 +48,59 @@ export function SecurityTab({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
+        className="space-y-6"
       >
         <Card>
           <CardHeader>
-            <CardTitle>Change Password</CardTitle>
-            <CardDescription>Update your password regularly for better security</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              Account Security
+            </CardTitle>
+            <CardDescription>
+              Password changes use a secure reset link sent to your registered email.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6 max-w-md">
-            <div className="space-y-2">
-              <Label htmlFor="current-password">Current Password</Label>
-              <div className="relative">
-                <Input
-                  id="current-password"
-                  type={showPasswords.current ? 'text' : 'password'}
-                  value={passwordForm.current}
-                  onChange={e => updatePasswordField('current', e.target.value)}
-                  disabled={isLoading}
-                />
-                <button
+          <CardContent className="space-y-4">
+            <div className="rounded-md border bg-muted/30 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Reset password by email</p>
+                  <p className="mt-1 break-all text-sm text-muted-foreground">{email}</p>
+                </div>
+                <Button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  onClick={() => togglePasswordVisibility('current')}
+                  disabled={isLoading}
+                  onClick={() => void handlePasswordResetRequest()}
+                  className="shrink-0 gap-2"
                 >
-                  {showPasswords.current ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
+                  <Mail className="h-4 w-4" />
+                  Send Reset Link
+                </Button>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="new-password">New Password</Label>
-              <div className="relative">
-                <Input
-                  id="new-password"
-                  type={showPasswords.new ? 'text' : 'password'}
-                  value={passwordForm.new}
-                  onChange={e => updatePasswordField('new', e.target.value)}
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  onClick={() => togglePasswordVisibility('new')}
-                >
-                  {showPasswords.new ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <div className="relative">
-                <Input
-                  id="confirm-password"
-                  type={showPasswords.confirm ? 'text' : 'password'}
-                  value={passwordForm.confirm}
-                  onChange={e => updatePasswordField('confirm', e.target.value)}
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  onClick={() => togglePasswordVisibility('confirm')}
-                >
-                  {showPasswords.confirm ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <Button
-              onClick={() => void handlePasswordChange()}
-              disabled={
-                isLoading ||
-                !passwordForm.current ||
-                !passwordForm.new ||
-                !passwordForm.confirm
-              }
-            >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Updating...
-                </span>
-              ) : (
-                'Update Password'
-              )}
-            </Button>
           </CardContent>
         </Card>
 
-        <Card className="mt-6 border-red-200 dark:border-red-900">
+        <Card className="border-red-200 dark:border-red-900">
           <CardHeader>
             <CardTitle className="text-red-600">Danger Zone</CardTitle>
             <CardDescription>Irreversible and destructive actions</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-start gap-4">
-              <div className="flex-1">
+            <div className="flex flex-col gap-4 rounded-md border border-red-100 p-4 sm:flex-row sm:items-start sm:justify-between dark:border-red-900/60">
+              <div className="min-w-0">
                 <p className="font-medium text-sm">Delete Account</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Permanently delete your account and all associated data. This action cannot be
-                  undone.
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Permanently delete your account and associated personal data. This action cannot be undone.
                 </p>
               </div>
               <Button
                 variant="destructive"
                 disabled={isLoading}
-                onClick={openDeleteDialog}
+                onClick={() => setShowDeleteDialog(true)}
+                className="shrink-0 gap-2"
               >
+                <Trash2 className="h-4 w-4" />
                 Delete Account
               </Button>
             </div>
@@ -177,53 +108,39 @@ export function SecurityTab({
         </Card>
       </motion.div>
 
-      {/* Delete Account Dialog */}
       <Dialog
         open={showDeleteDialog}
-        onOpenChange={setDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setShowDeleteDialog(open);
+          if (!open) setDeleteConfirmPassword('');
+        }}
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-red-600">Delete Account</DialogTitle>
             <DialogDescription>
-              This will permanently delete your account and all associated data (orders,
-              addresses, wishlist). <strong>This action cannot be undone.</strong>
+              Enter your password to confirm account deletion. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="delete-password">Enter your password to confirm</Label>
-              <div className="relative">
-                <Input
-                  id="delete-password"
-                  type={showDeletePassword ? 'text' : 'password'}
-                  placeholder="Your current password"
-                  value={deleteConfirmPassword}
-                  onChange={e => setDeleteConfirmPassword(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') void handleDeleteAccount();
-                  }}
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  onClick={() => setShowDeletePassword(v => !v)}
-                >
-                  {showDeletePassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="ghost"
+          <div className="space-y-2 py-2">
+            <Label htmlFor="delete-password">Current password</Label>
+            <Input
+              id="delete-password"
+              type="password"
+              placeholder="Your current password"
+              value={deleteConfirmPassword}
+              onChange={(event) => setDeleteConfirmPassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void handleDeleteAccount();
+              }}
               disabled={isLoading}
-              onClick={closeDeleteDialog}
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={isLoading}
             >
               Cancel
             </Button>
@@ -232,14 +149,7 @@ export function SecurityTab({
               disabled={isLoading || !deleteConfirmPassword}
               onClick={() => void handleDeleteAccount()}
             >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Deleting...
-                </span>
-              ) : (
-                'Delete My Account'
-              )}
+              Delete Account
             </Button>
           </DialogFooter>
         </DialogContent>

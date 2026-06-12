@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Address } from '@/types';
 import { addressService } from '@/services/address';
 
@@ -33,22 +33,23 @@ export function useCheckoutAddresses() {
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
 
-  const loadAddresses = async (): Promise<void> => {
+  const loadAddresses = useCallback(async (): Promise<void> => {
     setIsLoadingAddresses(true);
     setAddressError(null);
     try {
       const data = await addressService.getAddresses();
       setAddresses(data);
-      if (!selectedAddress) {
+      setSelectedAddress((current) => {
+        if (current) return current;
         const defaultAddr = data.find((a) => a.is_default);
-        if (defaultAddr) setSelectedAddress(defaultAddr.id);
-      }
+        return defaultAddr?.id ?? current;
+      });
     } catch {
       setAddressError('Gagal memuat alamat. Silakan coba lagi.');
     } finally {
       setIsLoadingAddresses(false);
     }
-  };
+  }, []);
 
   const resetForm = (): void => {
     setFormData(INITIAL_FORM_STATE);

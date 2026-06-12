@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,12 +41,7 @@ export function AddressForm({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      className="overflow-hidden"
-    >
+    <div>
       <Card>
         <CardContent className="pt-6 space-y-4">
           <p className="text-sm font-semibold text-muted-foreground">
@@ -140,6 +134,6 @@ export function AddressForm({
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   );
 }

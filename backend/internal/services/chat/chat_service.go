@@ -129,8 +129,6 @@ func (s *ChatService) GetConversation(conversationID uuid.UUID, userID uuid.UUID
 			SenderID:       msg.SenderID,
 			Message:        msg.Message,
 			MessageType:    msg.MessageType,
-			FileURL:        msg.FileURL,
-			FileName:       msg.FileName,
 			IsRead:         msg.IsRead,
 			ReadAt:         msg.ReadAt,
 			CreatedAt:      msg.CreatedAt,
@@ -347,10 +345,8 @@ func (s *ChatService) MarkConversationAsRead(conversationID uuid.UUID, userID uu
 	return nil
 }
 
-// ===== Real-time Features =====
-
-// SetTypingIndicator sets user as typing
-func (s *ChatService) SetTypingIndicator(conversationID uuid.UUID, userID uuid.UUID, isAdmin bool) error {
+// SetTypingIndicator updates a user's short-lived typing status for a conversation.
+func (s *ChatService) SetTypingIndicator(conversationID uuid.UUID, userID uuid.UUID, isAdmin bool, isTyping bool) error {
 	conversation, err := s.chatRepo.GetConversationHeaderByID(conversationID)
 	if err != nil {
 		return err
@@ -361,18 +357,25 @@ func (s *ChatService) SetTypingIndicator(conversationID uuid.UUID, userID uuid.U
 	if !canAccessConversation(conversation, userID, isAdmin) {
 		return errors.New("unauthorized access to conversation")
 	}
-	if err := s.chatRepo.SetTypingIndicator(conversationID, userID, 5*time.Second); err != nil {
+
+	if isTyping {
+		if err := s.chatRepo.SetTypingIndicator(conversationID, userID, 5*time.Second); err != nil {
+			return err
+		}
+	} else if err := s.chatRepo.ClearTypingIndicator(conversationID, userID); err != nil {
 		return err
 	}
-	s.publishConversationEvent(conversationID, "typing:update", map[string]interface{}{
-		"conversation_id": conversationID,
-		"user_id":         userID,
-		"is_typing":       true,
+
+	s.publishConversationEvent(conversationID, "typing:update", models.TypingIndicatorEvent{
+		ConversationID: conversationID.String(),
+		UserID:         userID.String(),
+		IsTyping:       isTyping,
+		Timestamp:      time.Now(),
 	})
 	return nil
 }
 
-// GetTypingUsers gets users currently typing
+// GetTypingUsers returns currently active typing participants for a conversation.
 func (s *ChatService) GetTypingUsers(conversationID uuid.UUID, userID uuid.UUID, isAdmin bool) ([]uuid.UUID, error) {
 	conversation, err := s.chatRepo.GetConversationHeaderByID(conversationID)
 	if err != nil {
@@ -384,31 +387,8 @@ func (s *ChatService) GetTypingUsers(conversationID uuid.UUID, userID uuid.UUID,
 	if !canAccessConversation(conversation, userID, isAdmin) {
 		return nil, errors.New("unauthorized access to conversation")
 	}
+
 	return s.chatRepo.GetActiveTypingUsers(conversationID)
-}
-
-// ===== Reactions =====
-
-// AddReaction adds emoji reaction to message
-func (s *ChatService) AddReaction(messageID uuid.UUID, userID uuid.UUID, reaction string) error {
-	validReactions := map[string]bool{
-		"thumbs_up": true, "thumbs_down": true, "laugh": true, "cry": true, "heart": true, "fire": true,
-	}
-	if !validReactions[reaction] {
-		return errors.New("invalid reaction")
-	}
-	if err := s.ensureMessageAccess(messageID, userID, false); err != nil {
-		return err
-	}
-	return s.chatRepo.AddReaction(messageID, userID, reaction)
-}
-
-// RemoveReaction removes emoji reaction
-func (s *ChatService) RemoveReaction(messageID uuid.UUID, userID uuid.UUID, reaction string) error {
-	if err := s.ensureMessageAccess(messageID, userID, false); err != nil {
-		return err
-	}
-	return s.chatRepo.RemoveReaction(messageID, userID, reaction)
 }
 
 func (s *ChatService) ensureMessageAccess(messageID uuid.UUID, userID uuid.UUID, isAdmin bool) error {
@@ -528,13 +508,9 @@ func messageToResponse(message *models.ChatMessage) *models.ChatMessageResponse 
 		Sender:         userToResponse(message.Sender),
 		Message:        message.Message,
 		MessageType:    message.MessageType,
-		FileURL:        message.FileURL,
-		FileName:       message.FileName,
 		IsRead:         message.IsRead,
 		ReadAt:         message.ReadAt,
 		CreatedAt:      message.CreatedAt,
-		Attachments:    message.Attachments,
-		ReactionCount:  len(message.Reactions),
 	}
 }
 

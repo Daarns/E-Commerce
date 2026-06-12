@@ -68,11 +68,19 @@ export function useCheckoutOrder() {
           onSuccess: () => {
             void (async (): Promise<void> => {
               try {
-                await orderService.syncPayment(order.id);
-              } finally {
-                clearIdempotencyKey();
-                clearCart();
-                router.push(`/orders/${order.order_number}?payment=success`);
+                const syncResult = await orderService.syncPayment(order.id);
+                if (syncResult.payment_status === 'paid') {
+                  clearIdempotencyKey();
+                  clearCart();
+                  router.push(`/orders/${order.order_number}?payment=success`);
+                  return;
+                }
+                setIsProcessing(false);
+                router.push(`/orders/${order.order_number}?payment=pending`);
+              } catch (error) {
+                console.warn('Payment status sync failed after Snap success:', error);
+                setIsProcessing(false);
+                router.push(`/orders/${order.order_number}?payment=pending`);
               }
             })();
           },

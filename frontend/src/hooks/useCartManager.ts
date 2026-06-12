@@ -1,43 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
-import { gsap } from 'gsap';
+import { useEffect, useState } from 'react';
 import { useCartStore } from '@/stores/cart-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { toNum } from '@/utils';
 import { ValidCartItem } from '@/types';
 
 export function useCartManager() {
   const { cart, isLoading, updateQuantity, removeItem, fetchCart } = useCartStore();
-  const cartRef = useRef<HTMLDivElement>(null);
-  const summaryRef = useRef<HTMLDivElement>(null);
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuthStore();
 
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Fetch cart on mount
   useEffect(() => {
+    if (isAuthLoading || !isAuthenticated) return;
     fetchCart();
-  }, [fetchCart]);
-
-  // GSAP animations
-  useEffect(() => {
-    if (!isLoading && cart && cartRef.current && summaryRef.current) {
-      const ctx = gsap.context(() => {
-        gsap.from('.cart-item', {
-          x: -50,
-          opacity: 0,
-          duration: 0.6,
-          stagger: 0.1,
-          ease: 'power3.out',
-        });
-        gsap.from(summaryRef.current, {
-          x: 50,
-          opacity: 0,
-          duration: 0.8,
-          ease: 'back.out(1.7)',
-        });
-      }, cartRef);
-      return () => ctx.revert();
-    }
-  }, [isLoading, cart]);
+  }, [fetchCart, isAuthenticated, isAuthLoading]);
 
   const handleQuantityChange = async (itemId: string, newQuantity: number) => {
     setUpdatingId(itemId);
@@ -50,17 +28,11 @@ export function useCartManager() {
 
   const handleRemoveItem = async (itemId: string): Promise<void> => {
     setRemovingId(itemId);
-    const element = document.querySelector(`[data-item-id="${itemId}"]`);
-    if (element) {
-      await gsap.to(element, {
-        x: -100,
-        opacity: 0,
-        duration: 0.3,
-        ease: 'power2.in',
-      });
+    try {
+      await removeItem(itemId);
+    } finally {
+      setRemovingId(null);
     }
-    await removeItem(itemId);
-    setRemovingId(null);
   };
 
   const validItems = cart?.items?.filter((item): item is ValidCartItem => !!item.product) || [];
@@ -72,13 +44,11 @@ export function useCartManager() {
 
   return {
     cart,
-    isLoading,
+    isLoading: isLoading || isAuthLoading,
     validItems,
     subtotal,
     removingId,
     updatingId,
-    cartRef,
-    summaryRef,
     handleQuantityChange,
     handleRemoveItem,
   };

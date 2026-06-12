@@ -1,7 +1,6 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { motion } from 'framer-motion';
 import { PanelLeftClose, PanelLeftOpen, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -40,6 +39,7 @@ function ProductsPageContent() {
   const { products, categories, isLoading, isLoadingMore, totalProducts, currentPage, observerTarget } = useProductList(appliedFilters);
   const shouldShowProductSkeleton = isFilterPending || (isLoading && currentPage === 1);
   const shouldShowSearchResultCount = !!appliedFilters.searchQuery && !shouldShowProductSkeleton;
+  const productGridColumns = showDesktopFilters ? 3 : 5;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -98,11 +98,7 @@ function ProductsPageContent() {
 
       {/* Active Filters */}
       {hasActiveFilters && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-wrap gap-2 mb-6"
-        >
+        <div className="flex flex-wrap gap-2 mb-6">
           {filters.searchInputValue && (
             <Badge variant="secondary" className="gap-1">
               Search: {filters.searchInputValue}
@@ -142,14 +138,14 @@ function ProductsPageContent() {
               </button>
             </Badge>
           )}
-        </motion.div>
+        </div>
       )}
 
-      <div className="flex gap-8">
+      <div className="flex gap-5 lg:gap-6">
         {/* Desktop Sidebar */}
         {showDesktopFilters && (
-        <aside className="hidden md:block w-64 flex-shrink-0">
-          <div className="sticky top-24">
+        <aside className="hidden md:block w-56 flex-shrink-0 lg:w-60">
+          <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-1">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="font-semibold">Filters</h2>
               <Button
@@ -191,6 +187,7 @@ function ProductsPageContent() {
               products={products}
               isLoadingMore={isLoadingMore}
               observerTarget={observerTarget}
+              columns={productGridColumns}
             />
           )}
         </div>

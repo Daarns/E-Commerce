@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { OUT_OF_STOCK_LABEL, PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { useWishlistItem } from '@/hooks/useWishlistItem';
 import { Product } from '@/types';
-import { formatCurrency, getProductImageUrl } from '@/utils';
+import { formatCurrency, getProductImageUrl, shouldBypassNextImageOptimizer } from '@/utils';
 
 interface WishlistItemProps {
   wishlistId: string;
@@ -19,6 +19,7 @@ interface WishlistItemProps {
 }
 
 export function WishlistItem({ wishlistId, product, index = 0 }: WishlistItemProps) {
+  const productImageUrl = getProductImageUrl(product.images?.[0]) ?? PLACEHOLDER_PRODUCT_IMAGE;
   const {
     isImageLoaded,
     isAddingToCart,
@@ -43,7 +44,7 @@ export function WishlistItem({ wishlistId, product, index = 0 }: WishlistItemPro
             <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
               {/* Main Image */}
               <Image
-                src={getProductImageUrl(product.images?.[0]) ?? PLACEHOLDER_PRODUCT_IMAGE}
+                src={productImageUrl}
                 alt={product.name}
                 fill
                 className={`object-cover transition-all duration-500 ${
@@ -51,6 +52,7 @@ export function WishlistItem({ wishlistId, product, index = 0 }: WishlistItemPro
                 }`}
                 onLoad={() => setIsImageLoaded(true)}
                 sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                unoptimized={shouldBypassNextImageOptimizer(productImageUrl)}
               />
 
               {/* Badges */}

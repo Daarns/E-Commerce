@@ -3,140 +3,82 @@ import { Separator } from '@/components/ui/separator';
 
 const footerLinks = {
   shop: [
-    { label: 'All Products', href: '/products' },
-    { label: 'New Arrivals', href: '/products?sort=newest' },
-    { label: 'Best Sellers', href: '/products?sort=popular' },
-    { label: 'Sale', href: '/products?on_sale=true' },
+    { label: 'Semua Produk', href: '/products' },
+    { label: 'Produk Terbaru', href: '/products?sort=newest' },
+    { label: 'Terlaris', href: '/products?sort=popular' },
+    { label: 'Promo', href: '/products?on_sale=true' },
+  ],
+  account: [
+    { label: 'Wishlist', href: '/wishlist' },
+    { label: 'Keranjang', href: '/cart' },
+    { label: 'Pesanan Saya', href: '/orders' },
+    { label: 'Profil', href: '/profile' },
   ],
   support: [
-    { label: 'Contact Us', href: '/contact' },
-    { label: 'FAQs', href: '/faq' },
-    { label: 'Shipping Info', href: '/shipping' },
-    { label: 'Returns', href: '/returns' },
+    { label: 'Chat CS', href: '/chat' },
+    { label: 'Lacak Pesanan', href: '/orders' },
+    { label: 'Pembayaran', href: '/payment' },
   ],
-  company: [
-    { label: 'About Us', href: '/about' },
-    { label: 'Careers', href: '/careers' },
-    { label: 'Store Locator', href: '/stores' },
-    { label: 'Sustainability', href: '/sustainability' },
-  ],
-  legal: [
-    { label: 'Privacy Policy', href: '/privacy' },
-    { label: 'Terms of Service', href: '/terms' },
-    { label: 'Cookie Policy', href: '/cookies' },
-  ],
-};
-
-const socialLinks = [
-  { name: 'Facebook', href: '#', label: 'Facebook' },
-  { name: 'Instagram', href: '#', label: 'Instagram' },
-  { name: 'Twitter', href: '#', label: 'Twitter' },
-  { name: 'Youtube', href: '#', label: 'Youtube' },
-];
-
-const existingFooterRoutes = new Set([
-  '/products',
-  '/products?sort=newest',
-  '/products?sort=popular',
-  '/products?on_sale=true',
-]);
+} as const;
 
 export function Footer() {
   return (
-    <footer className="bg-muted/50 mt-auto">
-      <div className="container mx-auto px-4 py-12">
-        {/* Links Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-          <div>
-            <h4 className="font-semibold mb-4">Shop</h4>
-            <ul className="space-y-2">
-              {footerLinks.shop.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    prefetch={existingFooterRoutes.has(link.href)}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+    <footer className="mt-auto border-t bg-background">
+      <div className="container mx-auto px-4 py-10">
+        <div className="grid gap-10 lg:grid-cols-[1.2fr_2fr]">
+          <div className="max-w-sm">
+            <Link href="/" className="text-xl font-bold tracking-tight">
+              STORE
+            </Link>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              Platform belanja untuk menemukan produk, menyimpan wishlist, dan
+              mengelola pesanan dari satu akun.
+            </p>
           </div>
-          <div>
-            <h4 className="font-semibold mb-4">Support</h4>
-            <ul className="space-y-2">
-              {footerLinks.support.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    prefetch={false}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-4">Company</h4>
-            <ul className="space-y-2">
-              {footerLinks.company.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    prefetch={false}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-4">Legal</h4>
-            <ul className="space-y-2">
-              {footerLinks.legal.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    prefetch={false}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
+            <FooterLinkGroup title="Belanja" links={footerLinks.shop} />
+            <FooterLinkGroup title="Akun" links={footerLinks.account} />
+            <FooterLinkGroup title="Bantuan" links={footerLinks.support} />
           </div>
         </div>
 
-        <Separator className="mb-8" />
+        <Separator className="my-8" />
 
-        {/* Bottom Section */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <span className="text-xl font-bold">STORE</span>
-            <span className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} All rights reserved.
-            </span>
-          </div>
-          <div className="flex items-center gap-6">
-            {socialLinks.map((social) => (
-              <Link
-                key={social.label}
-                href={social.href}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                aria-label={social.label}
-              >
-                {social.name}
-              </Link>
-            ))}
-          </div>
+        <div className="flex flex-col gap-2 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+          <span>© {new Date().getFullYear()} STORE. All rights reserved.</span>
+          <span>Support tersedia melalui Chat CS di akun Anda.</span>
         </div>
       </div>
     </footer>
+  );
+}
+
+interface FooterLinkGroupProps {
+  title: string;
+  links: readonly {
+    label: string;
+    href: string;
+  }[];
+}
+
+function FooterLinkGroup({ title, links }: FooterLinkGroupProps) {
+  return (
+    <div>
+      <h4 className="mb-4 text-sm font-semibold">{title}</h4>
+      <ul className="space-y-2.5">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link
+              href={link.href}
+              prefetch={false}
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {link.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

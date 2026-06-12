@@ -5,7 +5,9 @@ export interface User {
   phone?: string;
   avatar_url?: string;
   role: 'customer' | 'admin';
+  status?: 'active' | 'suspended' | 'banned';
   is_verified: boolean;
+  is_active?: boolean;
   created_at: string;
 }
 

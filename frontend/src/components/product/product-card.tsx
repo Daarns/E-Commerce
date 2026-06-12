@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { Heart, ShoppingBag, Eye } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,6 +18,7 @@ import { useProductCard } from '@/hooks/useProductCard';
 import { Product } from '@/types';
 import { QuickViewModal } from '@/components/product/quick-view-modal';
 import { AuthRequiredDialog } from '@/components/common/auth-required-dialog';
+import { shouldBypassNextImageOptimizer } from '@/utils';
 
 interface ProductCardProps {
   product: Product;
@@ -27,9 +27,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const {
-    cardRef,
     isHovered,
-    imageLoaded,
     showQuickView,
     isAddingToCart,
     authDialog,
@@ -44,7 +42,6 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
     isWishlisted,
     isToggling,
     setIsHovered,
-    setImageLoaded,
     setShowQuickView,
     setAuthDialog,
     handleAddToCart,
@@ -54,14 +51,8 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
 
   return (
     <>
-      <motion.div
-        ref={cardRef}
-        className="h-full"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: index * 0.1 }}
-      >
-        <Link href={`/products/${product.slug}`} className="block h-full">
+      <div className="h-full">
+        <Link href={`/products/${product.slug}`} prefetch={false} className="block h-full">
           <Card
             className="group h-full overflow-hidden rounded-lg border bg-card shadow-none transition-colors hover:border-foreground/20"
             onMouseEnter={() => setIsHovered(true)}
@@ -75,13 +66,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                   src={primaryImageUrl ?? PLACEHOLDER_PRODUCT_IMAGE}
                   alt={product.name}
                   fill
-                  className={`${PRODUCT_CARD_IMAGE_FIT_CLASS} transition-all duration-500 ${
+                  className={`${PRODUCT_CARD_IMAGE_FIT_CLASS} transition-transform duration-300 ${
                     isHovered ? 'scale-110' : 'scale-100'
-                  } ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-                  onLoad={() => setImageLoaded(true)}
+                  }`}
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                   priority={imagePriority}
-                  unoptimized={primaryImageUrl?.startsWith('http://localhost') ?? false}
+                  unoptimized={shouldBypassNextImageOptimizer(primaryImageUrl ?? PLACEHOLDER_PRODUCT_IMAGE)}
                 />
 
                 {/* Hover Image (if available) */}
@@ -94,7 +84,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                       isHovered ? 'opacity-100' : 'opacity-0'
                     }`}
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                    unoptimized={hoverImageUrl.startsWith('http://localhost')}
+                    unoptimized={shouldBypassNextImageOptimizer(hoverImageUrl)}
                   />
                 )}
 
@@ -118,14 +108,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                 </div>
 
                 {/* Quick Actions */}
-                <motion.div
-                  className="absolute top-2 right-2 flex flex-col gap-2"
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{
-                    opacity: isHovered || isWishlisted ? 1 : 0,
-                    x: isHovered || isWishlisted ? 0 : 10,
-                  }}
-                  transition={{ duration: 0.2 }}
+                <div
+                  className={`absolute top-2 right-2 flex flex-col gap-2 transition-all duration-200 ${
+                    isHovered || isWishlisted
+                      ? 'translate-x-0 opacity-100'
+                      : 'translate-x-2 opacity-0'
+                  }`}
                 >
                   <Button
                     size="icon"
@@ -150,14 +138,13 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
-                </motion.div>
+                </div>
 
                 {/* Add to Cart Button */}
-                <motion.div
-                  className="absolute bottom-0 left-0 right-0 p-3"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: isHovered ? 1 : 0, y: isHovered ? 0 : 20 }}
-                  transition={{ duration: 0.2 }}
+                <div
+                  className={`absolute bottom-0 left-0 right-0 p-3 transition-all duration-200 ${
+                    isHovered ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+                  }`}
                 >
                   <Button
                     className="w-full gap-2"
@@ -167,7 +154,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                     <ShoppingBag className="h-4 w-4" />
                     {addToCartLabel}
                   </Button>
-                </motion.div>
+                </div>
               </div>
 
               {/* Product Info */}
@@ -196,7 +183,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             </CardContent>
           </Card>
         </Link>
-      </motion.div>
+      </div>
 
       {showQuickView && (
         <QuickViewModal

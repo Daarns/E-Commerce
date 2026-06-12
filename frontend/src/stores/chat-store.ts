@@ -23,10 +23,8 @@ interface ChatState {
   addMessage: (message: ChatMessage) => void;
   prependMessages: (messages: ChatMessage[]) => void;
   upsertConversation: (conversation: Conversation) => void;
-  setTypingUser: (data: TypingIndicator) => void;
-  removeTypingUser: (userId: string) => void;
-  addReaction: (messageId: string, emoji: string) => Promise<void>;
-  removeReaction: (messageId: string, emoji: string) => Promise<void>;
+  setTypingUser: (typing: TypingIndicator) => void;
+  removeTypingUser: (conversationId: string, userId: string) => void;
   markConversationAsRead: (conversationId: string) => Promise<void>;
   closeConversation: (conversationId: string) => Promise<void>;
   setCurrentConversation: (conversation: Conversation | null) => void;
@@ -170,82 +168,23 @@ export const useChatStore = create<ChatState>()(
         });
       },
 
-      setTypingUser: (data: TypingIndicator) => {
+      setTypingUser: (typing: TypingIndicator) => {
         set((state) => {
-          const existing = state.typingUsers.find((u) => u.user_id === data.user_id);
-          if (existing) {
-            return {
-              typingUsers: state.typingUsers.map((u) =>
-                u.user_id === data.user_id ? data : u
-              ),
-            };
-          }
+          const withoutExisting = state.typingUsers.filter((entry) => (
+            entry.conversation_id !== typing.conversation_id || entry.user_id !== typing.user_id
+          ));
           return {
-            typingUsers: [...state.typingUsers, data],
+            typingUsers: typing.is_typing ? [...withoutExisting, typing] : withoutExisting,
           };
         });
       },
 
-      removeTypingUser: (userId: string) => {
+      removeTypingUser: (conversationId: string, userId: string) => {
         set((state) => ({
-          typingUsers: state.typingUsers.filter((u) => u.user_id !== userId),
+          typingUsers: state.typingUsers.filter((entry) => (
+            entry.conversation_id !== conversationId || entry.user_id !== userId
+          )),
         }));
-      },
-
-      addReaction: async (messageId: string, emoji: string) => {
-        try {
-          await chatService.addReaction(messageId, emoji);
-
-          set((state) => ({
-            messages: state.messages.map((msg) => {
-              if (msg.id === messageId) {
-                const reactions = msg.reactions || [];
-                const existingReaction = reactions.find((r) => r.emoji === emoji);
-
-                if (existingReaction) {
-                  return {
-                    ...msg,
-                    reactions: reactions.map((r) =>
-                      r.emoji === emoji
-                        ? { ...r, user_ids: [...r.user_ids, 'current-user'] }
-                        : r
-                    ),
-                  };
-                }
-
-                return {
-                  ...msg,
-                  reactions: [...reactions, { emoji, user_ids: ['current-user'] }],
-                };
-              }
-              return msg;
-            }),
-          }));
-        } catch (error) {
-          console.error('Failed to add reaction:', error);
-          toast.error('Failed to add reaction');
-        }
-      },
-
-      removeReaction: async (messageId: string, emoji: string) => {
-        try {
-          await chatService.removeReaction(messageId, emoji);
-
-          set((state) => ({
-            messages: state.messages.map((msg) => {
-              if (msg.id === messageId) {
-                return {
-                  ...msg,
-                  reactions: (msg.reactions || []).filter((r) => r.emoji !== emoji),
-                };
-              }
-              return msg;
-            }),
-          }));
-        } catch (error) {
-          console.error('Failed to remove reaction:', error);
-          toast.error('Failed to remove reaction');
-        }
       },
 
       markConversationAsRead: async (conversationId: string) => {

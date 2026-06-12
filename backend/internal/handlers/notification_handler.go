@@ -29,11 +29,12 @@ func (h *NotificationHandler) GetNotifications(c *gin.Context) {
 
 	page := parseNotificationInt(c.Query("page"), 1)
 	pageSize := parseNotificationInt(c.Query("limit"), 20)
+	unreadOnly := c.Query("unread") == "true"
 	if pageSize > 50 {
 		pageSize = 50
 	}
 
-	result, err := h.service.ListForUser(userID, page, pageSize)
+	result, err := h.service.ListForUser(userID, page, pageSize, unreadOnly)
 	if err != nil {
 		response.InternalError(c, "Failed to load notifications")
 		return

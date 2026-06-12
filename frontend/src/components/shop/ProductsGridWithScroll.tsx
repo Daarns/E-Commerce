@@ -8,16 +8,18 @@ interface ProductsGridProps {
   products: Product[];
   isLoadingMore: boolean;
   observerTarget: React.RefObject<HTMLDivElement | null>;
+  columns?: 2 | 3 | 4 | 5;
 }
 
 export function ProductsGridWithScroll({
   products,
   isLoadingMore,
   observerTarget,
+  columns = 5,
 }: ProductsGridProps) {
   return (
     <>
-      <VirtualizedProductGrid products={products} columns={5} />
+      <VirtualizedProductGrid products={products} columns={columns} />
 
       {/* Show loading indicator while loading more */}
       {isLoadingMore && (

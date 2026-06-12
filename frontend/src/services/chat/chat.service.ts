@@ -185,14 +185,15 @@ export const chatService = {
     await api.put(`/admin/chat/conversations/${conversationId}/read`, {});
   },
 
-  async addReaction(messageId: string, reaction: string): Promise<void> {
-    await api.post(`/chat/messages/${messageId}/reactions`, {
-      message_id: messageId,
-      reaction,
+  async setTypingIndicator(
+    conversationId: string,
+    isTyping: boolean,
+    admin = false
+  ): Promise<void> {
+    const basePath = admin ? '/admin/chat' : '/chat';
+    await api.post(`${basePath}/conversations/${conversationId}/typing`, {
+      conversation_id: conversationId,
+      is_typing: isTyping,
     });
-  },
-
-  async removeReaction(messageId: string, reaction: string): Promise<void> {
-    await api.delete(`/chat/messages/${messageId}/reactions/${reaction}`);
   },
 };

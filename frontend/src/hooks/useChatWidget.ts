@@ -12,7 +12,6 @@ interface OpenChatSupportEventDetail {
   subject?: string;
   message?: string;
 }
-
 interface UseChatWidgetReturn {
   user: ReturnType<typeof useAuthStore.getState>['user'];
   conversations: Conversation[];
@@ -39,7 +38,6 @@ interface UseChatWidgetReturn {
   handleSendMessage: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   handleStartConversation: (event?: FormEvent) => Promise<void>;
 }
-
 export function useChatWidget(): UseChatWidgetReturn {
   const user = useAuthStore((state) => state.user);
   const userId = user?.id ?? null;
@@ -54,10 +52,10 @@ export function useChatWidget(): UseChatWidgetReturn {
     sendMessage,
     addMessage,
     upsertConversation,
-    loadConversation,
-    refreshConversationMessages,
     setTypingUser,
     removeTypingUser,
+    loadConversation,
+    refreshConversationMessages,
     setCurrentConversation,
     resetForUser,
   } = useChatStore();
@@ -78,16 +76,14 @@ export function useChatWidget(): UseChatWidgetReturn {
   }, [messages]);
 
   useEffect(() => {
-    return () => {
-      if (typingTimerRef.current) {
-        window.clearTimeout(typingTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     resetForUser(userId);
   }, [resetForUser, userId]);
+
+  useEffect(() => () => {
+    if (typingTimerRef.current !== null) {
+      window.clearTimeout(typingTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (isOpen && userId && ownerUserId === userId) {
@@ -144,21 +140,15 @@ export function useChatWidget(): UseChatWidgetReturn {
       }
     });
     const removeTypingListener = on('typing:update', (payload) => {
-      if (!isTypingPayload(payload)) return;
-      if (payload.conversation_id !== currentConversation?.id || payload.user_id === userId) return;
-
-      const typingData: TypingIndicator = {
-        conversation_id: payload.conversation_id,
-        user_id: payload.user_id,
-        is_typing: payload.is_typing,
-      };
+      if (!isTypingPayload(payload) || payload.user_id === userId) {
+        return;
+      }
       if (payload.is_typing) {
-        setTypingUser(typingData);
+        setTypingUser(payload);
       } else {
-        removeTypingUser(payload.user_id);
+        removeTypingUser(payload.conversation_id, payload.user_id);
       }
     });
-
     return () => {
       removeMessageListener();
       removeConversationListener();
@@ -191,8 +181,8 @@ export function useChatWidget(): UseChatWidgetReturn {
 
     setIsSending(true);
     try {
-      await sendMessage(currentConversation.id, messageInput);
       setTyping(false);
+      await sendMessage(currentConversation.id, messageInput);
       setMessageInput('');
     } finally {
       setIsSending(false);
@@ -244,10 +234,8 @@ export function useChatWidget(): UseChatWidgetReturn {
       return;
     }
 
-    if (value.trim()) {
-      setTyping(true);
-    }
-    if (typingTimerRef.current) {
+    setTyping(true);
+    if (typingTimerRef.current !== null) {
       window.clearTimeout(typingTimerRef.current);
     }
     typingTimerRef.current = window.setTimeout(() => {
@@ -288,6 +276,16 @@ export function useChatWidget(): UseChatWidgetReturn {
   };
 }
 
+function isTypingPayload(payload: unknown): payload is TypingIndicator {
+  if (typeof payload !== 'object' || payload === null) return false;
+  const candidate = payload as Record<string, unknown>;
+  return (
+    typeof candidate.conversation_id === 'string' &&
+    typeof candidate.user_id === 'string' &&
+    typeof candidate.is_typing === 'boolean'
+  );
+}
+
 function isChatMessage(payload: unknown): payload is ChatMessage {
   if (typeof payload !== 'object' || payload === null) return false;
   const candidate = payload as Record<string, unknown>;
@@ -306,15 +304,5 @@ function isConversation(payload: unknown): payload is Conversation {
     typeof candidate.id === 'string' &&
     typeof candidate.user_id === 'string' &&
     typeof candidate.status === 'string'
-  );
-}
-
-function isTypingPayload(payload: unknown): payload is TypingIndicator {
-  if (typeof payload !== 'object' || payload === null) return false;
-  const candidate = payload as Record<string, unknown>;
-  return (
-    typeof candidate.conversation_id === 'string' &&
-    typeof candidate.user_id === 'string' &&
-    typeof candidate.is_typing === 'boolean'
   );
 }

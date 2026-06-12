@@ -32,7 +32,7 @@ func NewAuthHandler(authUseCase *auth.AuthService) *AuthHandler {
 // @Router /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var input auth.RegisterInput
-	
+
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return
@@ -62,7 +62,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 // @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var input auth.LoginInput
-	
+
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, err.Error())
 		return
@@ -78,14 +78,26 @@ func (h *AuthHandler) Login(c *gin.Context) {
 				// Don't fail - just warn but still return proper error response
 				fmt.Printf("Warning: failed to check/send verification email on login: %v\n", err)
 			}
-			
+
 			// Return 403 with info about email being sent or code being reused
 			details := map[string]interface{}{
-				"email":       input.Email,
-				"email_sent":  emailSent, // Frontend can use this to determine if to show "Email sent" toast
+				"email":      input.Email,
+				"email_sent": emailSent, // Frontend can use this to determine if to show "Email sent" toast
 			}
-			
+
 			response.ErrorWithDetails(c, http.StatusForbidden, "EMAIL_NOT_VERIFIED", "Please verify your email before logging in.", details)
+			return
+		}
+		if err.Error() == "ACCOUNT_SUSPENDED" {
+			response.Error(c, http.StatusForbidden, "ACCOUNT_SUSPENDED", "Akun kamu sedang disuspend. Hubungi CS jika menurutmu ini keliru.")
+			return
+		}
+		if err.Error() == "ACCOUNT_BANNED" {
+			response.Error(c, http.StatusForbidden, "ACCOUNT_BANNED", "Akun ini sudah diblokir permanen dan tidak bisa digunakan untuk login.")
+			return
+		}
+		if err.Error() == "ACCOUNT_INACTIVE" {
+			response.Error(c, http.StatusForbidden, "ACCOUNT_INACTIVE", "Akun ini belum bisa digunakan. Hubungi CS untuk bantuan.")
 			return
 		}
 		// Don't expose specific error for security
@@ -205,4 +217,3 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 
 	response.Success(c, gin.H{"message": "Account deleted successfully"})
 }
-

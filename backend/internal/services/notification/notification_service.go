@@ -36,8 +36,8 @@ func (s *Service) CreateForUser(userID uuid.UUID, notificationType string, title
 	})
 }
 
-func (s *Service) ListForUser(userID uuid.UUID, page, pageSize int) (*models.NotificationListResponse, error) {
-	notifications, total, err := s.repo.ListByUser(userID, page, pageSize)
+func (s *Service) ListForUser(userID uuid.UUID, page, pageSize int, unreadOnly bool) (*models.NotificationListResponse, error) {
+	notifications, total, err := s.repo.ListByUser(userID, page, pageSize, unreadOnly)
 	if err != nil {
 		return nil, err
 	}

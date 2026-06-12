@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState } from 'react';
 import { shippingService, type ShippingMethod } from '@/services/shipping';
 
 export function useCheckoutShipping() {
@@ -7,7 +7,7 @@ export function useCheckoutShipping() {
   const [isLoadingShipping, setIsLoadingShipping] = useState(false);
   const [shippingError, setShippingError] = useState<string | null>(null);
 
-  const loadShippingMethods = async (): Promise<void> => {
+  const loadShippingMethods = useCallback(async (): Promise<void> => {
     setIsLoadingShipping(true);
     setShippingError(null);
     try {
@@ -21,15 +21,15 @@ export function useCheckoutShipping() {
     } finally {
       setIsLoadingShipping(false);
     }
-  };
+  }, []);
 
-  const getSelectedMethod = (): ShippingMethod | undefined => {
+  const getSelectedMethod = useCallback((): ShippingMethod | undefined => {
     return shippingMethods.find((s) => s.code === selectedShipping);
-  };
+  }, [selectedShipping, shippingMethods]);
 
-  const getShippingCost = (): number => {
+  const getShippingCost = useCallback((): number => {
     return getSelectedMethod()?.price ?? 0;
-  };
+  }, [getSelectedMethod]);
 
   return {
     shippingMethods,

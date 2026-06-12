@@ -95,13 +95,13 @@ export function AdminChatPageContent() {
     page,
     totalPages,
     reply,
-    typingUsers,
     isLoadingList,
     isLoadingMessages,
     isLoadingOlderMessages,
     isSending,
     isSearchPending,
     hasOlderMessages,
+    typingUsers,
     setSearch,
     setStatusFilter,
     setPage,
@@ -128,8 +128,8 @@ export function AdminChatPageContent() {
         </Button>
       </div>
 
-      <div className="grid h-[calc(100vh-11.5rem)] min-h-[460px] max-h-[760px] gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <Card className="flex min-h-0 flex-col overflow-hidden">
+      <div className="grid gap-4 md:h-[calc(100vh-11.5rem)] md:min-h-[520px] md:max-h-[780px] md:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
+        <Card className="flex max-h-[34vh] min-h-[240px] flex-col overflow-hidden md:max-h-none md:min-h-0">
           <div className="space-y-3 border-b p-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -140,10 +140,10 @@ export function AdminChatPageContent() {
                   setPage(1);
                 }}
                 placeholder="Search user, email, subject..."
-                className="h-9 pl-9"
+                className="h-9 pl-9 text-sm"
               />
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
               {STATUS_OPTIONS.map((option) => (
                 <Button
                   key={option.value}
@@ -154,7 +154,7 @@ export function AdminChatPageContent() {
                     setStatusFilter(option.value);
                     setPage(1);
                   }}
-                  className="h-7 px-2 text-xs"
+                  className="h-7 shrink-0 px-2 text-xs"
                 >
                   {option.label}
                 </Button>
@@ -215,7 +215,7 @@ export function AdminChatPageContent() {
             )}
           </div>
 
-          <div className="flex items-center justify-between border-t p-3 text-sm">
+          <div className="flex items-center justify-between gap-2 border-t p-3 text-sm">
             <Button
               type="button"
               variant="outline"
@@ -240,7 +240,7 @@ export function AdminChatPageContent() {
           </div>
         </Card>
 
-        <Card className="flex min-h-0 flex-col overflow-hidden">
+        <Card className="flex h-[min(68vh,36rem)] min-h-[360px] flex-col overflow-hidden md:h-auto md:min-h-0">
           {selectedConversation ? (
             <>
               <div className="shrink-0 flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -252,7 +252,7 @@ export function AdminChatPageContent() {
                     {selectedConversation.subject}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
                   {(['in_progress', 'resolved', 'closed'] as ConversationStatus[]).map((status) => (
                     <Button
                       key={status}
@@ -260,6 +260,7 @@ export function AdminChatPageContent() {
                       size="sm"
                       variant={selectedConversation.status === status ? 'default' : 'outline'}
                       onClick={() => void updateStatus(status)}
+                      className="shrink-0"
                     >
                       {statusLabel[status]}
                     </Button>
@@ -267,7 +268,7 @@ export function AdminChatPageContent() {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-muted/30 p-4">
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-muted/30 p-3 sm:p-4">
                 {isLoadingMessages ? (
                   <div className="flex h-full items-center justify-center">
                     <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -297,13 +298,13 @@ export function AdminChatPageContent() {
                         currentUserId={user?.id}
                       />
                     ))}
-                    {typingUsers.length > 0 && (
+                    {selectedConversation && typingUsers.some((entry) => entry.conversation_id === selectedConversation.id) ? (
                       <div className="flex justify-start">
                         <div className="rounded-lg border bg-background px-3 py-2 text-xs text-muted-foreground shadow-sm">
                           Customer sedang mengetik...
                         </div>
                       </div>
-                    )}
+                    ) : null}
                   </>
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -312,7 +313,7 @@ export function AdminChatPageContent() {
                 )}
               </div>
 
-              <form onSubmit={handleSendReply} className="shrink-0 border-t p-4">
+              <form onSubmit={handleSendReply} className="shrink-0 border-t p-3 sm:p-4">
                 <div className="flex gap-2">
                   <Input
                     value={reply}
@@ -323,10 +324,10 @@ export function AdminChatPageContent() {
                   <Button
                     type="submit"
                     disabled={isSending || !reply.trim() || selectedConversation.status === 'closed'}
-                    className="gap-2"
+                    className="shrink-0 gap-2"
                   >
                     {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Send
+                    <span className="hidden sm:inline">Send</span>
                   </Button>
                 </div>
               </form>

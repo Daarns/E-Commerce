@@ -1,10 +1,5 @@
 import { useState } from 'react';
 
-interface StepValidation {
-  isValid: boolean;
-  errorMessage?: string;
-}
-
 export function useCheckoutSteps(
   onStepChange?: (step: number) => void
 ) {

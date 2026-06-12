@@ -40,7 +40,6 @@ export function PaymentForm({
         onSuccess();
       },
       onPending: () => {
-        console.log('Payment pending');
       },
       onError: () => {
         onLoadingChange(false);

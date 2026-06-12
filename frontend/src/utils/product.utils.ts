@@ -1,4 +1,5 @@
 import { toNum } from '@/utils/format';
+import { normalizeStorageImageUrl } from '@/utils/image-url';
 import type {
   Product,
   ProductImage,
@@ -90,7 +91,7 @@ export function getProductPricing(
 }
 
 export function getProductImageUrl(image: ProductImage | undefined): string | undefined {
-  return image?.url ?? image?.image_url;
+  return normalizeStorageImageUrl(image?.url ?? image?.image_url);
 }
 
 export function getUniqueProductImages(images: ProductImage[] | undefined): ProductImage[] {

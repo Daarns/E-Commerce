@@ -230,9 +230,11 @@ func (r *UserRepository) GetUsersWithFilters(page, pageSize int, search, role, s
 	if status != "" {
 		switch status {
 		case "active":
-			query = query.Where("is_active = true AND is_verified = true")
-		case "inactive":
-			query = query.Where("is_active = false")
+			query = query.Where("status = ? AND is_active = true", models.UserStatusActive)
+		case "suspended":
+			query = query.Where("status = ?", models.UserStatusSuspended)
+		case "banned":
+			query = query.Where("status = ?", models.UserStatusBanned)
 		case "unverified":
 			query = query.Where("is_verified = false")
 		}
@@ -269,6 +271,40 @@ func (r *UserRepository) GetUsersWithFilters(page, pageSize int, search, role, s
 	return users, total, nil
 }
 
+func (r *UserRepository) UpdateUserStatus(userID uuid.UUID, status string) error {
+	isActive := status == models.UserStatusActive
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.User{}).
+			Where("id = ? AND deleted_at IS NULL", userID).
+			Updates(map[string]interface{}{
+				"status":     status,
+				"is_active":  isActive,
+				"updated_at": gorm.Expr("CURRENT_TIMESTAMP"),
+			}).Error; err != nil {
+			return fmt.Errorf("failed to update user status: %w", err)
+		}
+
+		if !isActive {
+			if err := tx.Where("user_id = ?", userID).Delete(&models.RefreshToken{}).Error; err != nil {
+				return fmt.Errorf("failed to revoke user refresh tokens: %w", err)
+			}
+		}
+		return nil
+	})
+}
+
+func (r *UserRepository) UpdateUserRole(userID uuid.UUID, role string) error {
+	if err := r.db.Model(&models.User{}).
+		Where("id = ? AND deleted_at IS NULL", userID).
+		Updates(map[string]interface{}{
+			"role":       role,
+			"updated_at": gorm.Expr("CURRENT_TIMESTAMP"),
+		}).Error; err != nil {
+		return fmt.Errorf("failed to update user role: %w", err)
+	}
+	return nil
+}
+
 func sanitizeUserSort(sortBy, sortOrder string) string {
 	allowedSortFields := map[string]string{
 		"created_at":    "created_at",
@@ -303,20 +339,29 @@ func (r *UserRepository) GetUserMetrics() (map[string]interface{}, error) {
 
 	// Active users
 	var activeUsers int64
-	if err := r.db.Model(&models.User{}).Where("is_active = true AND deleted_at IS NULL").Count(&activeUsers).Error; err != nil {
+	if err := r.db.Model(&models.User{}).
+		Where("status = ? AND is_active = true AND deleted_at IS NULL", models.UserStatusActive).
+		Count(&activeUsers).Error; err != nil {
 		return nil, fmt.Errorf("failed to count active users: %w", err)
 	}
 	metrics["active_users"] = activeUsers
 
 	// Suspended users
 	var suspendedUsers int64
-	if err := r.db.Model(&models.User{}).Where("is_active = false AND deleted_at IS NULL").Count(&suspendedUsers).Error; err != nil {
+	if err := r.db.Model(&models.User{}).
+		Where("status = ? AND deleted_at IS NULL", models.UserStatusSuspended).
+		Count(&suspendedUsers).Error; err != nil {
 		return nil, fmt.Errorf("failed to count suspended users: %w", err)
 	}
 	metrics["suspended_users"] = suspendedUsers
 
-	// Banned users (we can use a field or count is_active=false as banned for now)
-	metrics["banned_users"] = int64(0) // Placeholder - add a "ban_status" field if needed
+	var bannedUsers int64
+	if err := r.db.Model(&models.User{}).
+		Where("status = ? AND deleted_at IS NULL", models.UserStatusBanned).
+		Count(&bannedUsers).Error; err != nil {
+		return nil, fmt.Errorf("failed to count banned users: %w", err)
+	}
+	metrics["banned_users"] = bannedUsers
 
 	return metrics, nil
 }

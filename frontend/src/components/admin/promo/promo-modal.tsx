@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PromoCode } from '@/services/admin';
-import { usePromoForm, PromoFormData } from '@/hooks/usePromoForm';
+import { usePromoForm } from '@/hooks/usePromoForm';
 
 interface PromoModalProps {
   open: boolean;
@@ -15,20 +15,6 @@ interface PromoModalProps {
   onClose: () => void;
   onSaved: () => void;
 }
-
-const defaultForm: PromoFormData = {
-  code: '',
-  description: '',
-  discount_type: 'percentage',
-  discount_value: 10,
-  min_order_amount: 0,
-  max_discount_amount: 0,
-  usage_limit: 100,
-  usage_limit_per_user: 1,
-  valid_from: new Date().toISOString().split('T')[0],
-  valid_to: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-  is_active: true,
-};
 
 export function PromoModal({ open, initial, onClose, onSaved }: PromoModalProps) {
   const { form, updateForm, isSaving, handleSave, resetForm } = usePromoForm(onSaved);

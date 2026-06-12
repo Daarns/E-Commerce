@@ -7,6 +7,7 @@ import {
   formatCurrency,
   getProductImageForCombination,
   getProductImageUrl,
+  shouldBypassNextImageOptimizer,
   toNum,
 } from '@/utils';
 import { CartItem } from '@/types';
@@ -59,6 +60,7 @@ export function OrderSummary({
                       fill
                       className="object-cover"
                       sizes="48px"
+                      unoptimized={shouldBypassNextImageOptimizer(itemImageUrl)}
                     />
                   </div>
                 )}

@@ -50,6 +50,23 @@ export function useProductReviews({ productId, canCheckEligibility = false }: Us
     ? reviews
     : reviews.filter((review) => review.rating === ratingFilter);
 
+  const refreshEligibility = useCallback(async (): Promise<void> => {
+    setEligibility(null);
+    setShowReviewForm(false);
+
+    if (!canCheckEligibility) {
+      return;
+    }
+
+    try {
+      const result = await productService.getReviewEligibility(productId);
+      setEligibility(result);
+    } catch (error) {
+      console.error('Failed to fetch review eligibility:', error);
+      setEligibility({ can_review: false });
+    }
+  }, [canCheckEligibility, productId]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -148,13 +165,13 @@ export function useProductReviews({ productId, canCheckEligibility = false }: Us
         ...previous,
         total_reviews: previous.total_reviews + 1,
       } : previous);
-      setEligibility({ can_review: false, reason: 'already_reviewed', order_id: newReview.order_id });
       toast.success('Review berhasil dikirim.');
+      void refreshEligibility();
       return;
     }
     toast.success('Review dikirim dan menunggu moderasi admin.');
-    setEligibility({ can_review: false, reason: 'already_reviewed', order_id: newReview.order_id });
-  }, []);
+    void refreshEligibility();
+  }, [refreshEligibility]);
 
   const setSortBy = useCallback((sort: ProductReviewSort): void => {
     setSortByState(sort);

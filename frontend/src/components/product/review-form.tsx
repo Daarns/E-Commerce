@@ -26,7 +26,8 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
     setRating,
     setTitle,
     setReviewText,
-    setImages,
+    handleImagesSelected,
+    handleImageRemove,
     setHoveredRating,
     handleSubmit,
   } = useProductReviewForm({ productId, onSuccess });
@@ -110,7 +111,7 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
           disabled={isSubmitting}
           onChange={(event) => {
             const selectedImages = Array.from(event.target.files ?? []);
-            setImages([...images, ...selectedImages].slice(0, 3));
+            handleImagesSelected(selectedImages);
             event.target.value = '';
           }}
         />
@@ -125,7 +126,7 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
                 <button
                   type="button"
                   aria-label={`Remove image ${index + 1}`}
-                  onClick={() => setImages(images.filter((_, imageIndex) => imageIndex !== index))}
+                  onClick={() => handleImageRemove(index)}
                   className="rounded-full text-gray-500 hover:text-gray-900"
                 >
                   <X className="h-3.5 w-3.5" />

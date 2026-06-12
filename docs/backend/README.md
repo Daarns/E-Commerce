@@ -1,94 +1,43 @@
-# E-Commerce Backend (Go + Gin)
+# Backend Documentation
 
-Clean Architecture backend API built with Go and Gin framework.
+Backend app path:
 
-## 🏗️ Architecture
-
-### Clean Architecture Layers
-
-```
-cmd/
-  api/              # Application entry point
-internal/
-  domain/           # Business entities (core domain)
-  usecase/          # Business logic (application layer)
-  delivery/         # HTTP handlers (interface layer)
-  repository/       # Data access (infrastructure layer)
-  middleware/       # Cross-cutting concerns
-pkg/                # Reusable packages
-config/             # Configuration management
+```text
+backend/
 ```
 
-## 🚀 Quick Start
+## Read These
 
-### 1. Install Dependencies
+| Document | Purpose |
+|---|---|
+| [Structure](../structure/BACKEND.md) | Go backend layers and responsibilities |
+| [Setup](../setup/README.md#2-configure-backend) | Local backend setup |
+| [Environment](../setup/ENVIRONMENT.md#backend) | Backend environment variables |
+| [API Overview](../api/README.md) | Public/customer/admin endpoints |
+| [Database](../database/README.md) | PostgreSQL and migration/dump strategy |
+| [Testing](../testing/README.md#backend-checks) | Go test/build checks |
+| [Troubleshooting](../troubleshooting/README.md) | Common local backend issues |
 
-```bash
-# Download all Go modules
+## Common Commands
+
+```powershell
+cd backend
 go mod download
-
-# Install Air for hot reload (optional but recommended)
-go install github.com/cosmtrek/air@latest
-```
-
-### 2. Setup Environment
-
-```bash
-# Copy example environment file
-copy .env.example .env
-
-# Edit .env with your configurations
-```
-
-### 3. Run Development Server
-
-```bash
-# With hot reload (recommended)
-air
-
-# Or without hot reload
-go run cmd/api/main.go
-```
-
-Server will start on `http://localhost:8080`
-
-## 📡 API Endpoints
-
-### Health Check
-```
-GET /health
-```
-
-### Authentication (Coming Soon)
-```
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-```
-
-### Products (Coming Soon)
-```
-GET    /api/v1/products
-GET    /api/v1/products/:id
-```
-
-## 🧪 Testing
-
-```bash
-# Run all tests
+go run ./cmd/api
 go test ./...
-
-# Run with coverage
-go test -cover ./...
+go build ./...
 ```
 
-## 🔧 Configuration
+## Docker Image
 
-Key environment variables:
+```powershell
+docker build -f backend/Dockerfile -t store-backend:local backend
+```
 
-- `PORT`: Server port (default: 8080)
-- `ENV`: Environment mode (development/production)
-- `DB_HOST`, `DB_PORT`, `DB_NAME`: Database connection
-- `JWT_SECRET`: JWT signing key
-- `REDIS_HOST`, `REDIS_PORT`: Redis connection
+The image runs the API on port `8080` and expects configuration through environment variables.
 
-See `.env.example` for complete list.
+## Backend Notes
+
+- Routes, handlers, services, repositories, middleware, and webhooks are separated by responsibility.
+- Business workflows such as order fulfillment, refunds, payment sync, and chat are implemented in the backend service layer.
+- API contracts are summarized in [API Overview](../api/README.md).

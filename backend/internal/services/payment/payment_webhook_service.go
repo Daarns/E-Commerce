@@ -6,7 +6,9 @@ import (
 	"ecommerce-backend/internal/repositories"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -103,8 +105,19 @@ func (s *PaymentWebhookService) VerifySignature(orderID, statusCode, grossAmount
 
 // ProcessWebhook processes incoming payment webhook with idempotency guarantee
 func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (*PaymentWebhookResponse, error) {
+	start := time.Now()
+	log.Printf(
+		"[MidtransWebhookService] start event_id=%s order_id=%s tx=%s status=%s status_code=%s",
+		buildWebhookEventID(webhook),
+		webhook.OrderID,
+		maskPaymentWebhookTransactionID(webhook.TransactionID),
+		webhook.TransactionStatus,
+		webhook.StatusCode,
+	)
+
 	// Verify signature
 	if !s.VerifySignature(webhook.OrderID, webhook.StatusCode, webhook.GrossAmount, webhook.SignatureKey) {
+		log.Printf("[MidtransWebhookService] invalid_signature order_id=%s tx=%s status=%s", webhook.OrderID, maskPaymentWebhookTransactionID(webhook.TransactionID), webhook.TransactionStatus)
 		return nil, fmt.Errorf("invalid webhook signature")
 	}
 
@@ -119,6 +132,7 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 			fmt.Printf("Warning: failed to check webhook idempotency: %v\n", err)
 			// Continue anyway — idempotency check is not critical
 		} else if processed {
+			log.Printf("[MidtransWebhookService] duplicate_event event_id=%s order_id=%s tx=%s duration_ms=%d", webhookEventID, webhook.OrderID, maskPaymentWebhookTransactionID(webhook.TransactionID), time.Since(start).Milliseconds())
 			return &PaymentWebhookResponse{
 				Success:       true,
 				Message:       "Webhook already processed",
@@ -136,11 +150,21 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 	}
 	order, err := s.orderRepo.GetByOrderNumber(orderNumber)
 	if err != nil {
+		log.Printf("[MidtransWebhookService] order_lookup_failed webhook_order_id=%s normalized_order_number=%s tx=%s error=%v", webhook.OrderID, orderNumber, maskPaymentWebhookTransactionID(webhook.TransactionID), err)
 		return nil, fmt.Errorf("order not found: %w", err)
 	}
 
 	// Map Midtrans status to our payment status
 	paymentStatus := mapMidtransStatus(webhook.TransactionStatus)
+	log.Printf(
+		"[MidtransWebhookService] mapped order_id=%s db_order_id=%s current_payment=%s current_order=%s midtrans_status=%s payment_status=%s",
+		order.OrderNumber,
+		order.ID,
+		order.PaymentStatus,
+		order.OrderStatus,
+		webhook.TransactionStatus,
+		paymentStatus,
+	)
 
 	// Determine order status based on payment status
 	var newOrderStatus string
@@ -157,15 +181,19 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 	paymentMethod := formatMidtransPaymentMethod(webhook)
 	wasAlreadyPaid := order.PaymentStatus == models.PaymentStatusPaid
 	if err := s.orderRepo.UpdatePaymentStatusWithMethod(order.ID, paymentStatus, webhook.TransactionID, paymentMethod, "midtrans"); err != nil {
+		log.Printf("[MidtransWebhookService] payment_update_failed order_id=%s db_order_id=%s payment_status=%s method=%s error=%v", order.OrderNumber, order.ID, paymentStatus, paymentMethod, err)
 		return nil, fmt.Errorf("failed to update payment status: %w", err)
 	}
+	log.Printf("[MidtransWebhookService] payment_updated order_id=%s db_order_id=%s payment_status=%s method=%s provider=midtrans", order.OrderNumber, order.ID, paymentStatus, paymentMethod)
 
 	// Update order status if there's a status change
 	if newOrderStatus != "" {
 		notes := fmt.Sprintf("Payment %s via %s (Transaction: %s)", webhook.TransactionStatus, webhook.PaymentType, webhook.TransactionID)
 		if err := s.orderRepo.UpdateStatus(order.ID, newOrderStatus, notes, nil); err != nil {
+			log.Printf("[MidtransWebhookService] order_status_update_failed order_id=%s db_order_id=%s target_status=%s error=%v", order.OrderNumber, order.ID, newOrderStatus, err)
 			return nil, fmt.Errorf("failed to update order status: %w", err)
 		}
+		log.Printf("[MidtransWebhookService] order_status_updated order_id=%s db_order_id=%s target_status=%s", order.OrderNumber, order.ID, newOrderStatus)
 	}
 
 	// Record promo usage now that payment is confirmed (deferred from checkout)
@@ -198,12 +226,20 @@ func (s *PaymentWebhookService) ProcessWebhook(webhook *PaymentWebhookRequest) (
 		}
 	}
 
+	log.Printf("[MidtransWebhookService] complete event_id=%s order_id=%s payment_status=%s duration_ms=%d", webhookEventID, order.OrderNumber, paymentStatus, time.Since(start).Milliseconds())
 	return &PaymentWebhookResponse{
 		Success:       true,
 		Message:       "Webhook processed successfully",
 		OrderID:       webhook.OrderID,
 		PaymentStatus: paymentStatus,
 	}, nil
+}
+
+func maskPaymentWebhookTransactionID(transactionID string) string {
+	if len(transactionID) <= 10 {
+		return transactionID
+	}
+	return transactionID[:6] + "..." + transactionID[len(transactionID)-4:]
 }
 
 func (s *PaymentWebhookService) notifyPaymentSuccess(order *models.Order) {

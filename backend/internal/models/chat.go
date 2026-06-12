@@ -37,21 +37,17 @@ func (Conversation) TableName() string {
 
 // ChatMessage represents a single message in a conversation
 type ChatMessage struct {
-	ID             uuid.UUID         `gorm:"type:uuid;primaryKey" json:"id"`
-	ConversationID uuid.UUID         `gorm:"type:uuid;not null;index" json:"conversation_id"`
-	Conversation   *Conversation     `gorm:"constraint:OnDelete:CASCADE" json:"conversation,omitempty"`
-	SenderID       uuid.UUID         `gorm:"type:uuid;not null;index" json:"sender_id"`
-	Sender         *User             `gorm:"constraint:OnDelete:SET NULL" json:"sender,omitempty"`
-	Message        string            `gorm:"type:text;not null" json:"message"`
-	MessageType    string            `gorm:"type:varchar(20);default:'text'" json:"message_type"` // text, image, file, system
-	FileURL        *string           `gorm:"type:text" json:"file_url,omitempty"`
-	FileName       *string           `gorm:"type:text" json:"file_name,omitempty"`
-	IsRead         bool              `gorm:"default:false" json:"is_read"`
-	ReadAt         *time.Time        `json:"read_at,omitempty"`
-	CreatedAt      time.Time         `gorm:"type:timestamp;default:now()" json:"created_at"`
-	UpdatedAt      time.Time         `gorm:"type:timestamp" json:"updated_at"`
-	Attachments    []ChatAttachment  `gorm:"foreignKey:MessageID;constraint:OnDelete:CASCADE" json:"attachments,omitempty"`
-	Reactions      []MessageReaction `gorm:"foreignKey:MessageID;constraint:OnDelete:CASCADE" json:"reactions,omitempty"`
+	ID             uuid.UUID     `gorm:"type:uuid;primaryKey" json:"id"`
+	ConversationID uuid.UUID     `gorm:"type:uuid;not null;index" json:"conversation_id"`
+	Conversation   *Conversation `gorm:"constraint:OnDelete:CASCADE" json:"conversation,omitempty"`
+	SenderID       uuid.UUID     `gorm:"type:uuid;not null;index" json:"sender_id"`
+	Sender         *User         `gorm:"constraint:OnDelete:SET NULL" json:"sender,omitempty"`
+	Message        string        `gorm:"type:text;not null" json:"message"`
+	MessageType    string        `gorm:"type:varchar(20);default:'text'" json:"message_type"` // text, image, file, system
+	IsRead         bool          `gorm:"default:false" json:"is_read"`
+	ReadAt         *time.Time    `json:"read_at,omitempty"`
+	CreatedAt      time.Time     `gorm:"type:timestamp;default:now()" json:"created_at"`
+	UpdatedAt      time.Time     `gorm:"type:timestamp" json:"updated_at"`
 }
 
 // TableName specifies the table name
@@ -59,77 +55,18 @@ func (ChatMessage) TableName() string {
 	return "chat_messages"
 }
 
-// ChatAttachment represents a file attachment to a message
-type ChatAttachment struct {
-	ID         uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	MessageID  uuid.UUID `gorm:"type:uuid;not null;index" json:"message_id"`
-	FileURL    string    `gorm:"type:text;not null" json:"file_url"`
-	FileName   string    `gorm:"type:text;not null" json:"file_name"`
-	FileSize   *int      `json:"file_size,omitempty"`
-	FileType   *string   `gorm:"type:varchar(50)" json:"file_type,omitempty"`
-	UploadedAt time.Time `gorm:"type:timestamp;default:now()" json:"uploaded_at"`
-}
-
-// TableName specifies the table name
-func (ChatAttachment) TableName() string {
-	return "chat_attachments"
-}
-
-// ConversationTag represents a tag for categorizing conversations
-type ConversationTag struct {
-	ID             uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	ConversationID uuid.UUID `gorm:"type:uuid;not null;index" json:"conversation_id"`
-	TagName        string    `gorm:"type:text;not null" json:"tag_name"`
-	CreatedAt      time.Time `gorm:"type:timestamp;default:now()" json:"created_at"`
-}
-
-// TableName specifies the table name
-func (ConversationTag) TableName() string {
-	return "conversation_tags"
-}
-
-// AgentStatus represents an agent's online/offline status
-type AgentStatus struct {
-	ID                  uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	UserID              uuid.UUID `gorm:"type:uuid;not null;uniqueIndex" json:"user_id"`
-	Status              string    `gorm:"type:varchar(20);default:'offline'" json:"status"` // online, away, busy, offline
-	ActiveConversations int       `gorm:"default:0" json:"active_conversations"`
-	MaxConversations    int       `gorm:"default:5" json:"max_conversations"`
-	LastHeartbeat       time.Time `gorm:"type:timestamp;default:now()" json:"last_heartbeat"`
-	UpdatedAt           time.Time `gorm:"type:timestamp" json:"updated_at"`
-}
-
-// TableName specifies the table name
-func (AgentStatus) TableName() string {
-	return "agent_status"
-}
-
-// TypingIndicator represents when a user is typing
+// TypingIndicator represents when a user is typing in a conversation.
 type TypingIndicator struct {
 	ID             uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	ConversationID uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:,composite:user_id" json:"conversation_id"`
-	UserID         uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:,composite:conversation_id" json:"user_id"`
+	ConversationID uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_typing_conversation_user" json:"conversation_id"`
+	UserID         uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_typing_conversation_user" json:"user_id"`
 	StartedAt      time.Time `gorm:"type:timestamp;default:now()" json:"started_at"`
 	ExpiresAt      time.Time `gorm:"type:timestamp;index" json:"expires_at"`
 }
 
-// TableName specifies the table name
+// TableName specifies the table name.
 func (TypingIndicator) TableName() string {
 	return "typing_indicators"
-}
-
-// MessageReaction represents emoji reaction to a message
-type MessageReaction struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	MessageID uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:,composite:user_id,reaction" json:"message_id"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:,composite:message_id,reaction" json:"user_id"`
-	Reaction  string    `gorm:"type:text;default:'thumbs_up';uniqueIndex:,composite:message_id,user_id" json:"reaction"`
-	CreatedAt time.Time `gorm:"type:timestamp;default:now()" json:"created_at"`
-}
-
-// TableName specifies the table name
-func (MessageReaction) TableName() string {
-	return "message_reactions"
 }
 
 // ConversationMetadata represents analytics for a conversation
@@ -182,29 +119,23 @@ type ConversationResponse struct {
 
 // ChatMessageResponse is the API response for a message
 type ChatMessageResponse struct {
-	ID             uuid.UUID        `json:"id"`
-	ConversationID uuid.UUID        `json:"conversation_id"`
-	SenderID       uuid.UUID        `json:"sender_id"`
-	Sender         *UserResponse    `json:"sender,omitempty"`
-	Message        string           `json:"message"`
-	MessageType    string           `json:"message_type"`
-	FileURL        *string          `json:"file_url,omitempty"`
-	FileName       *string          `json:"file_name,omitempty"`
-	IsRead         bool             `json:"is_read"`
-	ReadAt         *time.Time       `json:"read_at,omitempty"`
-	CreatedAt      time.Time        `json:"created_at"`
-	Attachments    []ChatAttachment `json:"attachments,omitempty"`
-	ReactionCount  int              `json:"reaction_count"`
+	ID             uuid.UUID     `json:"id"`
+	ConversationID uuid.UUID     `json:"conversation_id"`
+	SenderID       uuid.UUID     `json:"sender_id"`
+	Sender         *UserResponse `json:"sender,omitempty"`
+	Message        string        `json:"message"`
+	MessageType    string        `json:"message_type"`
+	IsRead         bool          `json:"is_read"`
+	ReadAt         *time.Time    `json:"read_at,omitempty"`
+	CreatedAt      time.Time     `json:"created_at"`
 }
 
 // SendMessageRequest is the request to send a message
 type SendMessageRequest struct {
-	ConversationID string  `json:"conversation_id,omitempty"`
-	Message        string  `json:"message" binding:"omitempty,max=2000"`
-	MessageText    string  `json:"message_text" binding:"omitempty,max=2000"`
-	MessageType    string  `json:"message_type" binding:"omitempty,oneof=text"`
-	FileURL        *string `json:"file_url,omitempty"`
-	FileName       *string `json:"file_name,omitempty"`
+	ConversationID string `json:"conversation_id,omitempty"`
+	Message        string `json:"message" binding:"omitempty,max=2000"`
+	MessageText    string `json:"message_text" binding:"omitempty,max=2000"`
+	MessageType    string `json:"message_type" binding:"omitempty,oneof=text"`
 }
 
 // CreateConversationRequest is the request to start a new conversation
@@ -226,21 +157,15 @@ type UpdateConversationStatusRequest struct {
 	Status string `json:"status" binding:"required,oneof=open in_progress resolved closed"`
 }
 
-// TypingIndicatorRequest is the request for typing indicator
-type TypingIndicatorRequest struct {
-	ConversationID string `json:"conversation_id" binding:"required"`
-	IsTyping       bool   `json:"is_typing" binding:"required"`
-}
-
 // MarkMessageReadRequest is the request to mark message as read
 type MarkMessageReadRequest struct {
 	MessageID string `json:"message_id" binding:"required"`
 }
 
-// AddReactionRequest is the request to add emoji reaction
-type AddReactionRequest struct {
-	MessageID string `json:"message_id" binding:"required"`
-	Reaction  string `json:"reaction" binding:"required,oneof=thumbs_up thumbs_down laugh cry heart fire"`
+// TypingIndicatorRequest is the request to update typing status.
+type TypingIndicatorRequest struct {
+	ConversationID string `json:"conversation_id" binding:"required"`
+	IsTyping       bool   `json:"is_typing"`
 }
 
 // ConversationListResponse wraps list of conversations
@@ -257,14 +182,6 @@ type ChatAdminSummaryResponse struct {
 	UnreadAgentCount int `json:"unread_agent_count"`
 }
 
-// TypingIndicatorEvent is sent via WebSocket when someone types
-type TypingIndicatorEvent struct {
-	ConversationID string    `json:"conversation_id"`
-	UserID         string    `json:"user_id"`
-	IsTyping       bool      `json:"is_typing"`
-	Timestamp      time.Time `json:"timestamp"`
-}
-
 // MessageEvent is sent via WebSocket for new messages
 type MessageEvent struct {
 	Type      string              `json:"type"` // "message"
@@ -279,9 +196,17 @@ type ConnectionEvent struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+// TypingIndicatorEvent is sent via WebSocket when a participant is typing.
+type TypingIndicatorEvent struct {
+	ConversationID string    `json:"conversation_id"`
+	UserID         string    `json:"user_id"`
+	IsTyping       bool      `json:"is_typing"`
+	Timestamp      time.Time `json:"timestamp"`
+}
+
 // WebSocketMessage is the generic WebSocket message format
 type WebSocketMessage struct {
-	Type    string      `json:"type"` // message, typing, read, reaction, connect, disconnect
+	Type    string      `json:"type"` // message, read, typing, connect, disconnect
 	Payload interface{} `json:"payload"`
 }
 

@@ -30,6 +30,9 @@ export { truncate, slugify } from './string';
 // Function utilities
 export { debounce } from './function';
 
+// Image URL utilities
+export { normalizeStorageImageUrl, shouldBypassNextImageOptimizer } from './image-url';
+
 // Crypto utilities
 export { generateIdempotencyKey } from './crypto';
 

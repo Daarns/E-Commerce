@@ -266,69 +266,7 @@ func (h *ChatHandler) MarkConversationAsRead(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Conversation marked as read"})
 }
 
-// ===== REACTION ENDPOINTS =====
-
-// AddReaction adds emoji reaction to message
-// POST /api/v1/chat/messages/:id/reactions
-func (h *ChatHandler) AddReaction(c *gin.Context) {
-	userUUID, err := middleware.GetUserID(c)
-	if err != nil {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
-		return
-	}
-
-	messageID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid message ID")
-		return
-	}
-
-	var req models.AddReactionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.ValidationError(c, err.Error())
-		return
-	}
-
-	if err := h.chatService.AddReaction(messageID, userUUID, req.Reaction); err != nil {
-		response.Error(c, http.StatusBadRequest, "REACTION_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, gin.H{"message": "Reaction added"})
-}
-
-// RemoveReaction removes emoji reaction
-// DELETE /api/v1/chat/messages/:id/reactions/:reaction
-func (h *ChatHandler) RemoveReaction(c *gin.Context) {
-	userUUID, err := middleware.GetUserID(c)
-	if err != nil {
-		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
-		return
-	}
-
-	messageID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid message ID")
-		return
-	}
-
-	reaction := c.Param("reaction")
-	if reaction == "" {
-		response.Error(c, http.StatusBadRequest, "INVALID_REACTION", "Reaction is required")
-		return
-	}
-
-	if err := h.chatService.RemoveReaction(messageID, userUUID, reaction); err != nil {
-		response.Error(c, http.StatusInternalServerError, "REMOVE_FAILED", err.Error())
-		return
-	}
-
-	response.Success(c, gin.H{"message": "Reaction removed"})
-}
-
-// ===== TYPING INDICATOR =====
-
-// SetTypingIndicator sets typing status
+// SetTypingIndicator updates current user's typing status.
 // POST /api/v1/chat/conversations/:id/typing
 func (h *ChatHandler) SetTypingIndicator(c *gin.Context) {
 	userUUID, err := middleware.GetUserID(c)
@@ -349,19 +287,23 @@ func (h *ChatHandler) SetTypingIndicator(c *gin.Context) {
 		return
 	}
 
-	if err := h.chatService.SetTypingIndicator(conversationID, userUUID, false); err != nil {
+	if err := h.chatService.SetTypingIndicator(conversationID, userUUID, false, req.IsTyping); err != nil {
 		if err.Error() == "unauthorized access to conversation" {
 			response.Error(c, http.StatusForbidden, "FORBIDDEN", "Access forbidden")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "TYPING_FAILED", err.Error())
+		if err.Error() == "conversation not found" {
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Conversation not found")
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, "UPDATE_FAILED", err.Error())
 		return
 	}
 
 	response.Success(c, gin.H{"message": "Typing status updated"})
 }
 
-// GetTypingUsers gets users currently typing
+// GetTypingUsers retrieves active typing users for a conversation.
 // GET /api/v1/chat/conversations/:id/typing
 func (h *ChatHandler) GetTypingUsers(c *gin.Context) {
 	userUUID, err := middleware.GetUserID(c)
@@ -380,6 +322,10 @@ func (h *ChatHandler) GetTypingUsers(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "unauthorized access to conversation" {
 			response.Error(c, http.StatusForbidden, "FORBIDDEN", "Access forbidden")
+			return
+		}
+		if err.Error() == "conversation not found" {
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Conversation not found")
 			return
 		}
 		response.Error(c, http.StatusInternalServerError, "FETCH_FAILED", err.Error())
@@ -577,6 +523,70 @@ func (h *ChatHandler) AdminMarkConversationAsRead(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "Conversation marked as read"})
+}
+
+// AdminSetTypingIndicator updates admin typing status.
+// POST /api/v1/admin/chat/conversations/:id/typing
+func (h *ChatHandler) AdminSetTypingIndicator(c *gin.Context) {
+	adminUUID, err := middleware.GetUserID(c)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
+		return
+	}
+
+	conversationID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid conversation ID")
+		return
+	}
+
+	var req models.TypingIndicatorRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	if err := h.chatService.SetTypingIndicator(conversationID, adminUUID, true, req.IsTyping); err != nil {
+		if err.Error() == "conversation not found" {
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Conversation not found")
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, "UPDATE_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "Typing status updated"})
+}
+
+// AdminGetTypingUsers retrieves active typing users for admin.
+// GET /api/v1/admin/chat/conversations/:id/typing
+func (h *ChatHandler) AdminGetTypingUsers(c *gin.Context) {
+	adminUUID, err := middleware.GetUserID(c)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
+		return
+	}
+
+	conversationID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid conversation ID")
+		return
+	}
+
+	users, err := h.chatService.GetTypingUsers(conversationID, adminUUID, true)
+	if err != nil {
+		if err.Error() == "conversation not found" {
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Conversation not found")
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, "FETCH_FAILED", err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"typing_users": users,
+		"count":        len(users),
+	})
 }
 
 func getPageParams(c *gin.Context, defaultLimit int, maxLimit int) (int, int) {

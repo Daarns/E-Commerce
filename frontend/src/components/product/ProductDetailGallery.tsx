@@ -1,5 +1,4 @@
 import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -10,7 +9,7 @@ import {
   PRODUCT_IMAGE_FIT_CLASS,
 } from '@/constants/product.constants';
 import { ProductImage } from '@/types';
-import { getProductGalleryImages, getProductImageUrl } from '@/utils';
+import { getProductGalleryImages, getProductImageUrl, shouldBypassNextImageOptimizer } from '@/utils';
 
 interface ProductDetailGalleryProps {
   images: ProductImage[];
@@ -31,6 +30,7 @@ export function ProductDetailGallery({
 }: ProductDetailGalleryProps) {
   const galleryImages = getProductGalleryImages(images);
   const selectedImageUrl = getProductImageUrl(images[selectedImageIndex]);
+  const selectedDisplayImageUrl = selectedImageUrl ?? PLACEHOLDER_PRODUCT_IMAGE;
 
   const handlePrevious = () => {
     const selectedGalleryIndex = galleryImages.findIndex((entry) => (
@@ -60,25 +60,15 @@ export function ProductDetailGallery({
     <div className="space-y-4">
       {/* Main Image */}
       <div className={PRODUCT_DETAIL_IMAGE_FRAME_CLASS}>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={selectedImageIndex}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="absolute inset-0"
-          >
-            <Image
-              src={getProductImageUrl(images[selectedImageIndex]) ?? PLACEHOLDER_PRODUCT_IMAGE}
-              alt={images[selectedImageIndex]?.alt_text || productName}
-              fill
-              className={PRODUCT_IMAGE_FIT_CLASS}
-              priority
-              sizes="(max-width: 1024px) 100vw, 50vw"
-            />
-          </motion.div>
-        </AnimatePresence>
+        <Image
+          src={selectedDisplayImageUrl}
+          alt={images[selectedImageIndex]?.alt_text || productName}
+          fill
+          className={PRODUCT_IMAGE_FIT_CLASS}
+          priority
+          sizes="(max-width: 1024px) 100vw, 50vw"
+          unoptimized={shouldBypassNextImageOptimizer(selectedDisplayImageUrl)}
+        />
 
         {/* Navigation Arrows */}
         {galleryImages.length > 1 && (
@@ -121,23 +111,22 @@ export function ProductDetailGallery({
             const isSelected = selectedImageIndex === originalIndex || imageUrl === selectedImageUrl;
 
             return (
-            <motion.button
+            <button
               key={`${imageUrl ?? image.id}-${originalIndex}`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
               onClick={() => onImageSelect(originalIndex)}
               className={`relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-colors ${
                 isSelected ? 'border-primary' : 'border-transparent'
               }`}
             >
               <Image
-                src={getProductImageUrl(image) ?? PLACEHOLDER_PRODUCT_IMAGE}
+                src={imageUrl ?? PLACEHOLDER_PRODUCT_IMAGE}
                 alt={image.alt_text || `${productName} thumbnail ${index + 1}`}
                 fill
                 className={PRODUCT_IMAGE_FIT_CLASS}
                 sizes="80px"
+                unoptimized={shouldBypassNextImageOptimizer(imageUrl ?? PLACEHOLDER_PRODUCT_IMAGE)}
               />
-            </motion.button>
+            </button>
             );
           })}
         </div>

@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import type { MouseEvent, RefObject } from 'react';
+import { useState } from 'react';
+import type { MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { animate } from 'animejs';
 import { useCartAction } from '@/hooks/useCartAction';
 import { useWishlistToggleAction } from '@/hooks/useWishlistToggleAction';
 import { formatCurrency, getProductCardImages, getProductCardPricing, getProductImageUrl } from '@/utils';
@@ -13,9 +12,7 @@ interface UseProductCardParams {
 }
 
 interface UseProductCardReturn {
-  cardRef: RefObject<HTMLDivElement | null>;
   isHovered: boolean;
-  imageLoaded: boolean;
   showQuickView: boolean;
   isAddingToCart: boolean;
   authDialog: 'cart' | 'wishlist' | null;
@@ -30,7 +27,6 @@ interface UseProductCardReturn {
   availableStock: number;
   addToCartLabel: string;
   setIsHovered: (hovered: boolean) => void;
-  setImageLoaded: (loaded: boolean) => void;
   setShowQuickView: (show: boolean) => void;
   setAuthDialog: (dialog: 'cart' | 'wishlist' | null) => void;
   handleAddToCart: (event: MouseEvent) => Promise<void>;
@@ -41,10 +37,8 @@ interface UseProductCardReturn {
 export function useProductCard({ product, index }: UseProductCardParams): UseProductCardReturn {
   const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [showQuickView, setShowQuickView] = useState(false);
   const [authDialog, setAuthDialog] = useState<'cart' | 'wishlist' | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
 
   const { isAddingToCart: cartLoading, addProductToCart } = useCartAction();
   const {
@@ -78,21 +72,6 @@ export function useProductCard({ product, index }: UseProductCardParams): UsePro
   const addToCartLabel = hasSelectableCombinations ? 'View Options' : 'Add to Cart';
   const imagePriority = index < 4;
 
-  useEffect(() => {
-    if (discountPercentage > 0 && cardRef.current) {
-      const badge = cardRef.current.querySelector('.discount-badge');
-      if (badge) {
-        animate(badge, {
-          scale: [0, 1],
-          rotate: [45, 0],
-          duration: 600,
-          delay: index * 100,
-          ease: 'outElastic(1, .6)',
-        });
-      }
-    }
-  }, [discountPercentage, index]);
-
   const handleAddToCart = async (event: MouseEvent): Promise<void> => {
     event.preventDefault();
     event.stopPropagation();
@@ -125,9 +104,7 @@ export function useProductCard({ product, index }: UseProductCardParams): UsePro
   };
 
   return {
-    cardRef,
     isHovered,
-    imageLoaded,
     showQuickView,
     isAddingToCart: cartLoading,
     authDialog,
@@ -142,7 +119,6 @@ export function useProductCard({ product, index }: UseProductCardParams): UsePro
     availableStock,
     addToCartLabel,
     setIsHovered,
-    setImageLoaded,
     setShowQuickView,
     setAuthDialog,
     handleAddToCart,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { adminService, AdminUser, UserActivityLog } from '@/services/admin';
+import { adminService, AdminUser, getAdminUserErrorMessage, UserActivityLog } from '@/services/admin';
 import { handleError } from '@/utils/error-handler';
+import { toast } from 'sonner';
 
 interface UseUserDetailReturn {
   user: AdminUser | null;
@@ -44,7 +45,7 @@ export function useUserDetail(userId: string): UseUserDetailReturn {
       const updated = await adminService.updateUserRole(user.id, newRole);
       setUser(updated);
     } catch (error) {
-      handleError(error, { context: 'Failed to update user role' });
+      toast.error(getAdminUserErrorMessage(error));
     } finally {
       setIsSaving(false);
     }
@@ -57,7 +58,7 @@ export function useUserDetail(userId: string): UseUserDetailReturn {
       const updated = await adminService.updateUserStatus(user.id, newStatus, reason);
       setUser(updated);
     } catch (error) {
-      handleError(error, { context: 'Failed to update user status' });
+      toast.error(getAdminUserErrorMessage(error));
     } finally {
       setIsSaving(false);
     }

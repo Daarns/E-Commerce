@@ -47,6 +47,9 @@ export function ChatWidget() {
   const isConversationReadOnly = currentConversation
     ? isChatConversationReadOnly(currentConversation.status)
     : false;
+  const hasActiveTyping = currentConversation
+    ? typingUsers.some((entry) => entry.conversation_id === currentConversation.id)
+    : false;
 
   return (
     <>
@@ -165,13 +168,13 @@ export function ChatWidget() {
                               </div>
                             </motion.div>
                           ))}
-                          {typingUsers.length > 0 && (
+                          {hasActiveTyping ? (
                             <div className="flex justify-start">
                               <div className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
                                 CS sedang mengetik...
                               </div>
                             </div>
-                          )}
+                          ) : null}
                           <div ref={messagesEndRef} />
                         </>
                       ) : (

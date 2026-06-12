@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+tmp/
+uploads/
+coverage/
+*.cover
+*.coverprofile
+*.test
+*.out
+tests/
+migrations/
+README.md

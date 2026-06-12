@@ -43,7 +43,7 @@ export { analyticsService } from './analytics.service';
 export { dashboardService } from './dashboard.service';
 export { adminProductService } from './product.service';
 export { adminOrderService } from './order.service';
-export { adminUserService } from './user.service';
+export { adminUserService, getAdminUserErrorMessage } from './user.service';
 export { adminPromoService } from './promo.service';
 export { adminCategoryService } from './category.service';
 export { adminReviewService } from './review.service';

@@ -15,7 +15,7 @@ import { useProfileData } from '@/hooks/useProfileData';
 import { useProfileEdit } from '@/hooks/useProfileEdit';
 import { useAddresses } from '@/hooks/useAddresses';
 import { useSecurity } from '@/hooks/useSecurity';
-import { useNotifications } from '@/hooks/useNotifications';
+import { useProfileNotifications } from '@/hooks/useProfileNotifications';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -29,12 +29,7 @@ export default function ProfilePage() {
   const { addresses: managedAddresses, isLoading: addressLoading, ...addressHandlers } =
     useAddresses(addresses);
   const { isLoading: securityLoading, ...securityHandlers } = useSecurity();
-  const { notifications, handleToggle } = useNotifications({
-    email_orders: true,
-    email_promotions: true,
-    push_orders: true,
-    push_promotions: false,
-  });
+  const profileNotifications = useProfileNotifications(activeTab === 'notifications');
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -128,7 +123,8 @@ export default function ProfilePage() {
               {activeTab === 'security' && (
                 <SecurityTab
                   key="security"
-                  onPasswordChange={securityHandlers.handlePasswordChange}
+                  email={userData.email}
+                  onPasswordResetRequest={securityHandlers.handlePasswordResetRequest}
                   onDeleteAccount={securityHandlers.handleDeleteAccount}
                   isLoading={securityLoading}
                 />
@@ -137,8 +133,15 @@ export default function ProfilePage() {
               {activeTab === 'notifications' && (
                 <NotificationsTab
                   key="notifications"
-                  notifications={notifications}
-                  onToggle={handleToggle}
+                  history={profileNotifications.notifications}
+                  isHistoryLoading={profileNotifications.isLoading}
+                  historyPage={profileNotifications.page}
+                  historyTotalPages={profileNotifications.totalPages}
+                  historyTotal={profileNotifications.total}
+                  canGoPrevious={profileNotifications.canGoPrevious}
+                  canGoNext={profileNotifications.canGoNext}
+                  onHistoryPageChange={(page) => void profileNotifications.loadPage(page)}
+                  onOpenNotification={(notification) => void profileNotifications.openNotification(notification)}
                 />
               )}
             </AnimatePresence>

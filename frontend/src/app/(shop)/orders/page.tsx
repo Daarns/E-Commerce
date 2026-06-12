@@ -108,8 +108,8 @@ function OrdersPageContent() {
         </div>
 
         {/* Search + Status Filter */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          <div className="relative flex-1 max-w-md">
+        <div className="mb-8 space-y-4">
+          <div className="relative w-full sm:max-w-md lg:max-w-lg">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by order number or product..."
@@ -119,7 +119,8 @@ function OrdersPageContent() {
             />
           </div>
 
-          <div className="flex gap-2 flex-wrap">
+          <div className="-mx-4 overflow-x-auto px-4 pb-1">
+            <div className="flex w-max min-w-full gap-2">
             {SHOP_ORDER_STATUS_TABS.map((status) => (
               <Button
                 key={status.value}
@@ -132,10 +133,12 @@ function OrdersPageContent() {
                     status.value as typeof ordersList.statusFilter
                   )
                 }
+                className="shrink-0"
               >
                 {status.label}
               </Button>
             ))}
+            </div>
           </div>
         </div>
 

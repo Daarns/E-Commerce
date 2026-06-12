@@ -55,7 +55,7 @@ export function useAnalyticsData() {
         products: productsData,
         trends: trendsData,
       });
-    } catch (err) {
+    } catch {
       toast.error('Gagal memuat data analytics');
     } finally {
       setIsLoading(false);

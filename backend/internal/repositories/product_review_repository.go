@@ -38,13 +38,13 @@ func (r *ProductReviewRepository) GetByID(id uuid.UUID) (*models.ProductReview, 
 	return &review, nil
 }
 
-// GetByProductIDAndUserID gets review if user already reviewed product
-func (r *ProductReviewRepository) GetByProductIDAndUserID(productID, userID uuid.UUID) (*models.ProductReview, error) {
+// GetByProductIDUserIDOrderID gets a review for one purchase.
+func (r *ProductReviewRepository) GetByProductIDUserIDOrderID(productID, userID, orderID uuid.UUID) (*models.ProductReview, error) {
 	var review models.ProductReview
-	err := r.db.First(&review, "product_id = ? AND user_id = ?", productID, userID).Error
+	err := r.db.First(&review, "product_id = ? AND user_id = ? AND order_id = ?", productID, userID, orderID).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // No review exists yet
+			return nil, nil
 		}
 		return nil, err
 	}
@@ -149,18 +149,30 @@ func (r *ProductReviewRepository) Delete(id uuid.UUID) error {
 	return r.db.Delete(&models.ProductReview{}, "id = ?", id).Error
 }
 
-// GetUserOrderForProduct checks if user has completed order for product
+// GetUserOrderForProduct returns the newest paid purchase that can still be reviewed.
 func (r *ProductReviewRepository) GetUserOrderForProduct(userID, productID uuid.UUID) (*models.Order, error) {
 	var order models.Order
+	eligibleStatuses := []string{
+		models.OrderStatusCompleted,
+		models.OrderStatusRefundRejected,
+	}
+
 	err := r.db.
 		Joins("JOIN order_items ON orders.id = order_items.order_id").
-		Where("orders.user_id = ? AND order_items.product_id = ? AND orders.order_status = ? AND orders.payment_status = ?",
-			userID, productID, models.OrderStatusCompleted, models.PaymentStatusPaid).
+		Joins("LEFT JOIN product_reviews ON product_reviews.order_id = orders.id AND product_reviews.product_id = order_items.product_id AND product_reviews.user_id = orders.user_id").
+		Where(
+			"orders.user_id = ? AND order_items.product_id = ? AND orders.order_status IN ? AND orders.payment_status = ? AND product_reviews.id IS NULL",
+			userID,
+			productID,
+			eligibleStatuses,
+			models.PaymentStatusPaid,
+		).
+		Order("orders.created_at DESC").
 		First(&order).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // No completed order
+			return nil, nil
 		}
 		return nil, err
 	}

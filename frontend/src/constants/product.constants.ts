@@ -1,6 +1,6 @@
 import type { ProductFilter } from '@/types';
 
-export const PLACEHOLDER_PRODUCT_IMAGE = '/placeholder-product.jpg';
+export const PLACEHOLDER_PRODUCT_IMAGE = '/placeholder-product.svg';
 
 export const PRODUCT_CARD_IMAGE_FRAME_CLASS =
   'relative aspect-[4/5] w-full overflow-hidden rounded-t-lg bg-muted';

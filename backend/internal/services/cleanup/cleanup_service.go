@@ -39,6 +39,7 @@ func (s *CleanupService) StartBackgroundJobs() {
 	go s.runEvery(2*time.Hour, "cleanup:expired-temp-uploads", s.cleanExpiredTempUploads)
 	go s.runEvery(15*time.Minute, "cleanup:expired-pending-orders", s.cleanExpiredPendingOrders)
 	go s.runEvery(24*time.Hour, "cleanup:expired-tokens", s.cleanExpiredTokens)
+	go s.runEvery(24*time.Hour, "cleanup:notifications", s.cleanOldNotifications)
 	go s.runEvery(7*24*time.Hour, "cleanup:soft-deleted", s.cleanSoftDeleted)
 }
 
@@ -239,6 +240,59 @@ func (s *CleanupService) cleanExpiredTokens() {
 	}
 
 	log.Println("[CleanupJob] expired-tokens: completed")
+}
+
+func (s *CleanupService) cleanOldNotifications() {
+	log.Println("[CleanupJob] notifications: starting")
+
+	readCutoff := time.Now().AddDate(0, 0, -10)
+	unreadCutoff := time.Now().AddDate(0, 0, -30)
+	readTotal := 0
+	unreadTotal := 0
+
+	for {
+		res := s.db.Exec(`
+			DELETE FROM notifications
+			WHERE id IN (
+				SELECT id
+				FROM notifications
+				WHERE read_at IS NOT NULL AND read_at < ?
+				ORDER BY read_at ASC
+				LIMIT 500
+			)
+		`, readCutoff)
+		if res.Error != nil {
+			log.Printf("[CleanupJob] notifications: read cleanup failed: %v", res.Error)
+			break
+		}
+		readTotal += int(res.RowsAffected)
+		if res.RowsAffected == 0 {
+			break
+		}
+	}
+
+	for {
+		res := s.db.Exec(`
+			DELETE FROM notifications
+			WHERE id IN (
+				SELECT id
+				FROM notifications
+				WHERE read_at IS NULL AND created_at < ?
+				ORDER BY created_at ASC
+				LIMIT 500
+			)
+		`, unreadCutoff)
+		if res.Error != nil {
+			log.Printf("[CleanupJob] notifications: unread cleanup failed: %v", res.Error)
+			break
+		}
+		unreadTotal += int(res.RowsAffected)
+		if res.RowsAffected == 0 {
+			break
+		}
+	}
+
+	log.Printf("[CleanupJob] notifications: completed, removed read=%d unread=%d", readTotal, unreadTotal)
 }
 
 // cleanSoftDeleted removes soft-deleted records older than retention window (default: 30 days).

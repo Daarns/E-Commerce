@@ -3,7 +3,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
@@ -28,25 +27,29 @@ export default function CheckoutPage() {
   const [agreedToTerms, setAgreedToTerms] = React.useState(false);
 
   // Custom hooks for state & logic
-  useCheckoutAuth();
+  const checkoutAuth = useCheckoutAuth();
   const addressManager = useCheckoutAddresses();
   const shippingManager = useCheckoutShipping();
   const promoManager = useCheckoutPromo();
   const stepsManager = useCheckoutSteps();
   const orderManager = useCheckoutOrder();
+  const { isAuthenticated, isAuthLoading } = checkoutAuth;
+  const { loadAddresses } = addressManager;
+  const { currentStep } = stepsManager;
+  const { loadShippingMethods, shippingMethods } = shippingManager;
 
   // Initialize data on first visit
   React.useEffect(() => {
-    addressManager.loadAddresses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (isAuthLoading || !isAuthenticated) return;
+    loadAddresses();
+  }, [isAuthenticated, isAuthLoading, loadAddresses]);
 
   React.useEffect(() => {
-    if (stepsManager.currentStep === 2 && shippingManager.shippingMethods.length === 0) {
-      shippingManager.loadShippingMethods();
+    if (isAuthLoading || !isAuthenticated) return;
+    if (currentStep === 2 && shippingMethods.length === 0) {
+      loadShippingMethods();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepsManager.currentStep]);
+  }, [currentStep, isAuthenticated, isAuthLoading, loadShippingMethods, shippingMethods.length]);
 
   // Calculations
   const subtotal = getCartTotal();
@@ -178,8 +181,32 @@ export default function CheckoutPage() {
     }
   };
 
-  if (!cart || cart.items.length === 0) {
-    return null;
+  if (checkoutAuth.isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8">
+          <div className="h-8 w-40 rounded bg-muted" />
+          <div className="mt-8 grid gap-8 lg:grid-cols-3">
+            <div className="space-y-4 lg:col-span-2">
+              <div className="h-24 rounded-lg bg-muted" />
+              <div className="h-80 rounded-lg bg-muted" />
+            </div>
+            <div className="h-80 rounded-lg bg-muted" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!checkoutAuth.isAuthenticated || !cart || cart.items.length === 0) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8">
+          <div className="h-8 w-40 rounded bg-muted" />
+          <div className="mt-8 h-80 rounded-lg bg-muted" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -200,7 +227,7 @@ export default function CheckoutPage() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
-            <AnimatePresence mode="wait">{renderStepContent()}</AnimatePresence>
+            {renderStepContent()}
 
             {/* Navigation */}
             <CheckoutNavigation

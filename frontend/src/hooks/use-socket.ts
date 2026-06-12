@@ -136,17 +136,6 @@ export function useChatSocket(conversationId: string) {
     });
   }, [conversationId, emit]);
 
-  const setTyping = useCallback(
-    (isTyping: boolean): void => {
-      if (!conversationId) return;
-      emit('typing:update', {
-        conversation_id: conversationId,
-        is_typing: isTyping,
-      });
-    },
-    [conversationId, emit]
-  );
-
   const markAsRead = useCallback((): void => {
     if (!conversationId) return;
     emit('read:updated', {
@@ -154,10 +143,18 @@ export function useChatSocket(conversationId: string) {
     });
   }, [conversationId, emit]);
 
+  const setTyping = useCallback((isTyping: boolean): void => {
+    if (!conversationId) return;
+    emit('typing:update', {
+      conversation_id: conversationId,
+      is_typing: isTyping,
+    });
+  }, [conversationId, emit]);
+
   return {
     joinConversation,
-    setTyping,
     markAsRead,
+    setTyping,
     on,
     off,
     isConnected,

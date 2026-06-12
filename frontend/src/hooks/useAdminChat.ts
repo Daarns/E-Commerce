@@ -39,19 +39,17 @@ export function useAdminChat() {
     selectedConversationRef.current = selectedConversation;
   }, [selectedConversation]);
 
+  useEffect(() => () => {
+    if (typingTimerRef.current !== null) {
+      window.clearTimeout(typingTimerRef.current);
+    }
+  }, []);
+
   useEffect(() => {
     if (selectedConversation && messages.length < MESSAGE_LIMIT) {
       setHasOlderMessages(false);
     }
   }, [messages.length, selectedConversation]);
-
-  useEffect(() => {
-    return () => {
-      if (typingTimerRef.current) {
-        window.clearTimeout(typingTimerRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -86,6 +84,7 @@ export function useAdminChat() {
 
   const selectConversation = useCallback(async (conversation: Conversation): Promise<void> => {
     setSelectedConversation(conversation);
+    setTypingUsers([]);
     setIsLoadingMessages(true);
     try {
       const [conversationDetail, messageResult] = await Promise.all([
@@ -209,14 +208,17 @@ export function useAdminChat() {
         current?.id === payload.id ? { ...current, ...payload } : current
       ));
     });
+
     const removeTypingListener = on('typing:update', (payload) => {
-      if (!isTypingPayload(payload)) return;
+      if (!isTypingPayload(payload) || payload.user_id === user?.id) return;
       const selected = selectedConversationRef.current;
-      if (!selected || payload.conversation_id !== selected.id || payload.user_id === user?.id) return;
+      if (selected?.id !== payload.conversation_id) return;
 
       setTypingUsers((current) => {
-        const withoutUser = current.filter((entry) => entry.user_id !== payload.user_id);
-        return payload.is_typing ? [...withoutUser, payload] : withoutUser;
+        const withoutExisting = current.filter((entry) => (
+          entry.conversation_id !== payload.conversation_id || entry.user_id !== payload.user_id
+        ));
+        return payload.is_typing ? [...withoutExisting, payload] : withoutExisting;
       });
     });
 
@@ -233,12 +235,12 @@ export function useAdminChat() {
 
     setIsSending(true);
     try {
+      setTyping(false);
       const message = await chatService.sendMessage(
         selectedConversation.id,
         { message: reply.trim() },
         true
       );
-      setTyping(false);
       setMessages((current) => uniqueChatMessages([...current, message]));
       setReply('');
       await loadConversations();
@@ -275,20 +277,18 @@ export function useAdminChat() {
 
   const updateReply = useCallback((value: string): void => {
     setReply(value);
-    if (!selectedConversation || selectedConversation.status === 'closed' || !isConnected) {
+    if (!selectedConversationRef.current || selectedConversationRef.current.status === 'closed' || !isConnected) {
       return;
     }
 
-    if (value.trim()) {
-      setTyping(true);
-    }
-    if (typingTimerRef.current) {
+    setTyping(true);
+    if (typingTimerRef.current !== null) {
       window.clearTimeout(typingTimerRef.current);
     }
     typingTimerRef.current = window.setTimeout(() => {
       setTyping(false);
     }, 1500);
-  }, [isConnected, selectedConversation, setTyping]);
+  }, [isConnected, setTyping]);
 
   return {
     user,
@@ -300,13 +300,13 @@ export function useAdminChat() {
     page,
     totalPages,
     reply,
-    typingUsers,
     isLoadingList,
     isLoadingMessages,
     isLoadingOlderMessages,
     isSending,
     isSearchPending,
     hasOlderMessages,
+    typingUsers,
     setSearch,
     setStatusFilter,
     setPage,

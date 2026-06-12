@@ -103,7 +103,7 @@ func recordMigration(db *sql.DB, version string) {
 func runAllMigrationsUp(db *sql.DB, dir string) {
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		log.Fatalf("❌ Failed to read migrations directory: %w", err)
+		log.Fatalf("❌ Failed to read migrations directory: %v", err)
 	}
 
 	var migrations []string
@@ -154,8 +154,8 @@ func runMigrationFile(db *sql.DB, dir, filename string) error {
 			errStr := err.Error()
 			// Skip "already exists" errors (safe to continue)
 			if strings.Contains(errStr, "already exists") ||
-			   strings.Contains(errStr, "duplicate key") ||
-			   strings.Contains(errStr, "UNIQUE constraint") {
+				strings.Contains(errStr, "duplicate key") ||
+				strings.Contains(errStr, "UNIQUE constraint") {
 				log.Printf("  ℹ️  Skipping: %s", strings.Split(errStr, ":")[0])
 				continue
 			}

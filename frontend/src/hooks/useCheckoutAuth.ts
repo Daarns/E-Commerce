@@ -5,25 +5,28 @@ import { useCartStore } from '@/stores/cart-store';
 
 export function useCheckoutAuth() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuthStore();
   const { cart } = useCartStore();
 
   // Redirect if not authenticated
   useEffect(() => {
+    if (isAuthLoading) return;
     if (!isAuthenticated) {
       router.push('/login?redirect=/checkout');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isAuthLoading, router]);
 
   // Redirect if cart is empty
   useEffect(() => {
+    if (isAuthLoading || !isAuthenticated) return;
     if (!cart || cart.items.length === 0) {
       router.push('/cart');
     }
-  }, [cart, router]);
+  }, [cart, isAuthenticated, isAuthLoading, router]);
 
   return {
     isAuthenticated,
+    isAuthLoading,
     hasValidCart: !!(cart && cart.items.length > 0),
   };
 }

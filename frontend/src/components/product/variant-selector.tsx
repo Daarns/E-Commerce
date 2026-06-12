@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { ProductVariantCombination, ProductVariantType } from '@/types';
 import { getAvailableOptionIdsForType } from '@/utils';
@@ -66,10 +65,8 @@ export function VariantSelector({
                 const colorCode = isColorLike ? getColorCode(option.value) : null;
 
                 return (
-                  <motion.button
+                  <button
                     key={option.id}
-                    whileHover={{ scale: isUnavailable ? 1 : 1.05 }}
-                    whileTap={{ scale: isUnavailable ? 1 : 0.95 }}
                     onClick={() => !isUnavailable && onSelect(variantType.id, option.id)}
                     disabled={isUnavailable}
                     className={cn(
@@ -106,14 +103,9 @@ export function VariantSelector({
                     )}
 
                     {isSelected && (
-                      <motion.div
-                        layoutId={`variant-selected-${variantType.id}`}
-                        className="absolute -inset-0.5 border-2 border-primary rounded-md pointer-events-none"
-                        initial={false}
-                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      />
+                      <div className="absolute -inset-0.5 border-2 border-primary rounded-md pointer-events-none" />
                     )}
-                  </motion.button>
+                  </button>
                 );
               })}
             </div>

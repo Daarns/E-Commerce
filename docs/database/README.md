@@ -43,6 +43,13 @@ This lets another developer choose:
 - clean database for fresh setup,
 - database with sample products/orders/users for demo/testing.
 
+Status:
+
+- `schema.sql` has been generated locally as a schema-only dump.
+- `database_with_seed.sql` is deferred until final end-to-end testing is complete.
+- The seed dump must not contain personal/private email data from local testing.
+- Use anonymized demo accounts and sample data when `database_with_seed.sql` is generated.
+
 ## Why Not Keep Every Development Migration in Main?
 
 The project is still evolving. Some development migrations may add/drop temporary tables or intermediate columns. Keeping all of them in the final public setup can make onboarding noisy.
@@ -53,19 +60,6 @@ The final public setup can stay simple:
 Import one SQL dump -> run backend -> run frontend.
 ```
 
-## Cleanup Checklist
+## Notes
 
-Before dropping any table/column:
-
-1. Inventory usage in backend models, repositories, services, handlers.
-2. Inventory usage in frontend types/services/components.
-3. Check seed/demo data dependency.
-4. Document risk.
-5. Drop only after approval.
-
-Tables explicitly used as operational bridges, such as temporary upload tracking for object storage, are kept even when they are small or transient.
-
-Current inventory:
-
-- [Database Cleanup Audit](./CLEANUP_AUDIT.md)
-- [Schema Review](./SCHEMA_REVIEW.md)
+Public setup should use the final SQL dump files. Internal audit notes and development cleanup decisions are intentionally kept outside GitHub-facing documentation.

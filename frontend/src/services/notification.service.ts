@@ -2,9 +2,17 @@ import api from '@/services/api';
 import type { ApiResponse, NotificationListResponse, NotificationSummary } from '@/types';
 
 export const notificationService = {
-  async getNotifications(page = 1, limit = 10): Promise<NotificationListResponse> {
+  async getNotifications(page = 1, limit = 10, unreadOnly = false): Promise<NotificationListResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+    if (unreadOnly) {
+      params.set('unread', 'true');
+    }
+
     const response = await api.get<ApiResponse<NotificationListResponse>>(
-      `/notifications?page=${page}&limit=${limit}`
+      `/notifications?${params.toString()}`
     );
     return response.data.data ?? {
       notifications: [],

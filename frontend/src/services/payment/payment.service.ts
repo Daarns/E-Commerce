@@ -80,8 +80,7 @@ export const openPayment = (snapToken: string): Promise<void> => {
       onSuccess: () => {
         resolve();
       },
-      onPending: (result) => {
-        console.log('Payment pending:', result);
+      onPending: () => {
       },
       onError: () => {
         reject(new Error('Payment failed'));

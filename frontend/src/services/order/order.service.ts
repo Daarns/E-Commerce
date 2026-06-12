@@ -99,15 +99,21 @@ export const orderService = {
 
   async syncPayment(orderId: string, midtransOrderId?: string): Promise<{
     order_id: string;
+    midtrans_order_id?: string;
     transaction_status: string;
     payment_status: string;
     updated: boolean;
+    retryable?: boolean;
+    message?: string;
   }> {
     const response = await api.post<ApiResponse<{
       order_id: string;
+      midtrans_order_id?: string;
       transaction_status: string;
       payment_status: string;
       updated: boolean;
+      retryable?: boolean;
+      message?: string;
     }>>(
       `/orders/${orderId}/sync-payment`,
       midtransOrderId ? { midtrans_order_id: midtransOrderId } : {},

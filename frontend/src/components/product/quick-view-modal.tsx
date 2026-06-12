@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { OUT_OF_STOCK_LABEL, PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { useQuickViewProduct } from '@/hooks/useQuickViewProduct';
 import { Product } from '@/types';
-import { getProductImageUrl } from '@/utils';
+import { getProductImageUrl, shouldBypassNextImageOptimizer } from '@/utils';
 import { AuthRequiredDialog } from '@/components/common/auth-required-dialog';
 
 interface QuickViewModalProps {
@@ -45,6 +45,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
   const images = product.images || [];
   const currentImage = images[currentImageIndex];
+  const currentImageUrl = getProductImageUrl(currentImage) ?? PLACEHOLDER_PRODUCT_IMAGE;
 
   const modal = (
     <>
@@ -83,11 +84,12 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                   <div className="relative mx-auto aspect-square w-full max-w-[320px] overflow-hidden rounded-lg bg-muted md:max-w-none">
                     {currentImage ? (
                       <Image
-                        src={getProductImageUrl(currentImage) ?? PLACEHOLDER_PRODUCT_IMAGE}
+                        src={currentImageUrl}
                         alt={product.name}
                         fill
                         className="object-contain p-2"
                         sizes="(max-width: 768px) 100vw, 50vw"
+                        unoptimized={shouldBypassNextImageOptimizer(currentImageUrl)}
                       />
                     ) : (
                       <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -131,7 +133,10 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                   {/* Thumbnail Navigation */}
                   {images.length > 1 && (
                     <div className="flex gap-2">
-                      {images.map((img, idx) => (
+                      {images.map((img, idx) => {
+                        const thumbnailUrl = getProductImageUrl(img) ?? PLACEHOLDER_PRODUCT_IMAGE;
+
+                        return (
                         <button
                           key={idx}
                           onClick={() => setCurrentImageIndex(idx)}
@@ -142,14 +147,16 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                           }`}
                         >
                           <Image
-                            src={getProductImageUrl(img) ?? PLACEHOLDER_PRODUCT_IMAGE}
+                            src={thumbnailUrl}
                             alt={`${product.name} ${idx + 1}`}
                             fill
                             className="object-cover"
                             sizes="64px"
+                            unoptimized={shouldBypassNextImageOptimizer(thumbnailUrl)}
                           />
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

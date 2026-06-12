@@ -265,8 +265,6 @@ func (r *ChatRepository) GetConversationMessages(conversationID uuid.UUID, limit
 	err := r.db.
 		Where("conversation_id = ?", conversationID).
 		Preload("Sender").
-		Preload("Attachments").
-		Preload("Reactions").
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -327,9 +325,7 @@ func (r *ChatRepository) GetUnreadMessageCount(conversationID uuid.UUID, userID 
 	return count, err
 }
 
-// ===== Typing Indicator Operations =====
-
-// SetTypingIndicator sets or updates typing indicator
+// SetTypingIndicator stores a short-lived typing marker for a conversation participant.
 func (r *ChatRepository) SetTypingIndicator(conversationID uuid.UUID, userID uuid.UUID, duration time.Duration) error {
 	indicator := &models.TypingIndicator{
 		ID:             uuid.New(),
@@ -340,87 +336,25 @@ func (r *ChatRepository) SetTypingIndicator(conversationID uuid.UUID, userID uui
 	}
 
 	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "conversation_id"}, {Name: "user_id"}},
 		UpdateAll: true,
 	}).Create(indicator).Error
 }
 
-// GetActiveTypingUsers gets users currently typing in a conversation
+// ClearTypingIndicator removes the current typing marker for a participant.
+func (r *ChatRepository) ClearTypingIndicator(conversationID uuid.UUID, userID uuid.UUID) error {
+	return r.db.
+		Where("conversation_id = ? AND user_id = ?", conversationID, userID).
+		Delete(&models.TypingIndicator{}).Error
+}
+
+// GetActiveTypingUsers returns participants whose typing marker has not expired.
 func (r *ChatRepository) GetActiveTypingUsers(conversationID uuid.UUID) ([]uuid.UUID, error) {
 	var userIDs []uuid.UUID
 	err := r.db.Model(&models.TypingIndicator{}).
 		Where("conversation_id = ? AND expires_at > ?", conversationID, time.Now()).
 		Pluck("user_id", &userIDs).Error
 	return userIDs, err
-}
-
-// ClearTypingIndicator clears typing indicator for a user
-func (r *ChatRepository) ClearTypingIndicator(conversationID uuid.UUID, userID uuid.UUID) error {
-	return r.db.Delete(&models.TypingIndicator{}).
-		Where("conversation_id = ? AND user_id = ?", conversationID, userID).Error
-}
-
-// ===== Agent Status Operations =====
-
-// UpdateAgentStatus updates agent online/offline status
-func (r *ChatRepository) UpdateAgentStatus(userID uuid.UUID, status string, activeConversations int) error {
-	agentStatus := &models.AgentStatus{
-		UserID:              userID,
-		Status:              status,
-		ActiveConversations: activeConversations,
-		LastHeartbeat:       time.Now(),
-		UpdatedAt:           time.Now(),
-	}
-
-	return r.db.Clauses(clause.OnConflict{
-		UpdateAll: true,
-	}).Create(agentStatus).Error
-}
-
-// GetAgentStatus retrieves agent status
-func (r *ChatRepository) GetAgentStatus(userID uuid.UUID) (*models.AgentStatus, error) {
-	var status models.AgentStatus
-	err := r.db.Where("user_id = ?", userID).First(&status).Error
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
-	}
-	return &status, err
-}
-
-// GetAvailableAgents retrieves agents available to take conversations
-func (r *ChatRepository) GetAvailableAgents(limit int) ([]models.AgentStatus, error) {
-	var agents []models.AgentStatus
-	err := r.db.
-		Where("status IN ? AND active_conversations < max_conversations", []string{"online", "away"}).
-		Order("active_conversations ASC").
-		Limit(limit).
-		Find(&agents).Error
-	return agents, err
-}
-
-// ===== Message Reactions =====
-
-// AddReaction adds emoji reaction to a message
-func (r *ChatRepository) AddReaction(messageID uuid.UUID, userID uuid.UUID, reaction string) error {
-	msgReaction := &models.MessageReaction{
-		ID:        uuid.New(),
-		MessageID: messageID,
-		UserID:    userID,
-		Reaction:  reaction,
-	}
-	return r.db.Create(msgReaction).Error
-}
-
-// RemoveReaction removes emoji reaction
-func (r *ChatRepository) RemoveReaction(messageID uuid.UUID, userID uuid.UUID, reaction string) error {
-	return r.db.Delete(&models.MessageReaction{}).
-		Where("message_id = ? AND user_id = ? AND reaction = ?", messageID, userID, reaction).Error
-}
-
-// GetMessageReactions gets reactions for a message
-func (r *ChatRepository) GetMessageReactions(messageID uuid.UUID) ([]models.MessageReaction, error) {
-	var reactions []models.MessageReaction
-	err := r.db.Where("message_id = ?", messageID).Find(&reactions).Error
-	return reactions, err
 }
 
 // ===== Metadata Operations =====

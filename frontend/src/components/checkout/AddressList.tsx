@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,9 +40,8 @@ export function AddressList({
     >
       <div className="space-y-4">
         {addresses.map((address) => (
-          <motion.div
+          <div
             key={address.id}
-            whileHover={{ scale: 1.01 }}
             className={`relative p-4 rounded-lg border-2 cursor-pointer transition-colors ${
               selectedAddress === address.id
                 ? 'border-primary bg-primary/5'
@@ -98,7 +96,7 @@ export function AddressList({
             {deletingAddressId === address.id && (
               <p className="text-xs text-muted-foreground mt-2 ml-8">Menghapus alamat...</p>
             )}
-          </motion.div>
+          </div>
         ))}
       </div>
     </RadioGroup>

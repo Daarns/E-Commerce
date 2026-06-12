@@ -9,15 +9,15 @@ export function useSecurity() {
   const { logout } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handlePasswordChange = async (current: string, newPassword: string) => {
+  const handlePasswordResetRequest = async (email: string) => {
     setIsLoading(true);
     try {
-      await authService.changePassword(current, newPassword);
-      toast.success('Password changed successfully. Please log in again on other devices.');
+      await authService.forgotPassword({ email });
+      toast.success('Link reset password sudah dikirim ke email akun Anda.');
     } catch (error) {
       const axiosMsg = (error as { response?: { data?: { error?: { message?: string } } } })
         ?.response?.data?.error?.message;
-      const message = axiosMsg || (error instanceof Error ? error.message : 'Failed to change password');
+      const message = axiosMsg || (error instanceof Error ? error.message : 'Gagal mengirim link reset password');
       toast.error(message);
       throw error;
     } finally {
@@ -45,7 +45,7 @@ export function useSecurity() {
 
   return {
     isLoading,
-    handlePasswordChange,
+    handlePasswordResetRequest,
     handleDeleteAccount,
   };
 }
