@@ -65,12 +65,7 @@ npm run build
 
 ## Database Release Strategy
 
-For final `main`, prefer consolidated SQL dumps:
-
-- clean schema dump,
-- optional demo/seed dump.
-
-If deployment uses migrations instead, keep migration order deterministic and test it from an empty database.
+Initialize production with `database/schema.sql`. The demo seeder is only for local or isolated test environments and must not run against production.
 
 ## Storage/CDN
 

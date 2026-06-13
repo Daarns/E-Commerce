@@ -29,7 +29,6 @@ backend/
 │   ├── routes/       # Route registration
 │   ├── services/     # Business logic
 │   └── webhook/      # External webhook registration/handling
-├── migrations/       # Development migrations
 └── pkg/              # Shared packages such as JWT/storage/response helpers
 ```
 

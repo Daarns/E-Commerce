@@ -14,7 +14,7 @@ backend/
 | [Setup](../setup/README.md#2-configure-backend) | Local backend setup |
 | [Environment](../setup/ENVIRONMENT.md#backend) | Backend environment variables |
 | [API Overview](../api/README.md) | Public/customer/admin endpoints |
-| [Database](../database/README.md) | PostgreSQL and migration/dump strategy |
+| [Database](../database/README.md) | PostgreSQL consolidated schema and demo seeder |
 | [Testing](../testing/README.md#backend-checks) | Go test/build checks |
 | [Troubleshooting](../troubleshooting/README.md) | Common local backend issues |
 

@@ -50,10 +50,7 @@ The current goal is to finish the platform scope through production-readiness cl
 
 Recommended next steps:
 
-1. Database consolidation:
-   - final clean schema dump,
-   - optional demo seed dump,
-   - clear GitHub setup instructions.
+1. Production deployment hardening and staging validation.
 2. API documentation hardening:
    - request/response examples for critical endpoints,
    - error code table.
@@ -70,5 +67,5 @@ Recommended next steps:
 
 - Local Lighthouse results are affected by Docker, SeaweedFS, and machine load.
 - Product images still need production-grade thumbnail/CDN strategy.
-- Public GitHub setup should eventually rely on final SQL dumps instead of historical development migrations.
+- Public GitHub setup uses `database/schema.sql` and the optional synthetic demo seeder.
 - Some advanced marketplace features are intentionally out of current scope, such as seller onboarding, shipping courier API integration, and full warehouse/return logistics.

@@ -45,6 +45,13 @@ cd E-Commerce
 docker compose up -d
 ```
 
+Initialize PostgreSQL:
+
+```powershell
+docker cp database/schema.sql ecommerce-postgres:/tmp/schema.sql
+docker exec ecommerce-postgres psql -U postgres -d ecommerce_db -f /tmp/schema.sql
+```
+
 Backend:
 
 ```powershell
@@ -100,14 +107,11 @@ go test ./...
 go build ./...
 ```
 
-## Database Setup Direction
+## Database Setup
 
-During active development, `backend/migrations/` may contain incremental migration files. For the final `main` branch, the intended setup is to ship consolidated SQL dumps instead:
+The public `main` branch uses one consolidated schema instead of historical development migrations. Import [database/schema.sql](./database/schema.sql), then optionally run the synthetic demo seeder.
 
-- clean schema dump for empty setup,
-- schema plus sample data dump for demo/testing.
-
-Public database assets are available in [database/](./database/README.md). See [Database Notes](./docs/database/README.md) for the development strategy.
+See [database/README.md](./database/README.md) for setup and reset commands.
 
 ## Status
 

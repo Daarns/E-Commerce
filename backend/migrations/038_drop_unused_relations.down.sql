@@ -1,7 +1,0 @@
--- Intentionally left without recreation statements.
---
--- These relations were removed because the current application scope no longer
--- contains newsletter subscription, back-in-stock alert subscription,
--- structured product specification, or dashboard materialized-view flows.
--- Restore from earlier migrations or a database dump if one of those features
--- is brought back.

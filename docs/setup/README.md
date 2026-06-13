@@ -60,6 +60,13 @@ Ports:
 | SeaweedFS UI | `9333` |
 | pgAdmin | `5050` |
 
+Initialize the empty PostgreSQL database:
+
+```powershell
+docker cp database/schema.sql ecommerce-postgres:/tmp/schema.sql
+docker exec ecommerce-postgres psql -U postgres -d ecommerce_db -f /tmp/schema.sql
+```
+
 ## 2. Configure Backend
 
 ```powershell
