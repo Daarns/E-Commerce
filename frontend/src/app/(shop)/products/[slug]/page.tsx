@@ -14,6 +14,7 @@ import { PLACEHOLDER_PRODUCT_IMAGE } from '@/constants/product.constants';
 import { useProductDetail } from '@/hooks/useProductDetail';
 import { useProductActions } from '@/hooks/useProductActions';
 import { getProductPricing } from '@/utils';
+import { ProductStructuredData } from '@/components/product/product-structured-data';
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -85,6 +86,7 @@ export default function ProductDetailPage() {
 
   return (
     <>
+      <ProductStructuredData product={product} />
       <AuthRequiredDialog
         open={showAuthDialog}
         onClose={() => setShowAuthDialog(false)}

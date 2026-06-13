@@ -54,6 +54,15 @@ go mod download
 go run ./cmd/api
 ```
 
+Optional synthetic demo data:
+
+```powershell
+cd backend
+go run ./cmd/seed
+```
+
+Database import, demo credentials, and reset instructions are documented in [database/README.md](./database/README.md).
+
 Frontend:
 
 ```powershell
@@ -98,8 +107,8 @@ During active development, `backend/migrations/` may contain incremental migrati
 - clean schema dump for empty setup,
 - schema plus sample data dump for demo/testing.
 
-See [Database Notes](./docs/database/README.md) for the rationale and final-release reminder.
+Public database assets are available in [database/](./database/README.md). See [Database Notes](./docs/database/README.md) for the development strategy.
 
 ## Status
 
-Core platform features are functionally implemented for local development. Remaining work is release preparation, final seed data, and production deployment hardening.
+Core platform features and reusable local demo seed data are implemented. Remaining work is release preparation and production deployment hardening.

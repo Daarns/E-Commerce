@@ -2,6 +2,9 @@ import { Suspense } from 'react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { AuthRouteGuard } from '@/components/auth/AuthRouteGuard';
+import { PRIVATE_ROUTE_METADATA } from '@/constants/seo.constants';
+
+export const metadata = PRIVATE_ROUTE_METADATA;
 
 export default function AuthLayout({
   children,

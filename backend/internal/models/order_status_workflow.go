@@ -46,6 +46,29 @@ const (
 	EmailTypeRefundRejected   = "refund_rejected"
 )
 
+// IsValidOrderWorkflowTransition reports whether a workflow status transition is allowed.
+func IsValidOrderWorkflowTransition(fromStatus, toStatus string) bool {
+	validTransitions := map[string][]string{
+		OrderStatusPending:          {OrderStatusPaymentConfirmed, OrderStatusCancelled},
+		OrderStatusPaymentConfirmed: {OrderStatusProcessing, OrderStatusCancelled},
+		OrderStatusProcessing:       {OrderStatusShipped, OrderStatusCancelled},
+		OrderStatusShipped:          {OrderStatusDelivered},
+		OrderStatusDelivered:        {OrderStatusCompleted},
+		OrderStatusCompleted:        {OrderStatusRefundRequested},
+		OrderStatusRefundRequested:  {OrderStatusRefunded, OrderStatusRefundRejected},
+		OrderStatusCancelled:        {},
+		OrderStatusRefundRejected:   {},
+		OrderStatusRefunded:         {},
+	}
+
+	for _, status := range validTransitions[fromStatus] {
+		if status == toStatus {
+			return true
+		}
+	}
+	return false
+}
+
 // ShouldTriggerEmail determines if this status transition should trigger an email
 func (osw *OrderStatusWorkflow) ShouldTriggerEmail() bool {
 	// Email for these status transitions

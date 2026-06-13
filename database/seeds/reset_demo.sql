@@ -1,0 +1,30 @@
+BEGIN;
+
+DELETE FROM notifications WHERE id::text LIKE '80000000-0000-4000-8000-%';
+DELETE FROM chat_messages WHERE id::text LIKE '71000000-0000-4000-8000-%';
+DELETE FROM conversation_metadata WHERE conversation_id::text LIKE '70000000-0000-4000-8000-%';
+DELETE FROM conversations WHERE id::text LIKE '70000000-0000-4000-8000-%';
+DELETE FROM review_helpful_votes WHERE review_id::text LIKE '61000000-0000-4000-8000-%';
+DELETE FROM review_images WHERE review_id::text LIKE '61000000-0000-4000-8000-%';
+DELETE FROM product_reviews WHERE id::text LIKE '61000000-0000-4000-8000-%';
+DELETE FROM wishlists WHERE id::text LIKE '60000000-0000-4000-8000-%';
+DELETE FROM order_refund_images WHERE order_id::text LIKE '50000000-0000-4000-8000-%';
+DELETE FROM order_status_workflows WHERE order_id::text LIKE '50000000-0000-4000-8000-%';
+DELETE FROM order_items WHERE order_id::text LIKE '50000000-0000-4000-8000-%';
+DELETE FROM promo_code_usages WHERE order_id::text LIKE '50000000-0000-4000-8000-%';
+DELETE FROM orders WHERE id::text LIKE '50000000-0000-4000-8000-%';
+DELETE FROM cart_items WHERE user_id::text LIKE '10000000-0000-4000-8000-%';
+DELETE FROM product_combination_options WHERE combination_id::text LIKE '33000000-0000-4000-8000-%';
+DELETE FROM product_variant_combinations WHERE product_id::text LIKE '30000000-0000-4000-8000-%';
+DELETE FROM product_variant_options WHERE variant_type_id::text LIKE '32000000-0000-4000-8000-%';
+DELETE FROM product_variant_types WHERE product_id::text LIKE '30000000-0000-4000-8000-%';
+DELETE FROM product_images WHERE product_id::text LIKE '30000000-0000-4000-8000-%';
+DELETE FROM products WHERE id::text LIKE '30000000-0000-4000-8000-%';
+DELETE FROM promo_codes WHERE id::text LIKE '41000000-0000-4000-8000-%';
+DELETE FROM shipping_methods WHERE id::text LIKE '40000000-0000-4000-8000-%';
+DELETE FROM categories WHERE id::text LIKE '20000000-0000-4000-8000-%';
+DELETE FROM addresses WHERE user_id::text LIKE '10000000-0000-4000-8000-%';
+DELETE FROM refresh_tokens WHERE user_id::text LIKE '10000000-0000-4000-8000-%';
+DELETE FROM users WHERE id::text LIKE '10000000-0000-4000-8000-%';
+
+COMMIT;

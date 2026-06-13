@@ -65,7 +65,8 @@ export function ProductDetailGallery({
           alt={images[selectedImageIndex]?.alt_text || productName}
           fill
           className={PRODUCT_IMAGE_FIT_CLASS}
-          priority
+          loading="eager"
+          fetchPriority="high"
           sizes="(max-width: 1024px) 100vw, 50vw"
           unoptimized={shouldBypassNextImageOptimizer(selectedDisplayImageUrl)}
         />

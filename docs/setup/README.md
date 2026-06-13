@@ -82,6 +82,15 @@ Backend should respond at:
 curl.exe http://localhost:8080/api/v1/ping
 ```
 
+Optional demo data for local testing:
+
+```powershell
+cd backend
+go run ./cmd/seed
+```
+
+The seeder uses synthetic accounts and can be safely rerun. Details are documented in `database/seeds/README.md`.
+
 ## 3. Configure Frontend
 
 ```powershell

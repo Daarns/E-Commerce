@@ -88,8 +88,8 @@ Products:
 | `GET` | `/products/featured` | Featured products |
 | `GET` | `/products/:identifier` | Product detail by ID or slug |
 | `GET` | `/products/:identifier/related` | Related products |
-| `GET` | `/products/:identifier/reviews` | Product reviews |
-| `GET` | `/products/:identifier/review-stats` | Review summary |
+| `GET` | `/products/:productId/reviews` | Product reviews by UUID |
+| `GET` | `/products/:productId/review-stats` | Review summary by UUID |
 
 Search:
 

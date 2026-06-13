@@ -50,6 +50,23 @@ Status:
 - The seed dump must not contain personal/private email data from local testing.
 - Use anonymized demo accounts and sample data when `database_with_seed.sql` is generated.
 
+## Local Demo Seeder
+
+An idempotent synthetic-data seeder is available for contributors who want to test the platform without using private local data:
+
+```powershell
+cd backend
+go run ./cmd/seed
+```
+
+Remove only the generated demo records with:
+
+```powershell
+go run ./cmd/seed --reset
+```
+
+See [`database/seeds/README.md`](../../database/seeds/README.md) for demo accounts and included scenarios. Never run the demo seeder against production.
+
 ## Why Not Keep Every Development Migration in Main?
 
 The project is still evolving. Some development migrations may add/drop temporary tables or intermediate columns. Keeping all of them in the final public setup can make onboarding noisy.

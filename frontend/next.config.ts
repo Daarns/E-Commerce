@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  poweredByHeader: false,
   turbopack: {
     root: process.cwd(),
   },
@@ -28,6 +29,28 @@ const nextConfig: NextConfig = {
       //   pathname: '/**',
       // },
     ],
+  },
+  async headers() {
+    const privateRouteHeaders = {
+      key: 'X-Robots-Tag',
+      value: 'noindex, nofollow, noarchive',
+    };
+
+    return [
+      '/admin/:path*',
+      '/login',
+      '/register',
+      '/forgot-password',
+      '/reset-password',
+      '/verify-email/:path*',
+      '/cart',
+      '/checkout',
+      '/wishlist',
+      '/profile',
+      '/orders/:path*',
+      '/chat',
+      '/payment/:path*',
+    ].map((source) => ({ source, headers: [privateRouteHeaders] }));
   },
 };
 

@@ -1,12 +1,64 @@
 # Testing Guide
 
-This project uses a practical testing approach: run fast automated checks for changed code and keep manual tests for full business flows such as payment sandbox and fulfillment.
+This project uses a layered automated suite. Unit tests cover isolated logic, Playwright API tests cover HTTP contracts and security boundaries, and browser tests cover critical storefront behavior on desktop and mobile.
+
+## Complete Automated Suite
+
+Frontend unit tests:
+
+```powershell
+cd frontend
+npm run test:unit
+```
+
+API black-box tests require the backend on port `8080`:
+
+```powershell
+cd frontend
+npm run test:api
+```
+
+Browser tests reuse the frontend on `http://localhost:3000`, or start the current standalone build when the port is free:
+
+```powershell
+cd frontend
+npm run test:e2e
+```
+
+Backend tests:
+
+```powershell
+cd backend
+go test ./...
+```
+
+Test source layout:
+
+- `frontend/tests/unit`: Vitest utility and transformation tests.
+- `frontend/tests/api`: public API, auth boundary, customer/admin, IDOR, pagination, and edge/security tests.
+- `frontend/tests/e2e`: storefront, auth guard, responsive, SEO, robots, and sitemap tests.
+- `backend/tests/unit`: service, repository, handler, chat, refund, review, auth, and product tests.
+- Backend test files are centralized under `backend/tests`; production handler, service, and repository folders do not contain test files.
+
+Authenticated API checks use dedicated test credentials. They are skipped when these variables are absent:
+
+```powershell
+$env:TEST_CUSTOMER_EMAIL='customer.test@example.com'
+$env:TEST_CUSTOMER_PASSWORD='test-password'
+$env:TEST_SECOND_CUSTOMER_EMAIL='customer.two.test@example.com'
+$env:TEST_SECOND_CUSTOMER_PASSWORD='test-password'
+$env:TEST_ADMIN_EMAIL='admin.test@example.com'
+$env:TEST_ADMIN_PASSWORD='test-password'
+```
+
+Do not use production credentials or production databases for mutation-capable tests.
 
 ## Frontend Checks
 
 ```powershell
 cd frontend
 npm run lint
+npx tsc --noEmit
 npm run build
 ```
 
@@ -24,7 +76,7 @@ Optional browser checks:
 ```powershell
 cd backend
 go test ./...
-go build ./...
+go build -buildvcs=false ./...
 ```
 
 Use targeted tests for domains that changed:

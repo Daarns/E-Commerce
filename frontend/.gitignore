@@ -12,9 +12,13 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
 **/__tests__/
 **/*.test.*
 **/*.spec.*
+!/tests/
+!/tests/**
 
 # generated local image assets
 /public/images/

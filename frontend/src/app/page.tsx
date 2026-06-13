@@ -1,24 +1,19 @@
-'use client';
+import type { Metadata } from 'next';
+import { HomePageContent } from '@/components/layout/home-page-content';
+import { SITE_DESCRIPTION } from '@/constants/seo.constants';
 
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
-import { HeroSection } from '@/components/layout/hero-section';
-import { CategoriesSection } from '@/components/layout/categories-section';
-import { FeaturedProductsSection } from '@/components/product/featured-products-section';
-import { useHomeData } from '@/hooks/useHomeData';
+export const metadata: Metadata = {
+  title: 'STORE | E-Commerce',
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: '/' },
+  openGraph: {
+    title: 'STORE | E-Commerce',
+    description: SITE_DESCRIPTION,
+    url: '/',
+    type: 'website',
+  },
+};
 
 export default function Home() {
-  const { products, categories, isLoading, error } = useHomeData();
-
-  return (
-    <>
-      <Header />
-      <main className="flex-1">
-        <HeroSection />
-        <CategoriesSection categories={categories} />
-        <FeaturedProductsSection products={products} isLoading={isLoading} error={error} />
-      </main>
-      <Footer />
-    </>
-  );
+  return <HomePageContent />;
 }

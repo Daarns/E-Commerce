@@ -48,7 +48,7 @@ func (s *OrderStatusWorkflowService) UpdateOrderStatus(ctx context.Context, orde
 	}
 
 	// Validate status transition
-	if !isValidStatusTransition(order.OrderStatus, newStatus) {
+	if !models.IsValidOrderWorkflowTransition(order.OrderStatus, newStatus) {
 		return fmt.Errorf("invalid status transition from %s to %s", order.OrderStatus, newStatus)
 	}
 
@@ -129,51 +129,6 @@ func (s *OrderStatusWorkflowService) GetOrderStatusHistory(ctx context.Context, 
 // GetWorkflowStats returns statistics about workflows
 func (s *OrderStatusWorkflowService) GetWorkflowStats(ctx context.Context) (map[string]interface{}, error) {
 	return s.workflowRepo.GetWorkflowStats(ctx)
-}
-
-// Helper functions
-
-// isValidStatusTransition checks if a status transition is allowed
-func isValidStatusTransition(fromStatus, toStatus string) bool {
-	// Define valid transitions
-	validTransitions := map[string][]string{
-		models.OrderStatusPending: {
-			models.OrderStatusPaymentConfirmed,
-			models.OrderStatusCancelled,
-		},
-		models.OrderStatusPaymentConfirmed: {
-			models.OrderStatusProcessing,
-			models.OrderStatusCancelled,
-		},
-		models.OrderStatusProcessing: {
-			models.OrderStatusShipped,
-			models.OrderStatusCancelled,
-		},
-		models.OrderStatusShipped: {
-			models.OrderStatusDelivered,
-		},
-		models.OrderStatusDelivered: {
-			models.OrderStatusCompleted,
-		},
-		models.OrderStatusCompleted: {
-			models.OrderStatusRefundRequested,
-		},
-		models.OrderStatusRefundRequested: {
-			models.OrderStatusRefunded,
-			models.OrderStatusRefundRejected,
-		},
-		models.OrderStatusCancelled:      {},
-		models.OrderStatusRefundRejected: {},
-		models.OrderStatusRefunded:       {},
-	}
-
-	allowed := validTransitions[fromStatus]
-	for _, status := range allowed {
-		if status == toStatus {
-			return true
-		}
-	}
-	return false
 }
 
 // getEmailSubject returns appropriate email subject based on status

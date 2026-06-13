@@ -49,7 +49,10 @@ Common variables:
 
 | Variable | Purpose | Local example |
 |---|---|---|
+| `NEXT_PUBLIC_APP_URL` | Public frontend URL used for canonical, sitemap, and Open Graph URLs | `http://localhost:3000` |
 | `NEXT_PUBLIC_API_URL` | API base URL. Optional because code defaults to local backend. | `http://localhost:8080/api/v1` |
+| `INTERNAL_API_URL` | Server-side API URL used by sitemap and product metadata | `http://localhost:8080/api/v1` |
+| `SITE_INDEXING_ENABLED` | Enables public crawling in `robots.txt`; keep `false` for local/staging | `false` |
 | `NEXT_PUBLIC_MIDTRANS_CLIENT_KEY` | Midtrans Snap client key | sandbox client key |
 | `NEXT_PUBLIC_MIDTRANS_SNAP_URL` | Midtrans Snap script URL | `https://app.sandbox.midtrans.com/snap/snap.js` |
 

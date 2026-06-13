@@ -1,5 +1,35 @@
 # Troubleshooting
 
+## SeaweedFS Keeps Restarting
+
+Check the container state:
+
+```powershell
+docker ps -a --filter "name=ecommerce-seaweedfs"
+docker compose run --rm --no-deps seaweedfs
+```
+
+Recent SeaweedFS images renamed the old `-filer.allowOtherDomains` flag. The current Compose configuration uses:
+
+```text
+-filer.allowedOrigins=*
+```
+
+After changing the command, recreate only the storage service:
+
+```powershell
+docker compose up -d --force-recreate seaweedfs
+```
+
+Verify:
+
+```powershell
+curl.exe http://localhost:9333/
+curl.exe http://localhost:8888/
+```
+
+Both endpoints should return HTTP `200`. For a stable production setup, pin a tested SeaweedFS image version instead of relying indefinitely on `latest`.
+
 ## Docker Desktop Requires WSL Update
 
 Symptom:

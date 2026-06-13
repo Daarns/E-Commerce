@@ -42,15 +42,7 @@ export const LoginForm = ({
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="password">Password</Label>
-          <Link
-            href="/forgot-password"
-            className="text-sm text-primary hover:underline"
-          >
-            Forgot password?
-          </Link>
-        </div>
+        <Label htmlFor="password">Password</Label>
         <div className="relative">
           <Input
             id="password"
@@ -76,6 +68,14 @@ export const LoginForm = ({
           </Button>
         </div>
         {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
+        <div className="flex justify-end">
+          <Link
+            href="/forgot-password"
+            className="text-sm text-primary hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
       </div>
     </CardContent>
 

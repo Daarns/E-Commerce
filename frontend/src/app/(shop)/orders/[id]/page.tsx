@@ -18,5 +18,6 @@ export async function generateMetadata({ params }: OrderDetailPageProps) {
   return {
     title: `Order #${id} - E-Commerce Store`,
     description: 'View your order details, status, and tracking information.',
+    robots: { index: false, follow: false, nocache: true },
   };
 }

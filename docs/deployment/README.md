@@ -49,9 +49,13 @@ For production, push versioned images to a registry and deploy the same image ta
 ## Frontend Checklist
 
 - Set `NEXT_PUBLIC_API_URL` to the production API URL.
+- Set `INTERNAL_API_URL` to an API URL reachable from the frontend server runtime.
+- Set `NEXT_PUBLIC_APP_URL` to the final HTTPS storefront domain.
+- Set `SITE_INDEXING_ENABLED=true` only in production after the public domain is ready. Local and staging environments should keep it disabled.
 - Set `NEXT_PUBLIC_MIDTRANS_CLIENT_KEY` to the production client key.
 - Set `NEXT_PUBLIC_MIDTRANS_SNAP_URL` to the production Snap script URL if needed.
 - Configure allowed remote image hosts in `next.config.ts`.
+- Verify `/robots.txt` and `/sitemap.xml`, then submit the sitemap URL through Google Search Console.
 - Run:
 
 ```powershell
